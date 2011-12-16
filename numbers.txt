@@ -1,0 +1,42 @@
+
+
+
+            {
+  (* Here is the OCaml code *)
+  open Parser;; {}
+  Here is more
+  Here is even more
+  /* Here is text */
+
+    } 
+
+           /*  This is a test
+                    /* this/* */ */
+                    Here 
+           Here is some
+           */
+
+     
+
+Program        -> Start Statement* End ;
+Statement      -> Expr Semi ;
+Expr           -> IntegerExpr | PlusExpr | ParenExpr ;
+  IntegerExpr  -> Integer ;
+  PlusExpr     -> Expr Plus Expr ;
+  ParenExpr    -> LParen Expr RParen ;
+Integer        -> [1-9][0-9]* { int_of_string $1 } ;  // specifying a tuple here
+                                                         // causes the semantic action
+                                                         // to return the corresponding
+                                                         // data constructor
+                                                         // Integer(int_of_string $1)
+Plus           -> '+' 1 left ;
+Semi           -> ';' ;            // specifying no semantic action causes a
+                                   // default action {Semi} to be generated
+LParen         -> '(' ;
+RParen         -> ')' ;
+Start          -> "start" ;
+End            -> "end" ;
+Whitesp        -> [ \t\r\n]+  {} ;    // specifying an empty semantic action causes the
+                                        // token to be discarded
+Comment        -> "/*" .. "*/" {}
+                | "//" [^\n]*  {};
