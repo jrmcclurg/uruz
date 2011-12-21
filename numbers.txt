@@ -39,4 +39,10 @@ End            -> "end" ;
 Whitesp        -> [ \t\r\n]+  {} ;    // specifying an empty semantic action causes the
                                         // token to be discarded
 Comment        -> "/*" .. "*/" {}
-                | "//" [^\n]*  {};
+                | "//" [^\n]*  { {} {this {/* blah */}} is code {} };
+
+{
+  (* Here is some finalization code *)
+  let p = 0 in
+  p;;
+}

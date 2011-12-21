@@ -24,7 +24,7 @@
 %type <Ast.grammar> main
 %%
 main:
-   code_block production prod_list EOF {
+   code_block production prod_list code_block EOF {
       match $1 with
       | Code(p,_) ->
          Grammar((if p=NoPos then get_pos (rhs_start_pos 2) else
