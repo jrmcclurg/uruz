@@ -1,9 +1,9 @@
 type pos = NoPos | Pos of string*int*int;; (* file,line,col *)
 
-type grammar = Grammar of pos * code * production list (* code,prods *)
+type grammar = Grammar of pos * code * code * production list (* code,prods *)
  and code = Code of pos * string option
  and production = Production of pos * string * pattern list (* name,patterns *)
- and pattern = Pattern of pos * subpattern list * code (* subpatterns,code *)
+ and pattern = Pattern of pos * subpattern list * string * code (* subpatterns,code *)
  and subpattern = SimpleSubpattern of pos * atom * opts
                 | RangeSubpattern of pos * atom * atom * opts
  and atom = EOFAtom of pos
@@ -61,11 +61,15 @@ let compile_charset (s:string) : chars list * bool =
 ;;
 
 let char_of_string (s:string) : char =
-   Scanf.sscanf s "%C" (fun x -> x)
+   let s2 = Str.global_replace (Str.regexp_string "\\[") "[" s in
+   let s3 = Str.global_replace (Str.regexp_string "\\]") "]" s2 in
+   Scanf.sscanf s3 "%C" (fun x -> x)
 ;;
 
 let string_of_string (s:string) : string =
-   Scanf.sscanf s "%S" (fun x -> x)
+   let s2 = Str.global_replace (Str.regexp_string "\\[") "[" s in
+   let s3 = Str.global_replace (Str.regexp_string "\\]") "]" s2 in
+   Scanf.sscanf s3 "%S" (fun x -> x)
 ;;
 
 let rec print_indent2 n s =
@@ -77,11 +81,13 @@ and print_indent n s =
 
 let rec print_grammar (n:int) (g:grammar) : unit =
    match g with
-   | Grammar(p,c,pl) ->
+   | Grammar(p,c1,c2,pl) ->
       print_indent n "Grammar(\n";
       print_pos (n+1) p;
       print_string ",\n";
-      print_code (n+1) c;
+      print_code (n+1) c1;
+      print_string ",\n";
+      print_code (n+1) c2;
       print_string ",\n";
       print_indent (n+1) "[\n";
       let _ = List.fold_left (fun flag pr -> 
@@ -156,7 +162,7 @@ and print_production (n:int) (pr:production) : unit =
 
 and print_pattern (n:int) (pa:pattern) : unit =
    match pa with
-   | Pattern(p,sl,s) ->
+   | Pattern(p,sl,label,s) ->
       print_indent n "Pattern(\n";
       print_pos (n+1) p;
       print_string ",\n";
@@ -168,6 +174,8 @@ and print_pattern (n:int) (pa:pattern) : unit =
       ) false sl in ();
       print_string "\n";
       print_indent (n+1) "],\n";
+      print_indent (n+1) label;
+      print_string "\n";
       print_code (n+1) s;
       print_string "\n";
       print_indent n ")";
