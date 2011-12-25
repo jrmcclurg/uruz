@@ -1,8 +1,8 @@
-pgg:	ast.cmo pp.cmo utils.cmo parser.cmo lexer.cmo main.cmo
-	ocamlc -o pgg.exe ast.cmo pp.cmo utils.cmo parser.cmo lexer.cmo main.cmo
+pgg:	ast.cmo code.cmo utils.cmo parser.cmo lexer.cmo main.cmo
+	ocamlc -o pgg str.cma ast.cmo code.cmo utils.cmo parser.cmo lexer.cmo main.cmo
 
-pp.cmo:		pp.ml ast.cmo
-		ocamlc -c pp.ml
+code.cmo:	code.ml ast.cmo
+		ocamlc -c code.ml
 
 main.cmo:	main.ml parser.cmo lexer.cmo 
 		ocamlc -c main.ml
@@ -32,7 +32,7 @@ lexer.ml:	lexer.mll
 		ocamllex lexer.mll
 
 clean:		
-		rm *.cm* *.mli parser.ml lexer.ml
+		rm -rf *.cm* *.mli parser.ml lexer.ml
 
 wc:		
 		wc -l lexer.mll parser.mly ast.ml utils.ml pp.ml main.ml 

@@ -14,7 +14,7 @@
 %token EOL
 %token RANGE
 %token EOF
-%token SEMI LBRACK RBRACK
+%token COLON SEMI LBRACK RBRACK
 %token LEFT RIGHT UNARY
 %token ARROW BAR DQUOT QUOT STAR PLUS QUESTION WILDCARD DIFF ENDFILE
 %left PLUS MINUS /* lowest precedence */
@@ -28,7 +28,7 @@ main:
       match $1 with
       | Code(p,_) ->
          Grammar((if p=NoPos then get_pos (rhs_start_pos 2) else
-            p),$1,$2::$3)
+            p),$1,$4,$2::$3)
    }
 ;
 
@@ -51,7 +51,12 @@ pattern_bar_list:
 ;
 
 pattern:
-   subpattern subpattern_list code_block { Pattern(get_current_pos (),$1::$2,$3) }
+   subpattern subpattern_list label code_block { Pattern(get_current_pos (),$1::$2,$3,$4) }
+;
+
+label:
+                 { "" }
+   | COLON IDENT { $2 }
 ;
 
 subpattern_list:
