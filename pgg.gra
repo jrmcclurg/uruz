@@ -1,20 +1,62 @@
-Grammar    -> Code? Production+ Code? ;
-Code       -> '{' .. '}' ;
-Production -> Identifier "->" Pattern ('|' Pattern)* ';' ;
-Pattern    -> Subpattern+ Code? ;
-Subpattern -> Atom Options
-            | Atom ".." Atom Options ;
-Atom       -> eof
-            | Identifier
-            | String
-            | Charsets
-            | '(' Subpattern ('|' Subpattern)* ')' ;
-Charsets   -> Charset | Charset '\\' Charset ;
-Charset    -> '_'
-            | '\'' (([^\\'] |
-                     ('\\' ('\\'|'"'|'\''|'n'|'r'|'t'|'b')) |
-                     ('\\' ['0'-'9'] ['0'-'9'] ['0'-'9']) )) '\'' 
-            | '[' (([]\\]* ('\\' _)*)*) ']';
+/*
+ * EBNF Grammar for Parser Generator Generator Language
+ * by Jedidiah R. McClurg
+ * Northwestern University
+ * 12-23-11
+ */
 
-Comment    -> "/*" .. "*/" {}
-            | "//" [^\n]*  {} ;
+// header code
+{
+
+}
+
+Grammar     -> Code? Production+ Code? ;
+
+Code        -> '{' .. '}' ;
+
+Production  -> Identifier "->" Pattern ('|' Pattern)* ';' ;
+
+Pattern     -> Subpattern+ Code? ;                     // pattern
+
+Subpattern  -> Atom Options           : SimpleSubpattern // atom
+             | Atom ".." Atom Options : RangeSubpattern; // recursive atoms
+
+Atom        -> "eof"                  : EOFAtom      // end-of-line identifier
+             | Identifier             : IdentAtom    // identifier
+             | String                 : StringAtom   // string
+             | Charsets               : CharsetsAtom // sequence of character sets
+             | '(' Subpatterns
+               ('|' Subpatterns)* ')' : ChoiceAtom ; // list of subpatterns
+
+Subpatterns -> Subpattern+ ;
+
+Charsets    -> Charset              : SingletonCharset  // normal charset
+             | Charset '\\' Charset : DiffCharsets ;    // difference charset
+
+Charset     -> '_'                                     : WildcardCharset  // wildcard character
+             | '\'' (([^\\'] |
+                      ('\\' ([\\"\'nrtb])) |
+                      ('\\' [0-9] [0-9] [0-9]) )) '\'' : SingletonCharset // single character
+             | '[' (([^\]\\]* ('\\' _)*)*) ']'         : ListCharset ;    // character set
+
+Options     -> Option? Integer? Assoc? ;        // match qualifiers
+Option      -> '*'                              // "0 or more" qualifier
+             | '+'                              // "1 or more" qualifier
+             | '?' ;                            // "optional" qualifier
+Assoc       -> "left"                           // left associativity
+             | "right"                          // right associativity
+             | "unary" ;                        // unary associativity
+Integer     -> [0-9]+ ;                         // integer
+Identifier  -> [a-zA-Z] [a-zA-Z0-9_] ;          // identifier
+String      -> '"' (([^"\\]* ('\\' _)*)*) '"' ; // quoted string literal
+
+// comments (ignored by the lexer)
+Comment     -> "/*" .. "*/" {}   // nested multiline comments
+             | "//" [^\n]*  {} ; // single-line comments
+
+Test        -> Test | (Test | Test | (Test | (Test | Test))) ;
+
+// footer code
+{
+
+}
