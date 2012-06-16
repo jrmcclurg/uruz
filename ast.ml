@@ -11,8 +11,8 @@ type grammar = Grammar of pos * code option * code option * production list (* c
           | IdentAtom of pos * string
           | StringAtom of pos * string
           | CharsetsAtom of pos * charsets
-          | ChoiceAtom of pos * subpatterns list
- and subpatterns = Subpatterns of pos * subpattern list
+          | ChoiceAtom of pos * subpatterns * subpatterns list
+ and subpatterns = Subpatterns of pos * subpattern * subpattern list
  and charsets = SingletonCharsets of pos * charset
               | DiffCharsets of pos * charset * charset
  and charset = WildcardCharset of pos
@@ -249,7 +249,8 @@ and print_atom (n:int) (a:atom) : unit =
       print_charsets (n+1) c;
       print_string "\n";
       print_indent n ")"
-   | ChoiceAtom(p,sl) ->
+   | ChoiceAtom(p,s2,sl2) ->
+      let sl = s2::sl2 in
       print_indent n "ChoiceAtom(\n";
       print_pos (n+1) p;
       print_string ",\n";
@@ -265,7 +266,8 @@ and print_atom (n:int) (a:atom) : unit =
 
 and print_subpatterns (n:int) (s:subpatterns) : unit =
    match s with
-   | Subpatterns(p,sl) ->
+   | Subpatterns(p,s2,sl2) ->
+      let sl = s2::sl2 in
       print_indent n "Subpatterns(\n";
       print_pos (n+1) p;
       print_string ",\n";

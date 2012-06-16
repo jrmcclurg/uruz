@@ -60,21 +60,23 @@ and flatten_subpattern prefix s =
   | CodeSubpattern(_,_) -> (s,[])
 and flatten_atom prefix a = 
   match a with
-  | ChoiceAtom(p,spl) -> let (nspl,nl,_) =
+  | ChoiceAtom(p,spx,splx) ->
+    let spl = spx::splx in
+    let (nspl,nl,_) =
     (* here's where we expand things *)
     List.fold_right (fun sp (spl2,l,n) ->
       let (sp2,e) = flatten_subpatterns (prefix^"_"^(string_of_int n)) sp in (sp2::spl2,e@l,n-1)
     ) spl ([],[],List.length spl) in
     print_string ("flatten_atom \n"^(string_of_int (List.length nl)));
     if (List.length spl) = 1 then (a,[]) else
-    (IdentAtom(p,prefix),Production(p,prefix,List.map (fun (Subpatterns(pa,l)) -> Pattern(pa,l,None,None)) nspl (* TODO *))::nl)
+    (IdentAtom(p,prefix),Production(p,prefix,List.map (fun (Subpatterns(pa,x,l)) -> Pattern(pa,x::l,None,None)) nspl (* TODO *))::nl)
   | _                -> (a,[])
 and flatten_subpatterns prefix sp = 
   print_string "flatten_subpatterns\n";
   match sp with
-  | Subpatterns(p,sl) -> let (nsl,nl) =
-    List.fold_right (fun s (sl2,l) -> let (s2,e) = flatten_subpattern prefix s in (s2::sl2,e@l)) sl ([],[]) in
-    (Subpatterns(p,nsl),nl)
+  | Subpatterns(p,sx,sl) -> let (nsl,nl) =
+    List.fold_right (fun s (sl2,l) -> let (s2,e) = flatten_subpattern prefix s in (s2::sl2,e@l)) (sx::sl) ([],[]) in
+    (Subpatterns(p,List.hd nsl,List.tl nsl),nl)
 ;;
 
 (* generate Makefile *)
@@ -148,8 +150,9 @@ and generate_ast_pattern_code file name n flag p =
     );
     output_string file " of pos_t * ";
     let _ = List.fold_left (fun flag s -> 
-      generate_ast_subpattern_code file flag s;
-      true
+      match s with
+      | CodeSubpattern(_,_) -> flag
+      | _ -> generate_ast_subpattern_code file flag s; true
     ) false sl in ();
     output_string file "\n"
 and generate_ast_subpattern_code file flag s =
@@ -159,7 +162,7 @@ and generate_ast_subpattern_code file flag s =
     generate_ast_atom_code file a o
   | RangeSubpattern(_,a1,a2,Options(_,o,_,_,_)) ->
     output_string file "string"
-  | CodeSubpattern(_,_) -> ()
+  | CodeSubpattern(_,_) -> output_string file "???" (* TODO - this shouldn't happen *)
 and generate_ast_atom_code file a o =
   begin
   match a with
@@ -169,16 +172,15 @@ and generate_ast_atom_code file a o =
     output_string file "string"
   | CharsetsAtom(_,_) ->
     output_string file "string"
-  | ChoiceAtom(_,Subpatterns(_,subs)::al) ->
-    
+  | ChoiceAtom(_,Subpatterns(_,sub,subs),al) ->
     output_string file "(";
     let _ = List.fold_left (fun flag s -> 
       generate_ast_subpattern_code file flag s;
       true
-    ) false subs in ();
+    ) false (sub::subs) in ();
     output_string file ")"
-  | _ -> 
-    output_string file "???" (* TODO *)
+  | EOFAtom(_) -> 
+    output_string file "???" (* TODO - this should never happen *)
   end;
   begin
   match o with

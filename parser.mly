@@ -84,7 +84,7 @@ atom:
    | STRINGQUOT { StringAtom(get_current_pos (),$1) }
    | charsets   { CharsetsAtom(get_current_pos(),$1) }
    | LPAREN subpatterns subpatterns_bar_list RPAREN {
-      ChoiceAtom(get_current_pos (),$2::$3) } 
+      ChoiceAtom(get_current_pos (),$2,$3) } 
 ;
 
 subpatterns_bar_list:
@@ -93,7 +93,7 @@ subpatterns_bar_list:
 ;
 
 subpatterns:
-     subpattern subpattern_list { Subpatterns(get_current_pos (),$1::$2) }
+     subpattern subpattern_list { Subpatterns(get_current_pos (),$1, $2) }
 
 charsets:
      charset              { SingletonCharsets(get_current_pos (),$1) } 
