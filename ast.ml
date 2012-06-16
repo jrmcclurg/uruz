@@ -1,14 +1,13 @@
 type pos = NoPos | Pos of string*int*int;; (* file,line,col *)
 
-type grammar = Grammar of pos * code option * code option * production list (* code,prods *)
+type grammar = Grammar of pos * code option * code option * production * production list (* code,prods *)
  and code = Code of pos * string
- and production = Production of pos * string * pattern list (* name,patterns *)
- and pattern = Pattern of pos * subpattern list * string option * code option (* subpatterns,code *)
+ and production = Production of pos * string * pattern * pattern list (* name,patterns *)
+ and pattern = Pattern of pos * subpattern * subpattern list * string option * bool * code option (* subpatterns,code *)
  and subpattern = SimpleSubpattern of pos * atom * opts
                 | RangeSubpattern of pos * atom * atom * opts
                 | CodeSubpattern of pos * code
- and atom = EOFAtom of pos
-          | IdentAtom of pos * string
+ and atom = IdentAtom of pos * string
           | StringAtom of pos * string
           | CharsetsAtom of pos * charsets
           | ChoiceAtom of pos * subpatterns * subpatterns list
@@ -82,7 +81,8 @@ and print_indent n s =
 
 let rec print_grammar (n:int) (g:grammar) : unit =
    match g with
-   | Grammar(p,c1,c2,pl) ->
+   | Grammar(p,c1,c2,p2,pl2) ->
+      let pl = p2::pl2 in
       print_indent n "Grammar(\n";
       print_pos (n+1) p;
       print_string ",\n";
@@ -149,7 +149,8 @@ and print_pos (n:int) (p:pos) : unit =
 
 and print_production (n:int) (pr:production) : unit =
    match pr with
-   | Production(p,name,pl) ->
+   | Production(p,name,p2,pl2) ->
+      let pl = p2::pl2 in
       print_indent n "Production(\n";
       print_pos (n+1) p;
       print_string ",\n";
@@ -167,7 +168,8 @@ and print_production (n:int) (pr:production) : unit =
 
 and print_pattern (n:int) (pa:pattern) : unit =
    match pa with
-   | Pattern(p,sl,label,s) ->
+   | Pattern(p,sx,slx,label,eof,s) ->
+      let sl = sx::slx in
       print_indent n "Pattern(\n";
       print_pos (n+1) p;
       print_string ",\n";
@@ -188,6 +190,8 @@ and print_pattern (n:int) (pa:pattern) : unit =
       | None -> print_indent (n+1) "None"
       | Some(s) -> print_indent (n+1) "Some(\n";
                    print_code (n+2) s; print_string "\n"; print_indent (n+1) ")" );
+      print_string ",\n";
+      print_indent (n+1) (if eof then "true" else "false");
       print_string "\n";
       print_indent n ")";
 
@@ -223,11 +227,6 @@ and print_subpattern (n:int) (sp:subpattern) : unit =
 
 and print_atom (n:int) (a:atom) : unit =
    match a with
-   | EOFAtom(p) ->
-      print_indent n "EOFAtom(\n";
-      print_pos (n+1) p;
-      print_string "\n";
-      print_indent n ")";
    | IdentAtom(p,s) ->
       print_indent n "IdentAtom(\n";
       print_pos (n+1) p;

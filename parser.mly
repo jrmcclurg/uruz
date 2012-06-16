@@ -34,7 +34,7 @@ main:
       let p = (match $1 with
       | None -> get_pos (rhs_start_pos 2)
       | Some(Code(p,_)) -> p) in
-         Grammar(p,$1,$4,$2::$3)
+         Grammar(p,$1,$4,$2,$3)
    }
 ;
 
@@ -48,7 +48,7 @@ prod_list:
 ;
 
 production:
-   IDENT ARROW pattern pattern_bar_list SEMI { Production(get_current_pos (),$1,$3::$4) }
+   IDENT ARROW pattern pattern_bar_list SEMI { Production(get_current_pos (),$1,$3,$4) }
 ;
 
 pattern_bar_list:
@@ -57,7 +57,12 @@ pattern_bar_list:
 ;
 
 pattern:
-   subpattern subpattern_list label code_block { Pattern(get_current_pos (),$1::$2,$3,$4) }
+   subpattern subpattern_list label eof_op code_block { Pattern(get_current_pos (),$1,$2,$3,$4,$5) }
+;
+
+eof_op:
+   |         { false }
+   | ENDFILE { true }
 ;
 
 label:
@@ -79,7 +84,6 @@ subpattern:
 ;
 
 atom:
-     ENDFILE    { EOFAtom(get_current_pos ()) }
    | IDENT      { IdentAtom(get_current_pos (),$1) }
    | STRINGQUOT { StringAtom(get_current_pos (),$1) }
    | charsets   { CharsetsAtom(get_current_pos(),$1) }

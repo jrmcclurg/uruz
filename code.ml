@@ -33,22 +33,23 @@ let create_file filename =
 let rec flatten_grammar g = 
   print_string "flatten_grammar\n";
   match g with
-  | Grammar(p,c1,c2,pl) ->
-    Grammar(p,c1,c2,List.fold_right (fun pr l -> (flatten_production pr)@l) pl [])
+  | Grammar(p,c1,c2,px,pl) ->
+    let pl2 = List.fold_right (fun pr l -> (flatten_production pr)@l) (px::pl) [] in
+    Grammar(p,c1,c2,List.hd pl2,List.tl pl2)
 and flatten_production p = 
   print_string "flatten_production\n";
   match p with
-  | Production(p,s,pl) -> let (npl,nl) =
+  | Production(p,s,px,plx) -> let pl = px::plx in let (npl,nl) =
     List.fold_right (fun p (pl2,l) -> let (p2,e) = flatten_pattern s p in (p2::pl2,e@l)) pl ([],[]) in
-    Production(p,s,npl)::nl
+    Production(p,s,List.hd npl,List.tl npl)::nl
 and flatten_pattern prefix p = 
   print_string "flatten_pattern\n";
   match p with
-  | Pattern(p,sl,label,c) -> let (nsl,nl,_) =
+  | Pattern(p,sx,slx,label,eof,c) -> let sl = sx::slx in let (nsl,nl,_) =
     List.fold_right (fun s (sl2,l,n) ->
       let (s2,e) = flatten_subpattern (prefix^"_"^(string_of_int n)) s in (s2::sl2,e@l,n-1)
     ) sl ([],[],List.length sl) in
-    (Pattern(p,nsl,label,c),nl)
+    (Pattern(p,List.hd nsl,List.tl nsl,label,eof,c),nl)
 and flatten_subpattern prefix s = 
   print_string "flatten_subpattern\n";
   match s with
@@ -69,7 +70,8 @@ and flatten_atom prefix a =
     ) spl ([],[],List.length spl) in
     print_string ("flatten_atom \n"^(string_of_int (List.length nl)));
     if (List.length spl) = 1 then (a,[]) else
-    (IdentAtom(p,prefix),Production(p,prefix,List.map (fun (Subpatterns(pa,x,l)) -> Pattern(pa,x::l,None,None)) nspl (* TODO *))::nl)
+    let temp = List.map (fun (Subpatterns(pa,x,l)) -> Pattern(pa,x,l,None,false,None)) nspl (* TODO *) in
+    (IdentAtom(p,prefix),Production(p,prefix,List.hd temp,List.tl temp)::nl)
   | _                -> (a,[])
 and flatten_subpatterns prefix sp = 
   print_string "flatten_subpatterns\n";
@@ -115,27 +117,38 @@ let generate_makefile_code file prefix =
   output_string file ("\t\t\trm -rf *.cm* *.mli "^prefix^"parser.ml "^prefix^"lexer.ml\n");
 ;;
 
+let output_production_type file s =
+   output_string file (String.lowercase s);
+   output_string file "_t";
+;;
+
 (* generate ast.ml *)
 let rec generate_ast_code file g =
-  match g with Grammar(_,_,_,pl) ->
+  output_string file "open Utils;;\n";
+  match g with Grammar(_,_,_,px,plx) ->
+  let pl = px::plx in
   let _ = List.fold_left (fun flag p -> 
     generate_ast_production_code file flag p;
     true
-  ) false pl in ();
+  ) false pl in output_string file ";;\n";
 and generate_ast_production_code file flag p =
-  match p with Production(_,s,pl) ->
+  if flag then output_string file "\n";
+  match p with Production(_,s,px,plx) ->
+    let pl = px::plx in
     output_string file (if flag then " and" else "type");
     output_string file " ";
-    output_string file (String.lowercase s);
-    output_string file "_t =\n";
+    output_production_type file s;
+    output_string file " =\n";
     let (_,_) = List.fold_left (fun (flag,n) p ->
       generate_ast_pattern_code file s (if (List.length pl)>1 then n else 0) flag p;
       (true,n+1)
     ) (false,1) pl in ();
     output_string file "\n"
 and generate_ast_pattern_code file name n flag p =
-  match p with Pattern(_,sl,label,c) ->
-    output_string file (if flag then "   |" else "    ");
+  if flag then  output_string file "\n";
+  match p with Pattern(_,sx,slx,label,eof,c) ->
+    let sl = sx::slx in
+    output_string file (if (*flag*) true then "   |" else "    ");
     output_string file " ";
     (match label with
     | None -> (
@@ -154,7 +167,6 @@ and generate_ast_pattern_code file name n flag p =
       | CodeSubpattern(_,_) -> flag
       | _ -> generate_ast_subpattern_code file flag s; true
     ) false sl in ();
-    output_string file "\n"
 and generate_ast_subpattern_code file flag s =
   output_string file (if flag then " * " else "");
   match s with
@@ -167,7 +179,7 @@ and generate_ast_atom_code file a o =
   begin
   match a with
   | IdentAtom(_,s) ->
-    output_string file s
+    output_production_type file s
   | StringAtom(_,_) ->
     output_string file "string"
   | CharsetsAtom(_,_) ->
@@ -179,8 +191,6 @@ and generate_ast_atom_code file a o =
       true
     ) false (sub::subs) in ();
     output_string file ")"
-  | EOFAtom(_) -> 
-    output_string file "???" (* TODO - this should never happen *)
   end;
   begin
   match o with
@@ -256,7 +266,7 @@ let generate_code filename g2 =
   print_string "FLATTENED:\n";
   print_grammar 0 g;
   match g with
-  | Grammar(_, c1, c2, pl) ->
+  | Grammar(_, c1, c2, px, plx) ->
     let file_make   = create_file (dir^prefix^"Makefile"  ) in
     (* write the Makefile contents *)
     generate_makefile_code file_make prefix;
