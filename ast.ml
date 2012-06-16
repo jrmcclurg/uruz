@@ -1,9 +1,9 @@
 type pos = NoPos | Pos of string*int*int;; (* file,line,col *)
 
-type grammar = Grammar of pos * code * code * production list (* code,prods *)
- and code = Code of pos * string option
+type grammar = Grammar of pos * code option * code option * production list (* code,prods *)
+ and code = Code of pos * string
  and production = Production of pos * string * pattern list (* name,patterns *)
- and pattern = Pattern of pos * subpattern list * string * code (* subpatterns,code *)
+ and pattern = Pattern of pos * subpattern list * string option * code option (* subpatterns,code *)
  and subpattern = SimpleSubpattern of pos * atom * opts
                 | RangeSubpattern of pos * atom * atom * opts
                 | CodeSubpattern of pos * code
@@ -86,9 +86,15 @@ let rec print_grammar (n:int) (g:grammar) : unit =
       print_indent n "Grammar(\n";
       print_pos (n+1) p;
       print_string ",\n";
-      print_code (n+1) c1;
+      (match c1 with
+      | None -> print_indent (n+1) "None"
+      | Some(c1) -> print_indent (n+1) "Some(\n"; print_code (n+2) c1; 
+                    print_string "\n"; print_indent (n+1) ")" );
       print_string ",\n";
-      print_code (n+1) c2;
+      (match c2 with
+      | None -> print_indent (n+1) "None"
+      | Some(c2) -> print_indent (n+1) "Some(\n"; print_code (n+2) c2;
+                    print_string "\n"; print_indent (n+1) ")" );
       print_string ",\n";
       print_indent (n+1) "[\n";
       let _ = List.fold_left (fun flag pr -> 
@@ -106,9 +112,7 @@ and print_code (n:int) (c:code) : unit =
       print_indent n "Code(\n";
       print_pos (n+1) p;
       print_string ",\n";
-      (match st with
-      | None -> print_indent (n+1) "None"
-      | Some(s) -> print_str (n+1) s);
+      print_str (n+1) st;
       print_string "\n";
       print_indent n ")";
 
@@ -175,9 +179,15 @@ and print_pattern (n:int) (pa:pattern) : unit =
       ) false sl in ();
       print_string "\n";
       print_indent (n+1) "],\n";
-      print_indent (n+1) label;
+      print_indent (n+1)
+      (match label with
+      | None -> "None"
+      | Some(lab) -> ("Some("^lab^")") );
       print_string "\n";
-      print_code (n+1) s;
+      (match s with
+      | None -> print_indent (n+1) "None"
+      | Some(s) -> print_indent (n+1) "Some(\n";
+                   print_code (n+2) s; print_string "\n"; print_indent (n+1) ")" );
       print_string "\n";
       print_indent n ")";
 
@@ -214,8 +224,9 @@ and print_subpattern (n:int) (sp:subpattern) : unit =
 and print_atom (n:int) (a:atom) : unit =
    match a with
    | EOFAtom(p) ->
-      print_indent n "EOFAtom(";
-      print_pos 0 p;
+      print_indent n "EOFAtom(\n";
+      print_pos (n+1) p;
+      print_string "\n";
       print_indent n ")";
    | IdentAtom(p,s) ->
       print_indent n "IdentAtom(\n";

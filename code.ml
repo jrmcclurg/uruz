@@ -57,6 +57,7 @@ and flatten_subpattern prefix s =
     let (a12,nl1) = flatten_atom (prefix^"_1") a1 in
     let (a22,nl2) = flatten_atom (prefix^"_2") a2 in
     (RangeSubpattern(p,a12,a22,o),nl1@nl2)
+  | CodeSubpattern(_,_) -> (s,[])
 and flatten_atom prefix a = 
   match a with
   | ChoiceAtom(p,spl) -> let (nspl,nl,_) =
@@ -66,7 +67,7 @@ and flatten_atom prefix a =
     ) spl ([],[],List.length spl) in
     print_string ("flatten_atom \n"^(string_of_int (List.length nl)));
     if (List.length spl) = 1 then (a,[]) else
-    (IdentAtom(p,prefix),Production(p,prefix,List.map (fun (Subpatterns(pa,l)) -> Pattern(pa,l,"",Code(NoPos,None))) nspl (* TODO *))::nl)
+    (IdentAtom(p,prefix),Production(p,prefix,List.map (fun (Subpatterns(pa,l)) -> Pattern(pa,l,None,None)) nspl (* TODO *))::nl)
   | _                -> (a,[])
 and flatten_subpatterns prefix sp = 
   print_string "flatten_subpatterns\n";
@@ -134,13 +135,15 @@ and generate_ast_pattern_code file name n flag p =
   match p with Pattern(_,sl,label,c) ->
     output_string file (if flag then "   |" else "    ");
     output_string file " ";
-    if label="" then (
+    (match label with
+    | None -> (
       output_string file name;
       if n > 0 then (
         output_string file "_";
         output_string file (string_of_int n)
       ) else ();
-    ) else (
+    )
+    | Some(label) ->
       output_string file label
     );
     output_string file " of pos_t * ";
@@ -156,6 +159,7 @@ and generate_ast_subpattern_code file flag s =
     generate_ast_atom_code file a o
   | RangeSubpattern(_,a1,a2,Options(_,o,_,_,_)) ->
     output_string file "string"
+  | CodeSubpattern(_,_) -> ()
 and generate_ast_atom_code file a o =
   begin
   match a with

@@ -31,16 +31,16 @@
 %%
 main:
    code_block production prod_list code_block EOF {
-      match $1 with
-      | Code(p,_) ->
-         Grammar((if p=NoPos then get_pos (rhs_start_pos 2) else
-            p),$1,$4,$2::$3)
+      let p = (match $1 with
+      | None -> get_pos (rhs_start_pos 2)
+      | Some(Code(p,_)) -> p) in
+         Grammar(p,$1,$4,$2::$3)
    }
 ;
 
 code_block:
-          { Code(NoPos,None) }             /* TODO - delete NoPos */
-   | CODE { let (p,s) = $1 in Code(get_pos p,Some(s)) }
+          { None }             /* TODO - delete NoPos */
+   | CODE { let (p,s) = $1 in Some(Code(get_pos p,s)) }
 
 prod_list:
                           { [] }
@@ -61,8 +61,8 @@ pattern:
 ;
 
 label:
-                 { "" }
-   | COLON IDENT { $2 }
+                 { None }
+   | COLON IDENT { Some($2) }
 ;
 
 subpattern_list:
@@ -75,7 +75,7 @@ subpattern:
    | atom RANGE atom opts  { RangeSubpattern(get_current_pos (),$1,$3,$4) }
    | LPAREN CODE RPAREN    { let (p,s) = $2 in
                              let p2 = get_pos p in
-                             CodeSubpattern(p2,Code(p2,Some(s))) }
+                             CodeSubpattern(p2,Code(p2,s)) }
 ;
 
 atom:
