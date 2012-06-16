@@ -2,10 +2,16 @@
 %{
    open Ast;;
    open Utils;;
+
+   type opt = OprOption of op
+            | PrecOption of int
+            | AssocOption of assoc
+            | SuppOption of bool
+   ;;
 %}
 %token <int> INT
 %token <string> IDENT
-%token <Lexing.position*string option> CODE
+%token <Lexing.position*string> CODE
 %token <string> STRINGQUOT 
 %token <string> CHARSET
 %token <char> CHARQUOT
@@ -16,7 +22,7 @@
 %token EOF
 %token COLON SEMI LBRACK RBRACK
 %token LEFT RIGHT UNARY
-%token ARROW BAR DQUOT QUOT STAR PLUS QUESTION WILDCARD DIFF ENDFILE
+%token ARROW BAR DQUOT QUOT STAR PLUS QUESTION SUPP WILDCARD DIFF ENDFILE
 %left PLUS MINUS /* lowest precedence */
 %left TIMES DIV /* medium precedence */
 %nonassoc UMINUS /* highest precedence */
@@ -33,8 +39,8 @@ main:
 ;
 
 code_block:
-          { Code(NoPos,None) }
-   | CODE { let (p,s) = $1 in Code(get_pos p,s) }
+          { Code(NoPos,None) }             /* TODO - delete NoPos */
+   | CODE { let (p,s) = $1 in Code(get_pos p,Some(s)) }
 
 prod_list:
                           { [] }
@@ -65,8 +71,11 @@ subpattern_list:
 ;
 
 subpattern:
-     atom opts                    { SimpleSubpattern(get_current_pos (),$1,$2) }
-   | atom RANGE atom opts         { RangeSubpattern(get_current_pos (),$1,$3,$4) }
+     atom opts             { SimpleSubpattern(get_current_pos (),$1,$2) }
+   | atom RANGE atom opts  { RangeSubpattern(get_current_pos (),$1,$3,$4) }
+   | LPAREN CODE RPAREN    { let (p,s) = $2 in
+                             let p2 = get_pos p in
+                             CodeSubpattern(p2,Code(p2,Some(s))) }
 ;
 
 atom:
@@ -74,8 +83,7 @@ atom:
    | IDENT      { IdentAtom(get_current_pos (),$1) }
    | STRINGQUOT { StringAtom(get_current_pos (),$1) }
    | charsets   { CharsetsAtom(get_current_pos(),$1) }
-  /*  | atom RANGE atom { RangeAtom(get_current_pos(),$1,$3) } */
-    | LPAREN subpatterns subpatterns_bar_list RPAREN {
+   | LPAREN subpatterns subpatterns_bar_list RPAREN {
       ChoiceAtom(get_current_pos (),$2::$3) } 
 ;
 
@@ -98,26 +106,53 @@ charset:
                 ListCharset(get_current_pos (),l,b) }
 
 opts:
-   op_opr op_int op_assoc {
-      Options(get_current_pos (),$1,$2,$3)
+   opt_list {
+      let p = get_current_pos () in
+      let l = $1 in
+      let (opr,pri,assoc,supp) = List.fold_left (fun (opr,pri,assoc,supp) o ->
+         match (o,opr,pri,assoc,supp) with
+         | (OprOption(op),None,_,_,_) -> (Some(op),pri,assoc,supp)
+         | (PrecOption(i),_,None,_,_) -> (opr,Some(i),assoc,supp)
+         | (AssocOption(a),_,_,None,_) -> (opr,pri,Some(a),supp)
+         | (SuppOption(b),_,_,_,None) -> (opr,pri,assoc,Some(b))
+         | _ -> parse_error "multiple modifiers of same type in options list"
+      ) (None,None,None,None) l in
+      let sf = (match supp with
+      | None -> false
+      | _ -> true) in
+      Options(p,opr,pri,assoc,sf)
    }
 ;
 
-op_opr:
-          { None }
-   | STAR { Some(StarOp(get_current_pos ())) }
-   | PLUS { Some(PlusOp(get_current_pos ())) }
-   | QUESTION { Some(QuestionOp(get_current_pos ())) }
+opt_list:
+                  { [] }
+   | opt opt_list { $1::$2 }
 ;
 
-op_int:
-         { None }
-   | INT { Some($1) }
+opt:
+   | op_opr   { OprOption($1) }
+   | op_prec  { PrecOption($1) }
+   | op_assoc { AssocOption($1) }
+   | op_supp  { SuppOption($1) }
+   
+;
+
+op_opr:
+   | STAR     { StarOp(get_current_pos ()) }
+   | PLUS     { PlusOp(get_current_pos ()) }
+   | QUESTION { QuestionOp(get_current_pos ()) }
+;
+
+op_prec:
+   | INT { $1 }
 ;
 
 op_assoc:
-           { None }
-   | LEFT  { Some(LeftAssoc(get_current_pos ())) }
-   | RIGHT { Some(RightAssoc(get_current_pos ())) }
-   | UNARY { Some(UnaryAssoc(get_current_pos ())) }
+   | LEFT  { LeftAssoc(get_current_pos ()) }
+   | RIGHT { RightAssoc(get_current_pos ()) }
+   | UNARY { UnaryAssoc(get_current_pos ()) }
+;
+
+op_supp:
+   | SUPP { true }
 ;

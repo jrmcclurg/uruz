@@ -4,7 +4,7 @@
    let add_ints a b = a + b;;
 }
 
-Program   -> "start" Statement* "end" eof { Program($P,$2) } ;
+Program   -> "start"@ ({ let p = $1 in print_string p }) Statement* "end" eof { Program($P,$2) } ;
 
 Statement -> Expr ';' { $1 } ;
 

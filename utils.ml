@@ -12,7 +12,8 @@ let parse_error s =
   print_string ("Parse error in '"^file_name^
     "' on line "^(string_of_int line_num)^" col "^(string_of_int
     col_num)^"!\n"
-  )
+  );
+  exit (-1)
 ;;
 
 let get_current_pos () =

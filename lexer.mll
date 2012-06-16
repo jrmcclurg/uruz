@@ -16,7 +16,7 @@ rule token = parse
 | ['a'-'z' 'A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']* as s { IDENT(s) }
 | '{' { let p = Lexing.lexeme_start_p lexbuf in
         let s = code 0 "" lexbuf in
-        CODE(p, Some(s)) }
+        CODE(p, s) }
 | "/*" { comment 0 lexbuf }
 | '[' (([^'\\' ']']* ('\\' _)*)* as s) ']' { CHARSET(Ast.string_of_string ("\""^s^"\"")) }
 | '"' (([^'\\' '"']* ('\\' _)*)*) '"' as s { STRINGQUOT(Ast.string_of_string s) }
@@ -30,6 +30,7 @@ rule token = parse
 | '*' { STAR }
 | '+' { PLUS }
 | '?' { QUESTION }
+| '@' { SUPP }
 | '_' { WILDCARD }
 | '\\' { DIFF }
 | '{' { LBRACK }

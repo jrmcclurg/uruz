@@ -152,9 +152,9 @@ and generate_ast_pattern_code file name n flag p =
 and generate_ast_subpattern_code file flag s =
   output_string file (if flag then " * " else "");
   match s with
-  | SimpleSubpattern(_,a,Options(_,o,_,_)) ->
+  | SimpleSubpattern(_,a,Options(_,o,_,_,_)) ->
     generate_ast_atom_code file a o
-  | RangeSubpattern(_,a1,a2,Options(_,o,_,_)) ->
+  | RangeSubpattern(_,a1,a2,Options(_,o,_,_,_)) ->
     output_string file "string"
 and generate_ast_atom_code file a o =
   begin

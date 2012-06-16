@@ -6,6 +6,7 @@ type grammar = Grammar of pos * code * code * production list (* code,prods *)
  and pattern = Pattern of pos * subpattern list * string * code (* subpatterns,code *)
  and subpattern = SimpleSubpattern of pos * atom * opts
                 | RangeSubpattern of pos * atom * atom * opts
+                | CodeSubpattern of pos * code
  and atom = EOFAtom of pos
           | IdentAtom of pos * string
           | StringAtom of pos * string
@@ -19,7 +20,7 @@ type grammar = Grammar of pos * code * code * production list (* code,prods *)
              | ListCharset of pos * chars list * bool
  and chars = SingletonChars of pos * char
            | RangeChars of pos * char * char
- and opts = Options of pos * op option * int option * assoc option
+ and opts = Options of pos * op option * int option * assoc option * bool
  and op = StarOp of pos
         | PlusOp of pos
         | QuestionOp of pos
@@ -202,6 +203,13 @@ and print_subpattern (n:int) (sp:subpattern) : unit =
       print_opts (n+1) o;
       print_string "\n";
       print_indent n ")";
+   | CodeSubpattern(p,c) ->
+      print_indent n "CodeSubpattern(\n";
+      print_pos (n+1) p;
+      print_string ",\n";
+      print_code (n+2) c;
+      print_string "\n";
+      print_indent n ")";
 
 and print_atom (n:int) (a:atom) : unit =
    match a with
@@ -329,7 +337,7 @@ and print_chars (n:int) (crs:chars) : unit =
 
 and print_opts (n:int) (o1:opts) : unit =
    match o1 with
-   | Options(p,o,i,a) ->
+   | Options(p,o,i,a,b) ->
       print_indent n "Options(\n";
       print_pos (n+1) p;
       print_string ",\n";
@@ -338,6 +346,8 @@ and print_opts (n:int) (o1:opts) : unit =
       print_prec (n+1) i;
       print_string ",\n";
       print_assoc (n+1) a;
+      print_string ",\n";
+      print_indent (n+1) (if b then "true" else "false");
       print_string "\n";
       print_indent n ")";
 
