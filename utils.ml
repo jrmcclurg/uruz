@@ -7,6 +7,13 @@ type pos = NoPos | Pos of string*int*int;; (* file,line,col *)
 
 exception Parse_error;;
 
+(* dies with a system error s *)
+let die_system_error (s : string) =
+   print_string s;
+   print_string "\n";
+   exit 1
+;;
+
 let parse_error s = 
   let p         = symbol_end_pos ()  in
   let file_name = p.Lexing.pos_fname in
@@ -50,4 +57,15 @@ let rec count_newlines s lb = match s with
 
 let is_capitalized (s : string) : bool =
   ((String.capitalize s) = s)
+;;
+
+let parse_command_line () : in_channel =
+   Arg.parse args (fun x -> filename := Some(x)) banner_text;
+   (* use the command-line filename if one exists, otherwise use stdin *)
+   match !filename with
+   | None -> stdin
+   | Some(fn) -> (
+      try (open_in fn)
+      with _ -> die_system_error ("can't read from file: "^fn)
+   )
 ;;

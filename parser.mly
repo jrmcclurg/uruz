@@ -9,6 +9,7 @@
             | SuppPrintOption of bool
             | TypeOption of typ
    ;;
+
 %}
 %token <int> INT
 %token <string> IDENT

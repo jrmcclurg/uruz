@@ -12,7 +12,7 @@ OCAMLC = ocamlc
 CMO = cmo
 CMA = cma
 
-LIBS = str.$(CMA)
+LIBS = str.$(CMA) unix.$(CMA)
 #unix.$(CMA)
 
 pgg:	version.$(CMO) flags.$(CMO) utils.$(CMO) ast.$(CMO) code.$(CMO) parser.$(CMO) lexer.$(CMO) main.$(CMO)

@@ -28,11 +28,14 @@ let get_filename_dir filename =
   result
 ;;
 
-let get_filename_prefix filename = 
+let get_filename filename = 
   let basename = Filename.basename filename in
   let name     = Filename.chop_extension basename in
-  let prefix   = (name^"_") in
-  prefix
+  name
+;;
+
+let get_filename_prefix filename = 
+  ((get_filename filename)^"_")
 ;;
 
 let create_file filename =
@@ -305,13 +308,14 @@ let generate_utils_code file =
  * filename          the filename of the grammar file
  * g2                the AST representing the grammar
  *)
-let generate_code filename g2 =
-  let dir    = get_filename_dir filename    in
-  let prefix = get_filename_prefix filename in
+let generate_code (*filename*) g2 =
+  (*let name   = get_filename filename in*)
+  let prefix = "pgg_" in
   let prefix_up = String.capitalize prefix in
+  let dir    = "."^(Filename.dir_sep) in (* TODO - add support for different destination dir *)
+  print_string ("THE DIR IS: '"^dir^"'\n");
   let g = flatten_grammar g2 in
-  print_string "FLATTENED:\n";
-  print_grammar 0 g;
+  (try Unix.mkdir dir 0o755 with _ -> ());
   match g with
   | Grammar(_, c1, c2, px, plx) ->
     let file_make   = create_file (dir^prefix^"Makefile"  ) in
