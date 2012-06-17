@@ -1,4 +1,4 @@
-type pos = NoPos | Pos of string*int*int;; (* file,line,col *)
+open Utils;;
 
 type grammar = Grammar of pos * code option * code option * production * production list (* code,prods *)
  and code = Code of pos * string
@@ -19,13 +19,15 @@ type grammar = Grammar of pos * code option * code option * production * product
              | ListCharset of pos * chars list * bool
  and chars = SingletonChars of pos * char
            | RangeChars of pos * char * char
- and opts = Options of pos * op option * int option * assoc option * bool
+ and opts = Options of pos * op option * int option * assoc option * bool * typ option
  and op = StarOp of pos
         | PlusOp of pos
         | QuestionOp of pos
  and assoc = LeftAssoc of pos
            | RightAssoc of pos
            | UnaryAssoc of pos
+ and typ = EmptyType of pos
+         | Type of pos * string
 ;;
 
 let rec string_explode (s:string) : char list =
@@ -349,7 +351,7 @@ and print_chars (n:int) (crs:chars) : unit =
 
 and print_opts (n:int) (o1:opts) : unit =
    match o1 with
-   | Options(p,o,i,a,b) ->
+   | Options(p,o,i,a,sp,typo) ->
       print_indent n "Options(\n";
       print_pos (n+1) p;
       print_string ",\n";
@@ -359,7 +361,12 @@ and print_opts (n:int) (o1:opts) : unit =
       print_string ",\n";
       print_assoc (n+1) a;
       print_string ",\n";
-      print_indent (n+1) (if b then "true" else "false");
+      print_indent (n+1) (if sp then "true" else "false");
+      print_string ",\n";
+      (match typo with
+      | None -> print_indent (n+1) "None"
+      | Some(typ) -> print_indent (n+1) "Some(\n"; print_typ (n+2) typ;
+                     print_string "\n"; print_indent (n+1) ")");
       print_string "\n";
       print_indent n ")";
 
@@ -394,4 +401,15 @@ and print_assoc (n:int) (a:assoc option) : unit =
       print_indent n "UnaryAssoc(";
       print_pos 0 p;
       print_string ")";
+
+and print_typ (n:int) (ty:typ) : unit =
+   match ty with
+   | EmptyType(p) -> print_indent n "EmptyType("; print_pos 0 p; print_string ")"
+   | Type(p,s) ->
+      print_indent n "Type(\n";
+      print_pos (n+1) p;
+      print_string ",\n";
+      print_str (n+1) s;
+      print_string "\n";
+      print_indent n ")";
 ;;

@@ -30,9 +30,11 @@ rule token = parse
 | '*' { STAR }
 | '+' { PLUS }
 | '?' { QUESTION }
-| '@' { SUPP }
+| '@' { SUPPPRINT }
 | '_' { WILDCARD }
 | '\\' { DIFF }
+| '<' { LANGLE }
+| '>' { RANGLE }
 | '{' { LBRACK }
 | '}' { RBRACK }
 | '(' { LPAREN }

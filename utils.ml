@@ -1,6 +1,9 @@
 open Lexing;;
 open Parsing;;
-open Ast;;
+open Flags;;
+
+(* data type for file positions *)
+type pos = NoPos | Pos of string*int*int;; (* file,line,col *)
 
 exception Parse_error;;
 
@@ -43,4 +46,10 @@ let rec count_newlines s lb = match s with
           let cs = String.sub s 1 ((String.length s)-1) in
           if (c="\n") then (do_newline lb; 1+(count_newlines cs lb))
                       else (count_newlines cs lb)
+;;
+
+let uppercase_first (s : string) : string =
+   let len = String.length s in
+   if len <= 0 then ""
+   else ((String.uppercase (String.sub s 0 1))^(String.sub s 1 (len - 1)))
 ;;

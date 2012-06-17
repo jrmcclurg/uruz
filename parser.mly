@@ -6,7 +6,8 @@
    type opt = OprOption of op
             | PrecOption of int
             | AssocOption of assoc
-            | SuppOption of bool
+            | SuppPrintOption of bool
+            | TypeOption of typ
    ;;
 %}
 %token <int> INT
@@ -17,12 +18,13 @@
 %token <char> CHARQUOT
 %token PLUS MINUS TIMES DIV
 %token LPAREN RPAREN
+%token LANGLE RANGLE
 %token EOL
 %token RANGE
 %token EOF
 %token COLON SEMI LBRACK RBRACK
 %token LEFT RIGHT UNARY
-%token ARROW BAR DQUOT QUOT STAR PLUS QUESTION SUPP WILDCARD DIFF ENDFILE
+%token ARROW BAR DQUOT QUOT STAR PLUS QUESTION SUPPPRINT WILDCARD DIFF ENDFILE
 %left PLUS MINUS /* lowest precedence */
 %left TIMES DIV /* medium precedence */
 %nonassoc UMINUS /* highest precedence */
@@ -113,18 +115,20 @@ opts:
    opt_list {
       let p = get_current_pos () in
       let l = $1 in
-      let (opr,pri,assoc,supp) = List.fold_left (fun (opr,pri,assoc,supp) o ->
-         match (o,opr,pri,assoc,supp) with
-         | (OprOption(op),None,_,_,_) -> (Some(op),pri,assoc,supp)
-         | (PrecOption(i),_,None,_,_) -> (opr,Some(i),assoc,supp)
-         | (AssocOption(a),_,_,None,_) -> (opr,pri,Some(a),supp)
-         | (SuppOption(b),_,_,_,None) -> (opr,pri,assoc,Some(b))
-         | _ -> parse_error "multiple modifiers of same type in options list"
-      ) (None,None,None,None) l in
-      let sf = (match supp with
+      let (opr,pri,assoc,supp_print,ty) =
+      List.fold_left (fun (opr,pri,assoc,supp_print,ty) o ->
+         match (o,opr,pri,assoc,supp_print,ty) with
+         | (OprOption(op),None,_,_,_,_) -> (Some(op),pri,assoc,supp_print,ty)
+         | (PrecOption(i),_,None,_,_,_) -> (opr,Some(i),assoc,supp_print,ty)
+         | (AssocOption(a),_,_,None,_,_) -> (opr,pri,Some(a),supp_print,ty)
+         | (SuppPrintOption(b),_,_,_,None,_) -> (opr,pri,assoc,Some(b),ty)
+         | (TypeOption(ty),_,_,_,_,None) -> (opr,pri,assoc,supp_print,Some(ty))
+         | _ -> parse_error "multiple modifiers of same tye in options list"
+      ) (None,None,None,None,None) l in
+      let sp = (match supp_print with
       | None -> false
       | _ -> true) in
-      Options(p,opr,pri,assoc,sf)
+      Options(p,opr,pri,assoc,sp,ty)
    }
 ;
 
@@ -134,10 +138,11 @@ opt_list:
 ;
 
 opt:
-   | op_opr   { OprOption($1) }
-   | op_prec  { PrecOption($1) }
-   | op_assoc { AssocOption($1) }
-   | op_supp  { SuppOption($1) }
+   | op_opr        { OprOption($1) }
+   | op_prec       { PrecOption($1) }
+   | op_assoc      { AssocOption($1) }
+   | op_supp_print { SuppPrintOption($1) }
+   | op_type       { TypeOption($1) }
    
 ;
 
@@ -157,6 +162,11 @@ op_assoc:
    | UNARY { UnaryAssoc(get_current_pos ()) }
 ;
 
-op_supp:
-   | SUPP { true }
+op_supp_print:
+   | SUPPPRINT { true }
+;
+
+op_type:
+   | LANGLE RANGLE       { EmptyType(get_current_pos ()) }
+   | LANGLE IDENT RANGLE { Type(get_current_pos (), $2) }
 ;

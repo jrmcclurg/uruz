@@ -1,26 +1,40 @@
-pgg:	ast.cmo code.cmo utils.cmo parser.cmo lexer.cmo main.cmo
-	ocamlc -o pgg str.cma ast.cmo code.cmo utils.cmo parser.cmo lexer.cmo main.cmo
 
-code.cmo:	code.ml ast.cmo
-		ocamlc -c code.ml
+# use the "-ccopt -static" $(OCAMLC) switch to statically link
 
-main.cmo:	main.ml parser.cmo lexer.cmo 
-		ocamlc -c main.ml
+#OCAMLC = ocamlcp -p a
+#OCAMLC = ocamlopt -p -g
 
-parser.cmo:	parser.ml parser.cmi utils.cmo
-		ocamlc -c parser.ml
+#OCAMLC = ocamlopt -ccopt -O2
+#CMO = cmx
+#CMA = cmxa
 
-lexer.cmo:	lexer.ml parser.cmi utils.cmo
-		ocamlc -c lexer.ml
+OCAMLC = ocamlc
+CMO = cmo
+CMA = cma
 
-utils.cmo:	utils.ml ast.cmo
-		ocamlc -c utils.ml
+LIBS = str.$(CMA)
+#unix.$(CMA)
 
-parser.cmi:	parser.mli ast.cmo
-		ocamlc -c parser.mli
+pgg:	flags.$(CMO) utils.$(CMO) ast.$(CMO) code.$(CMO) parser.$(CMO) lexer.$(CMO) main.$(CMO)
+	$(OCAMLC) -o pgg $(LIBS) flags.$(CMO) utils.$(CMO) ast.$(CMO) code.$(CMO) parser.$(CMO) lexer.$(CMO) main.$(CMO)
 
-ast.cmo:	ast.ml
-		ocamlc -c ast.ml
+main.$(CMO):	main.ml parser.$(CMO) lexer.$(CMO) code.$(CMO) ast.$(CMO) utils.$(CMO) flags.$(CMO) 
+		$(OCAMLC) -c main.ml
+
+parser.$(CMO):	parser.ml parser.cmi utils.$(CMO)
+		$(OCAMLC) -c parser.ml
+
+lexer.$(CMO):	lexer.ml parser.cmi ast.$(CMO) utils.$(CMO)
+		$(OCAMLC) -c lexer.ml
+
+code.$(CMO):	code.ml ast.$(CMO) utils.$(CMO) flags.$(CMO)
+		$(OCAMLC) -c code.ml
+
+parser.cmi:	parser.mli ast.$(CMO) utils.$(CMO)
+		$(OCAMLC) -c parser.mli
+
+ast.$(CMO):	ast.ml utils.$(CMO)
+		$(OCAMLC) -c ast.ml
 
 parser.ml:	parser.mly
 		ocamlyacc parser.mly
@@ -31,8 +45,15 @@ parser.mli:	parser.mly
 lexer.ml:	lexer.mll
 		ocamllex lexer.mll
 
+utils.$(CMO):	utils.ml flags.$(CMO)
+		$(OCAMLC) -c utils.ml
+
+flags.$(CMO):	flags.ml
+		$(OCAMLC) -c flags.ml
+
+
 clean:		
-		rm -rf *.cm* *.mli parser.ml lexer.ml
+		rm -rf *.o *.cm* *.mli parser.ml lexer.ml
 
 wc:		
 		wc -l lexer.mll parser.mly ast.ml utils.ml pp.ml main.ml 
