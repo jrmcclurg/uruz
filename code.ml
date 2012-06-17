@@ -23,22 +23,6 @@ let warning_msg =
    " *)"
 ;;
 
-let get_filename_dir filename = 
-  let dirname = Filename.dirname filename in
-  let result  = (dirname^Filename.dir_sep) in
-  result
-;;
-
-let get_filename filename = 
-  let basename = Filename.basename filename in
-  let name     = Filename.chop_extension basename in
-  name
-;;
-
-let get_filename_prefix filename = 
-  ((get_filename filename)^"_")
-;;
-
 let create_file filename =
   print_string ("Creating "^filename^"... ");
   flush stdout;
@@ -98,39 +82,62 @@ and flatten_subpatterns prefix sp =
     (Subpatterns(p,List.hd nsl,List.tl nsl),nl)
 ;;
 
+let generate_makefile_vars file =
+   let olevel = (match !opt_level with
+   | None -> ""
+   | Some(l) -> " -ccopt -O"^l) in
+   let static = (match !compile_static with
+   | false -> ""
+   | true -> " -ccopt -static") in
+   let debug = (match !debug_symbols with
+   | false -> ""
+   | true -> " -p -g") in
+   let (command,xo,xa) = (match !compiler with
+   | OCamlC -> ("ocamlc","o","")
+   | OCamlOpt -> ("ocamlopt"^olevel^static^debug, "x", "x")
+   | OCamlCp -> ("ocamlcp -p a", "o", "")) in
+   output_string file ("OCAMLC = "^command^"\n");
+   output_string file ("CMO = cm"^xo^"\n");
+   output_string file ("CMA = cm"^xa^"a\n");
+;;
+
 (* generate Makefile *)
 let generate_makefile_code file prefix =
-  output_string file (prefix^"_main:\t\t"^prefix^"ast.cmo "^prefix^"utils.cmo "^prefix^"parser.cmo "^prefix^"lexer.cmo "^prefix^"main.cmo\n");
-  output_string file ("\t\t\tocamlc -o "^prefix^"_main str.cma "^prefix^"ast.cmo "^prefix^"utils.cmo "^prefix^"parser.cmo "^prefix^"lexer.cmo "^prefix^"main.cmo\n");
-  output_string file ("\n");
-  output_string file (""^prefix^"main.cmo:\t\t"^prefix^"main.ml "^prefix^"parser.cmo "^prefix^"lexer.cmo\n");
-  output_string file ("\t\t\tocamlc -c "^prefix^"main.ml\n");
-  output_string file ("\n");
-  output_string file (""^prefix^"parser.cmo:\t\t"^prefix^"parser.ml "^prefix^"parser.cmi "^prefix^"utils.cmo\n");
-  output_string file ("\t\t\tocamlc -c "^prefix^"parser.ml\n");
-  output_string file ("\n");
-  output_string file (""^prefix^"lexer.cmo:\t\t"^prefix^"lexer.ml "^prefix^"parser.cmi "^prefix^"utils.cmo\n");
-  output_string file ("\t\t\tocamlc -c "^prefix^"lexer.ml\n");
-  output_string file ("\n");
-  output_string file (""^prefix^"utils.cmo:\t\t"^prefix^"utils.ml "^prefix^"ast.cmo\n");
-  output_string file ("\t\t\tocamlc -c "^prefix^"utils.ml\n");
-  output_string file ("\n");
-  output_string file (""^prefix^"parser.cmi:\t\t"^prefix^"parser.mli "^prefix^"ast.cmo\n");
-  output_string file ("\t\t\tocamlc -c "^prefix^"parser.mli\n");
-  output_string file ("\n");
-  output_string file (""^prefix^"ast.cmo:\t\t"^prefix^"ast.ml\n");
-  output_string file ("\t\t\tocamlc -c "^prefix^"ast.ml\n");
-  output_string file ("\n");
-  output_string file (""^prefix^"parser.ml:\t\t"^prefix^"parser.mly\n");
-  output_string file ("\t\t\tocamlyacc "^prefix^"parser.mly\n");
-  output_string file ("\n");
-  output_string file (""^prefix^"parser.mli:\t\t"^prefix^"parser.mly\n");
-  output_string file ("\t\t\tocamlyacc "^prefix^"parser.mly\n");
-  output_string file ("\n");
-  output_string file (""^prefix^"lexer.ml:\t\t"^prefix^"lexer.mll\n");
-  output_string file ("\t\t\tocamllex "^prefix^"lexer.mll\n");
-  output_string file ("\n");
-  output_string file ("clean:\t\t\t\n");
+   output_string file "ifndef OCAMLC\n";
+   generate_makefile_vars file;
+   output_string file "endif\n";
+   output_string file (prefix^"main.$(CMO):\t"^prefix^"main.ml "^prefix^"parser.$(CMO) "^prefix^"lexer.$(CMO) "^
+                      prefix^"ast.$(CMO) "^prefix^"utils.$(CMO)\n");
+   output_string file ("\t\t$(OCAMLC) -c "^prefix^"main.ml\n");
+   output_string file ("\n");
+   output_string file (""^prefix^"parser.$(CMO):\t"^prefix^"parser.ml "^prefix^"parser.cmi "^
+                      prefix^"utils.$(CMO)\n");
+   output_string file ("\t\t$(OCAMLC) -c "^prefix^"parser.ml\n");
+   output_string file ("\n");
+   output_string file (""^prefix^"lexer.$(CMO):\t"^prefix^"lexer.ml "^prefix^"parser.cmi "^
+                      prefix^"ast.$(CMO) "^prefix^"utils.$(CMO)\n");
+   output_string file ("\t\t$(OCAMLC) -c "^prefix^"lexer.ml\n");
+   output_string file ("\n");
+   output_string file (""^prefix^"parser.cmi:\t"^prefix^"parser.mli "^prefix^"ast.$(CMO) "^
+                      prefix^"utils.$(CMO)\n");
+   output_string file ("\t\t$(OCAMLC) -c "^prefix^"parser.mli\n");
+   output_string file ("\n");
+   output_string file (""^prefix^"ast.$(CMO):\t"^prefix^"ast.ml "^prefix^"utils.$(CMO)\n");
+   output_string file ("\t\t$(OCAMLC) -c "^prefix^"ast.ml\n");
+   output_string file ("\n");
+   output_string file (""^prefix^"parser.ml:\t"^prefix^"parser.mly\n");
+   output_string file ("\t\tocamlyacc "^prefix^"parser.mly\n");
+   output_string file ("\n");
+   output_string file (""^prefix^"parser.mli:\t"^prefix^"parser.mly\n");
+   output_string file ("\t\tocamlyacc "^prefix^"parser.mly\n");
+   output_string file ("\n");
+   output_string file (""^prefix^"lexer.ml:\t"^prefix^"lexer.mll\n");
+   output_string file ("\t\tocamllex "^prefix^"lexer.mll\n");
+   output_string file ("\n");
+   output_string file (""^prefix^"utils.$(CMO):\t"^prefix^"utils.ml\n");
+   output_string file ("\t\t$(OCAMLC) -c "^prefix^"utils.ml\n");
+   output_string file ("\n");
+  output_string file (prefix^"clean:\t\t\t\n");
   output_string file ("\t\t\trm -rf *.cm* *.mli "^prefix^"parser.ml "^prefix^"lexer.ml\n");
 ;;
 
@@ -247,6 +254,35 @@ and generate_ast_atom_code file a o =
   | _ -> () )
 ;;
 
+let generate_parser_code file prefix g =
+   output_string file "%{\n";
+   output_string file ("   open "^prefix^"ast;;\n");
+   output_string file ("   open "^prefix^"utils;;\n");
+   output_string file "%}\n";
+   output_string file "%token <int> INT\n";
+   output_string file "%token PLUS MINUS TIMES DIV\n";
+   output_string file "%start main /* the entry point */\n";
+   output_string file ("%type <"^prefix^"ast.program_t> main\n"); (* TODO XXX - find the root type *)
+   output_string file "%%\n";
+   output_string file "main:\n";
+   output_string file "   PLUS { Program(NoPos,None) }\n";
+   output_string file ";\n";
+   output_string file "\n";
+   output_string file "%%\n";
+   output_string file "\n";
+   output_string file " (* code *)\n";
+;;
+
+let generate_lexer_code file prefix g =
+   output_string file "{\n";
+   output_string file ("   open "^prefix^"parser;; (* The type token is defined in parser.mli *)\n");
+   output_string file ("   open "^prefix^"ast;;\n");
+   output_string file ("   open "^prefix^"utils;;\n");
+   output_string file "}\n";
+   output_string file "rule token = parse\n";
+   output_string file "| \"+\" { PLUS }\n";
+;;
+
 (* generate utils.ml *)
 let generate_utils_code file =
   output_string file "open Lexing;;\n";
@@ -300,6 +336,73 @@ let generate_utils_code file =
   output_string file ";;\n"
 ;;
 
+let generate_skeleton_makefile file prefix =
+   let out_file = get_out_file () in
+   generate_makefile_vars file;
+   output_string file "\n";
+   output_string file "LIBS =";
+   Hashtbl.iter (fun k v ->
+      output_string file (" "^k^".$(CMA)")
+   ) libs;
+   output_string file "\n\n";
+   output_string file (out_file^":\tflags.$(CMO) "^prefix^"utils.$(CMO) "^prefix^"ast.$(CMO) "^
+                      prefix^"parser.$(CMO) "^prefix^"lexer.$(CMO) "^prefix^"main.$(CMO) main.$(CMO)\n");
+   output_string file ("\t$(OCAMLC) -o "^out_file^" $(LIBS) flags.$(CMO) "^prefix^"utils.$(CMO) "^
+                      prefix^"ast.$(CMO) "^prefix^"parser.$(CMO) "^prefix^"lexer.$(CMO) "^
+                      prefix^"main.$(CMO) main.$(CMO)\n");
+   output_string file "\n";
+   output_string file ("main.$(CMO):\tmain.ml "^prefix^"main.$(CMO) "^prefix^"parser.$(CMO) "^
+                      prefix^"lexer.$(CMO) "^
+                      prefix^"ast.$(CMO) "^prefix^"utils.$(CMO) flags.$(CMO)\n");
+   output_string file "\t$(OCAMLC) -c main.ml\n";
+   output_string file "\n";
+   output_string file "flags.$(CMO):\tflags.ml\n";
+   output_string file "\t$(OCAMLC) -c flags.ml\n";
+   output_string file "\n";
+   output_string file (prefix^"Makefile:\t"^(!filename)^"\n");
+   output_string file ("\tpgg "^(!filename)^"\n");
+   output_string file "\n";
+   output_string file ("clean:\t"^prefix^"clean\n");
+   output_string file ("\trm -rf *.o *.cm* *.mli "^prefix^"main.ml "^prefix^"utils.ml "^
+                      prefix^"ast.ml "^
+                      prefix^"parser.ml "^prefix^"parser.mly "^prefix^"lexer.ml "^
+                      prefix^"lexer.mll "^prefix^"Makefile\n");
+   output_string file "\n";
+   output_string file ("include "^(get_prefix ())^"Makefile\n")
+;;
+
+let generate_skeleton_main file prefix =
+   let import = String.capitalize prefix in
+   output_string file ("open "^import^"parser;;\n")
+;;
+
+let generate_skeleton_flags file prefix =
+   output_string file ("(* TODO - flags here *)\n")
+;;
+
+let generate_skeleton () =
+   let prefix = get_prefix () in
+   let dir = (!out_dir)^(Filename.dir_sep) in
+   let makefile_path = dir^"Makefile" in
+   if not (Sys.file_exists makefile_path) then (
+      let file = create_file makefile_path in
+      generate_skeleton_makefile file prefix;
+      close_out file
+   );
+   let main_path = dir^"main.ml" in
+   if not (Sys.file_exists main_path) then (
+      let file = create_file main_path in
+      generate_skeleton_main file prefix;
+      close_out file
+   );
+   let flags_path = dir^"flags.ml" in
+   if not (Sys.file_exists flags_path) then (
+      let file = create_file flags_path in
+      generate_skeleton_flags file prefix;
+      close_out file
+   );
+;;
+
 (*
  * generate_code filename g
  *
@@ -311,10 +414,7 @@ let generate_utils_code file =
  *)
 let generate_code (*filename*) g2 =
   (*let name   = get_filename !filename in*)
-  let prefix = (match (!filename,!file_prefix) with
-  | (None,None) -> default_prefix
-  | (_,Some(pr)) -> pr
-  | (Some(f),_) -> (get_filename f)^"_") in
+  let prefix = get_prefix () in
   let prefix_up = String.capitalize prefix in
   let dir    = (!out_dir)^(Filename.dir_sep) in
   print_string ("THE DIR IS: '"^dir^"'\n");
@@ -339,10 +439,12 @@ let generate_code (*filename*) g2 =
     print_string "done.\n";
     let file_parser = create_file (dir^prefix^"parser.mly") in
     (* write the parser.mly contents *)
+    generate_parser_code file_parser prefix_up g;
     close_out file_parser;
     print_string "done.\n";
     let file_lexer  = create_file (dir^prefix^"lexer.mll" ) in
     (* write the lexer.mll contents *)
+    generate_lexer_code file_lexer prefix_up g;
     close_out file_lexer;
     print_string "done.\n";
     let file_main   = create_file (dir^prefix^"main.ml"   ) in

@@ -60,12 +60,13 @@ let is_capitalized (s : string) : bool =
 ;;
 
 let parse_command_line () : in_channel =
-   Arg.parse args (fun x -> filename := Some(x)) banner_text;
+   let f_set = ref false in
+   Arg.parse args (fun x -> f_set := true; filename := x) banner_text;
    (* use the command-line filename if one exists, otherwise use stdin *)
-   match !filename with
-   | None -> stdin
-   | Some(fn) -> (
-      try (open_in fn)
-      with _ -> die_system_error ("can't read from file: "^fn)
+   match !f_set with
+   | false -> error_usage_msg ()
+   | true -> (
+      try (open_in !filename)
+      with _ -> die_system_error ("can't read from file: "^(!filename))
    )
 ;;

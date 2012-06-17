@@ -1,4 +1,3 @@
-
 # use the "-ccopt -static" $(OCAMLC) switch to statically link
 
 #OCAMLC = ocamlcp -p a
