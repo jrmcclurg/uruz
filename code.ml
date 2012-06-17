@@ -11,6 +11,7 @@
 
 open Ast;;
 open Utils;;
+open Flags;;
 
 let warning_msg =
    "(*\n"^
@@ -309,10 +310,13 @@ let generate_utils_code file =
  * g2                the AST representing the grammar
  *)
 let generate_code (*filename*) g2 =
-  (*let name   = get_filename filename in*)
-  let prefix = "pgg_" in
+  (*let name   = get_filename !filename in*)
+  let prefix = (match (!filename,!file_prefix) with
+  | (None,None) -> default_prefix
+  | (_,Some(pr)) -> pr
+  | (Some(f),_) -> (get_filename f)^"_") in
   let prefix_up = String.capitalize prefix in
-  let dir    = "."^(Filename.dir_sep) in (* TODO - add support for different destination dir *)
+  let dir    = (!out_dir)^(Filename.dir_sep) in
   print_string ("THE DIR IS: '"^dir^"'\n");
   let g = flatten_grammar g2 in
   (try Unix.mkdir dir 0o755 with _ -> ());

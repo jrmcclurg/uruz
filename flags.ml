@@ -8,13 +8,26 @@
  *)
 open Version;;
 
-let get_revision () = commit_num ;;
+(* constants *)
+let default_prefix = "pgg_";;
 
 (* flag defaults *)
-let banner_text = "Parser Generator Generator v. 1.0\nby Jedidiah McClurg";;
 let filename = ref (None : string option);;
 let verbose_mode = ref false;;
-let out_file_name = ref (None : string option);;
+let out_dir = ref ".";;
+let file_prefix = ref (None : string option);;
+
+(* banner functionality *)
+let rec get_version_string (s : string) (k : int) : string =
+   let len = String.length s in
+   if len <= k then s
+   else ((String.sub s 0 1)^"."^(get_version_string (String.sub s 1 (len-1)) k))
+;;
+
+let version = ("1."^(get_version_string commit_num 1));;
+let banner_text = "Parser Generator Generator v. "^version^" by Jedidiah McClurg\n"^
+                  "(build date "^build_date^")"^
+                  "";;
 
 (* parse the command-line arguments *)
 let args = Arg.align [
@@ -34,6 +47,8 @@ let args = Arg.align [
                     " Emit the generated assembly code");
    ("-target",   Arg.Int(fun x -> target_lang := x),
                     "<k> Set the target language to Lk (default to n-1)");*)
-   ("-o",        Arg.String(fun x -> out_file_name := Some(x)),
-                    "<file> Location of the result");
+   ("-o",        Arg.String(fun x -> out_dir := x),
+                    "<dir> Location of the result files (default \".\")");
+   ("-prefix",   Arg.String(fun x -> file_prefix := Some(x)),
+                    "<string> Prefix for the filenames (default \""^default_prefix^"\")");
 ];;
