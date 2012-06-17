@@ -69,7 +69,8 @@ eof_op:
 
 label:
                  { None }
-   | COLON IDENT { Some($2) }
+   | COLON IDENT { Some(Type(get_current_pos (), $2)) }
+   | COLON       { Some(EmptyType(get_current_pos ())) }
 ;
 
 subpattern_list:

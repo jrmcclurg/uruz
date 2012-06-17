@@ -3,7 +3,7 @@ open Utils;;
 type grammar = Grammar of pos * code option * code option * production * production list (* code,prods *)
  and code = Code of pos * string
  and production = Production of pos * string * pattern * pattern list (* name,patterns *)
- and pattern = Pattern of pos * subpattern * subpattern list * string option * bool * code option (* subpatterns,code *)
+ and pattern = Pattern of pos * subpattern * subpattern list * typ option * bool * code option (* subpatterns,code *)
  and subpattern = SimpleSubpattern of pos * atom * opts
                 | RangeSubpattern of pos * atom * atom * opts
                 | CodeSubpattern of pos * code
@@ -29,6 +29,7 @@ type grammar = Grammar of pos * code option * code option * production * product
  and typ = EmptyType of pos
          | Type of pos * string
 ;;
+
 
 let rec string_explode (s:string) : char list =
    if (String.length s) > 0 then
@@ -183,10 +184,10 @@ and print_pattern (n:int) (pa:pattern) : unit =
       ) false sl in ();
       print_string "\n";
       print_indent (n+1) "],\n";
-      print_indent (n+1)
       (match label with
-      | None -> "None"
-      | Some(lab) -> ("Some("^lab^")") );
+      | None -> print_indent (n+1) "None"
+      | Some(lab) -> print_indent (n+1) "Some(\n"; print_typ (n+2) lab;
+                     print_string "\n"; print_indent (n+1) ")" );
       print_string "\n";
       (match s with
       | None -> print_indent (n+1) "None"
@@ -412,4 +413,39 @@ and print_typ (n:int) (ty:typ) : unit =
       print_str (n+1) s;
       print_string "\n";
       print_indent n ")";
+;;
+
+let rec is_subpattern_flat (s : subpattern) : bool =
+   print_string "is_subpattern_flat? ";
+   print_subpattern 0 s;
+   print_string " = ";
+   let result = 
+   (match s with
+   | SimpleSubpattern(_,a1,_) -> is_atom_flat a1
+   | RangeSubpattern(_,a1,a2,_) -> (is_atom_flat a1) && (is_atom_flat a2)
+   | CodeSubpattern(_,_) -> true) in
+   print_string (if result then "true" else "false");
+   print_string "\n";
+   result
+
+and is_atom_flat (a : atom) : bool =
+   match a with
+   | IdentAtom(_,s) -> false
+   | StringAtom(_,s) -> true
+   | CharsetsAtom(_,cs) -> true
+   | ChoiceAtom(_,sp,spl) ->
+      List.fold_left (fun result sp ->
+         if (not result) then false
+         else if (is_subpatterns_flat sp) then true
+         else false
+      ) true (sp::spl)
+
+and is_subpatterns_flat (sp : subpatterns) : bool =
+   match sp with
+   | Subpatterns(_,s,sl) ->
+      List.fold_left (fun result s ->
+         if (not result) then false
+         else if (is_subpattern_flat s) then true
+         else false
+      ) true (s::sl)
 ;;

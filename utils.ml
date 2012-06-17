@@ -48,8 +48,6 @@ let rec count_newlines s lb = match s with
                       else (count_newlines cs lb)
 ;;
 
-let uppercase_first (s : string) : string =
-   let len = String.length s in
-   if len <= 0 then ""
-   else ((String.uppercase (String.sub s 0 1))^(String.sub s 1 (len - 1)))
+let is_capitalized (s : string) : bool =
+  ((String.capitalize s) = s)
 ;;

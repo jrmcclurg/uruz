@@ -63,6 +63,8 @@ and flatten_pattern prefix p =
     (Pattern(p,List.hd nsl,List.tl nsl,label,eof,c),nl)
 and flatten_subpattern prefix s = 
   print_string "flatten_subpattern\n";
+  if (is_subpattern_flat s) then (s,[])
+  else
   match s with
   | SimpleSubpattern(p,a,o)    -> let (a2,nl) = flatten_atom prefix a in (SimpleSubpattern(p,a2,o),nl)
   | RangeSubpattern(p,a1,a2,o) ->
@@ -129,8 +131,10 @@ let generate_makefile_code file prefix =
 ;;
 
 let output_production_type file s =
-   output_string file (String.lowercase s);
-   output_string file "_t";
+   let temp = (
+   if (is_capitalized s) then ((String.lowercase s)^"_t")
+   else s ) in
+   output_string file temp
 ;;
 
 (* generate ast.ml *)
@@ -138,67 +142,87 @@ let rec generate_ast_code file prefix g =
   output_string file warning_msg;
   output_string file "\n\n";
   output_string file ("open "^prefix^"utils;;\n");
-  output_string file "\n";
+  output_string file "\n(* AST Data Structure *)\n\n";
   match g with Grammar(_,_,_,px,plx) ->
   let pl = px::plx in
   let _ = List.fold_left (fun flag p -> 
     generate_ast_production_code file flag p;
     true
   ) false pl in output_string file ";;\n";
-and generate_ast_production_code file flag p =
-  if flag then output_string file "\n";
+and generate_ast_production_code file flag2 p =
   match p with Production(_,s,px,plx) ->
     let pl = px::plx in
-    output_string file (if flag then " and" else "type");
-    output_string file " ";
-    output_production_type file s;
-    output_string file " =\n";
-    let (_,_) = List.fold_left (fun (flag,n) p ->
-      generate_ast_pattern_code file s (if (List.length pl)>1 then n else 0) flag p;
-      (true,n+1)
+    let (r,_) = List.fold_left (fun (flag,n) p ->
+      generate_ast_pattern_code file s (if (List.length pl)>1 then n else 0) flag p s flag2;
+      (* (true,n+1) *)
     ) (false,1) pl in ();
-    output_string file "\n"
-and generate_ast_pattern_code file name n flag p =
+    if r then output_string file "\n"
+and generate_ast_pattern_code file name n flag p s flag2 =
   if flag then  output_string file "\n";
-  match p with Pattern(_,sx,slx,label,eof,c) ->
-    let sl = sx::slx in
-    output_string file (if (*flag*) true then "   |" else "    ");
-    output_string file " ";
-    (match label with
-    | None -> (
-      output_string file name;
-      if n > 0 then (
-        output_string file "_";
-        output_string file (string_of_int n)
-      ) else ();
+  match p with Pattern(_,sx,slx,labelo,eof,c) ->
+    let (ignore,label) = (match labelo with
+    | None -> (false,None)
+    | Some(Type(_,l)) -> (false,Some(l))
+    | _ -> (true,None)) in
+    if (not ignore) then (
+       if (not flag) then (
+          if flag2 then output_string file "\n";
+          output_string file (if flag2 then " and" else "type");
+          output_string file " ";
+          output_production_type file s;
+          output_string file " =\n";
+       );
+       let sl = sx::slx in
+       output_string file (if (*flag*) true then "   |" else "    ");
+       output_string file " ";
+       (match label with
+       | None -> (
+         output_string file name;
+         if n > 0 then (
+           output_string file "_";
+           output_string file (string_of_int n)
+         ) else ();
+       )
+       | Some(label) ->
+         output_string file label
+       );
+       output_string file " of ";
+       output_production_type file "Pos";
+       (*output_string file " * ";*)
+       let _ = List.fold_left (fun flag s -> 
+         generate_ast_subpattern_code file flag s
+       ) true sl in ();
+       (true,n+1)
+    ) else (
+       (flag,n)
     )
-    | Some(label) ->
-      output_string file label
-    );
-    output_string file " of pos_t * ";
-    let _ = List.fold_left (fun flag s -> 
-      generate_ast_subpattern_code file flag s
-    ) false sl in ();
 and generate_ast_subpattern_code file flag s =
   let f = (if flag then " * " else "") in
   match s with
   | SimpleSubpattern(_,a,Options(_,o,_,_,_,None)) ->
     output_string file f;
-    generate_ast_atom_code file a o; true
+    if (is_subpattern_flat s) then output_string file "string" else generate_ast_atom_code file a o; true
   | SimpleSubpattern(_,a,Options(_,o,_,_,_,Some(Type(_,t)))) ->
     output_string file f;
-    output_string file t; true
+    output_production_type file t; true
   | RangeSubpattern(_,a1,a2,Options(_,o,_,_,_,None)) ->
     output_string file f;
     output_string file "string"; true
   | RangeSubpattern(_,a1,a2,Options(_,o,_,_,_,Some(Type(_,t)))) ->
     output_string file f;
-    output_string file t; true
-  | _ -> flag
+    output_production_type file t; true
+  | _ -> 
+     (*if (is_subpattern_flat s) then (
+       output_string file f;
+       output_string file "string"; true
+     )
+     else*) flag
   (*| CodeSubpattern(_,_) -> output_string file "???"*) (* TODO - this shouldn't happen *)
 and generate_ast_atom_code file a o =
-  begin
-  match a with
+  (match o with
+  | Some(PlusOp(_)) -> output_string file "("
+  | _ -> () );
+  let f = fun () -> (match a with
   | IdentAtom(_,s) ->
     output_production_type file s
   | StringAtom(_,_) ->
@@ -211,14 +235,12 @@ and generate_ast_atom_code file a o =
       generate_ast_subpattern_code file flag s
     ) false (sub::subs) in ();
     output_string file ")"
-  end;
-  begin
-  match o with
+  ) in f ();
+  (match o with
   | Some(StarOp(_)) -> output_string file " list"
-  | Some(PlusOp(_)) -> output_string file " list"
+  | Some(PlusOp(_)) -> output_string file " * "; f (); output_string file " list)"
   | Some(QuestionOp(_)) -> output_string file " option"
-  | _ -> ()
-  end
+  | _ -> () )
 ;;
 
 (* generate utils.ml *)
@@ -228,7 +250,7 @@ let generate_utils_code file =
   output_string file "(* open Flags;; *)\n";
   output_string file "\n";
   output_string file "(* data type for file positions *)\n";
-  output_string file "type "; output_production_type file "pos";
+  output_string file "type "; output_production_type file "Pos";
      output_string file " = NoPos | Pos of string*int*int;; (* file,line,col *)\n";
   output_string file "\n";
   output_string file "exception Parse_error;;\n";
@@ -286,7 +308,7 @@ let generate_utils_code file =
 let generate_code filename g2 =
   let dir    = get_filename_dir filename    in
   let prefix = get_filename_prefix filename in
-  let prefix_up = uppercase_first prefix in
+  let prefix_up = String.capitalize prefix in
   let g = flatten_grammar g2 in
   print_string "FLATTENED:\n";
   print_grammar 0 g;
