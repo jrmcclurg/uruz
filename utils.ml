@@ -59,6 +59,22 @@ let is_capitalized (s : string) : bool =
   ((String.capitalize s) = s)
 ;;
 
+let rec to_type_case (s : string) : string =
+   to_type_case_helper s false 
+
+and to_type_case_helper (s : string) (prev_lower : bool) : string =
+   let len = String.length s in
+   if len <= 0 then s
+   else (
+      let c = String.sub s 0 1 in
+      let rest = String.sub s 1 (len-1) in
+      let c2 = String.lowercase c in
+      let this_lower = (c2 = c) in
+      ((if (prev_lower && (not this_lower)) then "_" else "")^c2^
+      (to_type_case_helper rest this_lower))
+   )
+;;
+
 let parse_command_line () : in_channel =
    let f_set = ref false in
    Arg.parse args (fun x -> f_set := true; filename := x) banner_text;
