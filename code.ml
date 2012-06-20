@@ -23,6 +23,15 @@ let output_warning_msg (f : out_channel) (s1 : string) (s2 : string) (s3 : strin
    s3)
 ;;
 
+let get_production_type s =
+   if (is_capitalized s) then ((to_type_case s)^"_t")
+   else s 
+;;
+
+let output_production_type file s =
+   output_string file (get_production_type s)
+;;
+
 let create_file filename =
   print_string ("Creating "^filename^"... ");
   flush stdout;
@@ -80,6 +89,45 @@ and flatten_subpatterns prefix sp =
   | Subpatterns(p,sx,sl) -> let (nsl,nl) =
     List.fold_right (fun s (sl2,l) -> let (s2,e) = flatten_subpattern prefix s in (s2::sl2,e@l)) (sx::sl) ([],[]) in
     (Subpatterns(p,List.hd nsl,List.tl nsl),nl)
+;;
+
+let rec get_terminals_grammar (g : grammar)
+                              (h : (subpattern,(string*string option)) Hashtbl.t) : unit =
+   match g with
+   | Grammar(_,_,_,pr,prl) ->
+      List.iter (fun pr ->
+         get_terminals_production pr h
+      ) (pr::prl)
+
+and get_terminals_production (pr : production)
+                             (h : (subpattern,(string*string option)) Hashtbl.t) : unit =
+   match pr with
+   | Production(_,name,pa,pal) ->
+      List.iter (fun pa ->
+         get_terminals_pattern pa name h
+      ) (pa::pal)
+
+and get_terminals_pattern (pa : pattern) (s : string)
+                          (h : (subpattern,(string*string option)) Hashtbl.t) : unit =
+   match pa with
+   | Pattern(_,sp,spl,t,_,_) -> 
+      List.iter (fun sp ->
+         get_terminals_subpattern sp s h
+      ) (sp::spl)
+
+and get_terminals_subpattern (sp : subpattern) (s : string)
+                             (h : (subpattern,(string*string option)) Hashtbl.t) : unit =
+   match sp with
+   | SimpleSubpattern(_,IdentAtom(_,_),_) -> ()
+   | SimpleSubpattern(_,_,Options(_,_,_,_,_,Some(Type(_,t)))) ->
+      Hashtbl.replace h sp (s,Some(t)) (* TODO get_production_type t ? *)
+   | SimpleSubpattern(_,_,Options(_,_,_,_,_,_)) ->
+      Hashtbl.replace h sp (s,None)
+   | RangeSubpattern(_,_,_,Options(_,_,_,_,_,Some(Type(_,t)))) ->
+      Hashtbl.replace h sp (s,Some(t)) (* TODO get_production_type t ? *)
+   | RangeSubpattern(_,_,_,Options(_,_,_,_,_,_)) ->
+      Hashtbl.replace h sp (s,None)
+   | CodeSubpattern(_,_) -> ()
 ;;
 
 let generate_makefile_vars file =
@@ -143,15 +191,6 @@ let generate_makefile_code file prefix =
   output_string file ("\t\t\trm -rf *.cm* *.mli "^prefix^"parser.ml "^prefix^"lexer.ml\n");
 ;;
 
-let get_production_type s =
-   if (is_capitalized s) then ((to_type_case s)^"_t")
-   else s 
-;;
-
-let output_production_type file s =
-   output_string file (get_production_type s)
-;;
-
 (* generate ast.ml *)
 let rec generate_ast_code file prefix g =
   output_warning_msg file "(*" " *" " *)";
@@ -161,18 +200,18 @@ let rec generate_ast_code file prefix g =
   match g with Grammar(_,_,_,px,plx) ->
   let pl = px::plx in
   let _ = List.fold_left (fun flag p -> 
-    generate_ast_production_code file flag p;
+    generate_ast_production_code file prefix flag p;
     true
   ) false pl in output_string file ";;\n";
-and generate_ast_production_code file flag2 p =
+and generate_ast_production_code file prefix flag2 p =
   match p with Production(_,s,px,plx) ->
     let pl = px::plx in
     let (r,_) = List.fold_left (fun (flag,n) p ->
-      generate_ast_pattern_code file s (if (List.length pl)>1 then n else 0) flag p s flag2;
+      generate_ast_pattern_code file prefix s (if (List.length pl)>1 then n else 0) flag p s flag2;
       (* (true,n+1) *)
     ) (false,1) pl in ();
     if r then output_string file "\n"
-and generate_ast_pattern_code file name n flag p s flag2 =
+and generate_ast_pattern_code file prefix name n flag p s flag2 =
   if flag then  output_string file "\n";
   match p with Pattern(_,sx,slx,labelo,eof,c) ->
     let (ignore,label) = (match labelo with
@@ -205,27 +244,29 @@ and generate_ast_pattern_code file name n flag p s flag2 =
        output_production_type file "Pos";
        (*output_string file " * ";*)
        let _ = List.fold_left (fun flag s -> 
-         generate_ast_subpattern_code file flag s
+         generate_ast_subpattern_code file prefix flag s
        ) true sl in ();
        (true,n+1)
     ) else (
        (flag,n)
     )
-and generate_ast_subpattern_code file flag s =
+and generate_ast_subpattern_code (file : out_channel) (prefix : string) (flag : bool) (s : subpattern) : bool =
   let f = (if flag then " * " else "") in
   match s with
   | SimpleSubpattern(_,a,Options(_,o,_,_,_,None)) ->
     output_string file f;
-    if (is_subpattern_flat s) then output_string file "string" else generate_ast_atom_code file a o; true
+    if (is_subpattern_flat s) then output_string file "string" else generate_ast_atom_code file prefix a o; true
   | SimpleSubpattern(_,a,Options(_,o,_,_,_,Some(Type(_,t)))) ->
     output_string file f;
-    output_production_type file t; true
+    output_string file (str_remove_from_front t (prefix^"ast.")); (* TODO output_production_type file t; ? *)
+    true
   | RangeSubpattern(_,a1,a2,Options(_,o,_,_,_,None)) ->
     output_string file f;
     output_string file "string"; true
   | RangeSubpattern(_,a1,a2,Options(_,o,_,_,_,Some(Type(_,t)))) ->
     output_string file f;
-    output_production_type file t; true
+    output_string file (str_remove_from_front t (prefix^"ast.")); (* TODO output_production_type file t; ? *)
+    true
   | _ -> 
      (*if (is_subpattern_flat s) then (
        output_string file f;
@@ -233,7 +274,7 @@ and generate_ast_subpattern_code file flag s =
      )
      else*) flag
   (*| CodeSubpattern(_,_) -> output_string file "???"*) (* TODO - this shouldn't happen *)
-and generate_ast_atom_code file a o =
+and generate_ast_atom_code file prefix a o =
   (match o with
   | Some(PlusOp(_)) -> output_string file "("
   | _ -> () );
@@ -247,7 +288,7 @@ and generate_ast_atom_code file a o =
   | ChoiceAtom(_,Subpatterns(_,sub,subs),al) ->
     output_string file "(";
     let _ = List.fold_left (fun flag s -> 
-      generate_ast_subpattern_code file flag s
+      generate_ast_subpattern_code file prefix flag s
     ) false (sub::subs) in ();
     output_string file ")"
   ) in f ();
@@ -260,6 +301,8 @@ and generate_ast_atom_code file a o =
 
 (* generate parser.mly *)
 let generate_parser_code file prefix g =
+   let h = ((Hashtbl.create 100) : (subpattern,(string*string option)) Hashtbl.t) in (* TODO - size? *)
+   get_terminals_grammar g h;
    match g with
    | Grammar(p,header,footer,Production(p2,name,pa,pal),prodl) ->
    output_warning_msg file "/*" " *" " */";
@@ -268,6 +311,12 @@ let generate_parser_code file prefix g =
    output_string file ("   open "^prefix^"ast;;\n");
    output_string file ("   open "^prefix^"utils;;\n");
    output_string file "%}\n";
+   Hashtbl.iter (fun k (s,ty) ->
+      let t = (match ty with
+      | None -> ""
+      | Some(s) -> "<"^s^"> ") in
+      output_string file ("%token "^t^s^"\n")
+   ) h;
    output_string file "%token <int> INT\n";
    output_string file "%token PLUS MINUS TIMES DIV\n";
    output_string file "%start main /* the entry point */\n";

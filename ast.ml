@@ -5,6 +5,8 @@ type grammar = Grammar of pos * code option * code option * production * product
  and production = Production of pos * string * pattern * pattern list (* name,patterns *)
  and pattern = Pattern of pos * subpattern * subpattern list * typ option * bool * code option (* subpatterns,code *)
  and subpattern = SimpleSubpattern of pos * atom * opts
+                (* NOTE - the atoms in RangeSubpattern are required (by parser)
+                 *        to be flat *)
                 | RangeSubpattern of pos * atom * atom * opts
                 | CodeSubpattern of pos * code
  and atom = IdentAtom of pos * string
@@ -80,6 +82,18 @@ let rec print_indent2 n s =
    else (print_string " "; print_indent2 (n-1) s)
 and print_indent n s =
    print_indent2 (n*3) s
+;;
+
+let rec get_grammar_pos (g : grammar) : pos =
+   match g with
+   | Grammar(p,_,_,_,_) -> p
+
+and get_atom_pos (a : atom) : pos =
+   match a with
+   | IdentAtom(p,_) -> p
+   | StringAtom(p,_) -> p
+   | CharsetsAtom(p,_) -> p
+   | ChoiceAtom(p,_,_) -> p
 ;;
 
 let rec print_grammar (n:int) (g:grammar) : unit =

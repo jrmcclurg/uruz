@@ -13,7 +13,7 @@ rule token = parse
 | "right" { RIGHT }
 | "unary" { UNARY }
 | '/' '/' [^'\n']* { token lexbuf }
-| ['a'-'z' 'A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']* as s { IDENT(s) }
+| ['a'-'z' 'A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_' '.']* as s { IDENT(s) (* TODO - '.' probably shouldn't be allowed *) }
 | '{' { let p = Lexing.lexeme_start_p lexbuf in
         let s = code 0 "" lexbuf in
         CODE(p, s) }
