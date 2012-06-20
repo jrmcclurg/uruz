@@ -1,4 +1,4 @@
-let commit = "1cdf186b46c67492e334103bd6d8e2807d69494f";;
-let commit_num = "18";;
-let commit_date = "Sun, 17 Jun 2012 18:12:29 -0500";;
-let build_date = "Sun, 17 Jun 2012 23:52:38 -0500";;
+let commit = "7e82e3aaf403f4b7ab6c31957f33d0911293e479";;
+let commit_num = "20";;
+let commit_date = "Wed, 20 Jun 2012 13:23:32 -0500";;
+let build_date = "Wed, 20 Jun 2012 13:24:23 -0500";;
