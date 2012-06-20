@@ -99,9 +99,12 @@ let is_capitalized (s : string) : bool =
 ;;
 
 let rec to_type_case (s : string) : string =
-   to_type_case_helper s false 
+   to_case_helper s false false
 
-and to_type_case_helper (s : string) (prev_lower : bool) : string =
+and to_token_case (s : string) : string =
+   to_case_helper s false true
+
+and to_case_helper (s : string) (prev_lower : bool) (upper : bool) : string =
    let len = String.length s in
    if len <= 0 then s
    else (
@@ -109,8 +112,9 @@ and to_type_case_helper (s : string) (prev_lower : bool) : string =
       let rest = String.sub s 1 (len-1) in
       let c2 = String.lowercase c in
       let this_lower = (c2 = c) in
-      ((if (prev_lower && (not this_lower)) then "_" else "")^c2^
-      (to_type_case_helper rest this_lower))
+      ((if (prev_lower && (not this_lower)) then "_" else "")^
+      (if upper then (String.uppercase c) else c2)^
+      (to_case_helper rest this_lower upper))
    )
 ;;
 

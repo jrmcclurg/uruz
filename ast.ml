@@ -32,6 +32,246 @@ type grammar = Grammar of pos * code option * code option * production * product
          | Type of pos * string
 ;;
 
+let rec equal_grammar (g1 : grammar) (g2 : grammar) : bool =
+   match (g1,g2) with
+   | (Grammar(_,c1,c2,p,pl),Grammar(_,c1t,c2t,pt,plt)) ->
+      if (List.length pl) <> (List.length plt) then false
+      else ((equal_code_opt c1 c1t) && (equal_code_opt c2 c2t) && (equal_production p pt) && 
+      (equal_production_list pl plt))
+
+and equal_code (c1 : code) (c2 : code) : bool = 
+   match (c1,c2) with
+   | (Code(_,s1),Code(_,s2)) -> s1 = s2
+
+and equal_code_opt (c1 : code option) (c2 : code option) : bool = 
+   match (c1,c2) with
+   | (None,None) -> true
+   | (Some(c1),Some(c2)) -> equal_code c1 c2
+   | _ -> false
+
+and equal_production (p1 : production) (p2 : production) : bool =
+   match (p1,p2) with
+   | (Production(_,s,p,pl),Production(_,st,pt,plt)) ->
+      if (List.length pl) <> (List.length plt) then false
+      else ((s = st) && (equal_pattern p pt) && (equal_pattern_list pl plt))
+
+and equal_production_list (pl : production list) (plt : production list) : bool =
+      if (List.length pl) <> (List.length plt) then false
+      else (
+      List.fold_left2 (fun res p1 p2 ->
+         if (not res) then res
+         else equal_production p1 p2
+      ) true pl plt)
+
+and equal_pattern (p1 : pattern) (p2 : pattern) : bool =
+   match (p1,p2) with
+   | (Pattern(_,p,pl,t,b,c),Pattern(_,pt,plt,tt,bt,ct)) ->
+      if (List.length pl) <> (List.length plt) then false
+      else ((equal_subpattern p pt) && (equal_subpattern_list pl plt) &&
+            (equal_typ_opt t tt) && (b = bt) && (equal_code_opt c ct))
+
+and equal_pattern_list (pl : pattern list) (plt : pattern list) : bool =
+      if (List.length pl) <> (List.length plt) then false
+      else (
+      List.fold_left2 (fun res p1 p2 ->
+         if (not res) then res
+         else equal_pattern p1 p2
+      ) true pl plt)
+
+and equal_subpattern (p1 : subpattern) (p2 : subpattern) : bool =
+   match (p1,p2) with
+   | (SimpleSubpattern(_,a,o),SimpleSubpattern(_,at,ot)) -> ((equal_atom a at) && (equal_opts o ot))
+   | (RangeSubpattern(_,a1,a2,o),RangeSubpattern(_,a1t,a2t,ot)) ->
+      ((equal_atom a1 a1t) && (equal_atom a2 a2t) && (equal_opts o ot))
+   | (CodeSubpattern(_,c),CodeSubpattern(_,ct)) -> (equal_code c ct)
+   | _ -> false
+
+and equal_subpattern_list (pl : subpattern list) (plt : subpattern list) : bool =
+      if (List.length pl) <> (List.length plt) then false
+      else (
+      List.fold_left2 (fun res p1 p2 ->
+         if (not res) then res
+         else equal_subpattern p1 p2
+      ) true pl plt)
+
+and equal_typ (c1 : typ) (c2 : typ) : bool = 
+   match (c1,c2) with
+   | (EmptyType(_),EmptyType(_)) -> true
+   | (Type(_,s1),Type(_,s2)) -> s1 = s2
+   | _ -> false
+
+and equal_typ_opt (c1 : typ option) (c2 : typ option) : bool = 
+   match (c1,c2) with
+   | (None,None) -> true
+   | (Some(c1),Some(c2)) -> equal_typ c1 c2
+   | _ -> false
+
+and equal_atom (a1 : atom) (a2 : atom) : bool =
+   match (a1,a2) with
+   | (IdentAtom(_,s1),IdentAtom(_,s2)) -> s1 = s2
+   | (StringAtom(_,s1),StringAtom(_,s2)) -> s1 = s2
+   | (CharsetsAtom(_,c1),CharsetsAtom(_,c2)) -> equal_charsets c1 c2
+   | (ChoiceAtom(_,s,sl),ChoiceAtom(_,st,slt)) -> ((equal_subpatterns s st) && (equal_subpatterns_list sl slt))
+   | _ -> false
+
+and equal_opts (o1 : opts) (o2 : opts) : bool =
+   match (o1,o2) with
+   | (Options(_,o,i,a,b,t),Options(_,ot,it,at,bt,tt)) ->
+      ((equal_op_opt o ot) && (i = it) && (equal_assoc_opt a at) && (b = bt) && (equal_typ_opt t tt))
+
+and equal_charsets (c1 : charsets) (c2 : charsets) : bool =
+   match (c1,c2) with
+   | (SingletonCharsets(_,c),SingletonCharsets(_,ct)) -> equal_charset c ct
+   | (DiffCharsets(_,c1,c2),DiffCharsets(_,c1t,c2t)) -> ((equal_charset c1 c1t) && (equal_charset c2 c2t))
+   | _ -> false
+
+and equal_subpatterns (c1 : subpatterns) (c2 : subpatterns) : bool =
+   match (c1,c2) with
+   | (Subpatterns(_,s,sl),Subpatterns(_,st,slt)) -> ((equal_subpattern s st) && (equal_subpattern_list sl slt))
+
+and equal_subpatterns_list (pl : subpatterns list) (plt : subpatterns list) : bool =
+      if (List.length pl) <> (List.length plt) then false
+      else (
+      List.fold_left2 (fun res p1 p2 ->
+         if (not res) then res
+         else equal_subpatterns p1 p2
+      ) true pl plt)
+
+and equal_op (o1 : op) (o2 : op) : bool = 
+   match (o1,o2) with
+   | (StarOp(_),StarOp(_)) -> true
+   | (PlusOp(_),PlusOp(_)) -> true
+   | (QuestionOp(_),QuestionOp(_)) -> true
+   | _ -> false
+
+and equal_op_opt (o1 : op option) (o2 : op option) : bool = 
+   match (o1,o2) with
+   | (None,None) -> true
+   | (Some(o1),Some(o2)) -> equal_op o1 o2
+   | _ -> false
+
+and equal_assoc (o1 : assoc) (o2 : assoc) : bool = 
+   match (o1,o2) with
+   | (LeftAssoc(_),LeftAssoc(_)) -> true
+   | (RightAssoc(_),RightAssoc(_)) -> true
+   | (UnaryAssoc(_),UnaryAssoc(_)) -> true
+   | _ -> false
+
+and equal_assoc_opt (o1 : assoc option) (o2 : assoc option) : bool = 
+   match (o1,o2) with
+   | (None,None) -> true
+   | (Some(a1),Some(a2)) -> equal_assoc a1 a2
+   | _ -> false
+
+and equal_charset (c1 : charset) (c2 : charset) : bool =
+   match (c1,c2) with
+   | (WildcardCharset(_),WildcardCharset(_)) -> true
+   | (SingletonCharset(_,c1),SingletonCharset(_,c2)) -> (c1 = c2)
+   | (ListCharset(_,c,b),ListCharset(_,ct,bt)) -> ((c = ct) && (b = bt))
+   | _ -> false
+
+;;
+
+let rec reloc_grammar (g : grammar) =
+   match g with
+   | Grammar(p,c1,c2,pr,prl) -> Grammar(NoPos,reloc_code_opt c1,reloc_code_opt c2,
+                                        reloc_production pr,List.map (fun p -> reloc_production p) prl)
+
+and reloc_code (c : code) =
+   match c with
+   | Code(p,s) -> Code(NoPos,s)
+
+and reloc_code_opt (c : code option) =
+   match c with
+   | None -> None
+   | Some(co) -> Some(reloc_code co)
+
+and reloc_production (p : production) =
+   match p with
+   | Production(p,s,pa,pal) -> Production(NoPos,s,reloc_pattern pa,List.map (fun pa -> reloc_pattern pa) pal)
+
+and reloc_pattern (p : pattern) = 
+   match p with
+   | Pattern(p,s,sl,t,b,c) ->
+      Pattern(NoPos,reloc_subpattern s,List.map (fun s -> reloc_subpattern s) sl,reloc_typ_opt t,b,reloc_code_opt c)
+
+and reloc_subpattern (s : subpattern) =
+   match s with
+   | SimpleSubpattern(p,a,o) -> SimpleSubpattern(NoPos,reloc_atom a,reloc_opts o)
+   | RangeSubpattern(p,a1,a2,o) -> RangeSubpattern(NoPos,reloc_atom a1,reloc_atom a2,reloc_opts o)
+   | CodeSubpattern(p,c) -> CodeSubpattern(NoPos,reloc_code c)
+
+and reloc_atom (a : atom) =
+   match a with
+   | IdentAtom(p,s) -> IdentAtom(NoPos,s)
+   | StringAtom(p,s) -> StringAtom(NoPos,s)
+   | CharsetsAtom(p,c) -> CharsetsAtom(NoPos,reloc_charsets c)
+   | ChoiceAtom(p,s,sl) -> ChoiceAtom(NoPos,reloc_subpatterns s,List.map (fun s -> reloc_subpatterns s) sl)
+
+and reloc_subpatterns (s : subpatterns) =
+   match s with
+   | Subpatterns(p,s,sl) -> Subpatterns(NoPos,reloc_subpattern s,List.map (fun s -> reloc_subpattern s) sl)
+
+and reloc_charsets (c : charsets) =
+   match c with
+   | SingletonCharsets(p,c) -> SingletonCharsets(NoPos,reloc_charset c)
+   | DiffCharsets(p,c1,c2) -> DiffCharsets(NoPos,reloc_charset c1,reloc_charset c2)
+
+and reloc_charset (c : charset) =
+   match c with
+   | WildcardCharset(p) -> WildcardCharset(NoPos)
+   | SingletonCharset(p,c) -> SingletonCharset(NoPos,c)
+   | ListCharset(p,cl,b) -> ListCharset(NoPos,cl,b)
+
+and reloc_chars (c : chars) =
+   match c with
+   | SingletonChars(p,c) -> SingletonChars(NoPos,c)
+   | RangeChars(p,c1,c2) -> RangeChars(NoPos,c1,c2)
+
+and reloc_opts (o : opts) = 
+   match o with
+   | Options(p,o,i,a,b,t) -> Options(NoPos,reloc_op_opt o,i,reloc_assoc_opt a,b,reloc_typ_opt t)
+
+and reloc_op (o : op) =
+   match o with
+   | StarOp(p) -> StarOp(NoPos)
+   | PlusOp(p) -> PlusOp(NoPos)
+   | QuestionOp(p) -> QuestionOp(NoPos)
+
+and reloc_op_opt (o : op option) =
+   match o with
+   | None -> None
+   | Some(o) -> Some(reloc_op o)
+
+and reloc_assoc (a : assoc) =
+   match a with
+   | LeftAssoc(p) -> LeftAssoc(NoPos)
+   | RightAssoc(p) -> RightAssoc(NoPos)
+   | UnaryAssoc(p) -> UnaryAssoc(NoPos)
+
+and reloc_assoc_opt (a : assoc option) =
+   match a with
+   | None -> None
+   | Some(s) -> Some(reloc_assoc s)
+
+and reloc_typ (t : typ) =
+   match t with
+   | EmptyType(p) -> EmptyType(NoPos)
+   | Type(p,s) -> Type(NoPos,s)
+
+and reloc_typ_opt (t : typ option) =
+   match t with
+   | None -> None
+   | Some(t) -> Some(reloc_typ t)
+;;
+
+print_string "ast.ml\n";;
+
+let t1 = SimpleSubpattern(NoPos,StringAtom(NoPos,"+"),Options(NoPos,None,None,None,false,None)) ;;
+let t2 = SimpleSubpattern(Pos("file",1,2),StringAtom(Pos("other",123,123),"+"),Options(NoPos,None,None,None,false,None)) ;;
+if ((reloc_subpattern t1) = (reloc_subpattern t2)) then print_string "EQUAL!!!!\n";;
+print_int (Hashtbl.hash (reloc_subpattern t1)); print_string "\n";;
+print_int (Hashtbl.hash (reloc_subpattern t2)); print_string "\n";;
 
 let rec string_explode (s:string) : char list =
    if (String.length s) > 0 then

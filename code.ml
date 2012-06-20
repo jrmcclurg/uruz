@@ -13,6 +13,12 @@ open Ast;;
 open Utils;;
 open Flags;;
 
+module SubpatternHashtbl = Hashtbl.Make(struct
+                                           type t = subpattern
+                                           let equal a b = (reloc_subpattern a) = (reloc_subpattern b)
+                                           let hash s = Hashtbl.hash (reloc_subpattern s)
+                                        end);;
+
 let output_warning_msg (f : out_channel) (s1 : string) (s2 : string) (s3 : string) : unit =
    output_string f (s1^"\n"^
    s2^" THIS IS AN AUTO-GENERATED FILE PRODUCED BY PGG!\n"^
@@ -92,7 +98,7 @@ and flatten_subpatterns prefix sp =
 ;;
 
 let rec get_terminals_grammar (g : grammar)
-                              (h : (subpattern,(string*string option)) Hashtbl.t) : unit =
+                              (h : (string*int option*string option) SubpatternHashtbl.t) : unit =
    match g with
    | Grammar(_,_,_,pr,prl) ->
       List.iter (fun pr ->
@@ -100,33 +106,39 @@ let rec get_terminals_grammar (g : grammar)
       ) (pr::prl)
 
 and get_terminals_production (pr : production)
-                             (h : (subpattern,(string*string option)) Hashtbl.t) : unit =
+                             (h : (string*int option*string option) SubpatternHashtbl.t) : unit =
    match pr with
    | Production(_,name,pa,pal) ->
-      List.iter (fun pa ->
-         get_terminals_pattern pa name h
-      ) (pa::pal)
+      let b = ((List.length pal) = 0) in
+      let _ = List.fold_left (fun i pa ->
+         get_terminals_pattern pa (if b then name else (name^"_"^(string_of_int i))) h;
+         i+1
+      ) 1 (pa::pal) in ()
 
 and get_terminals_pattern (pa : pattern) (s : string)
-                          (h : (subpattern,(string*string option)) Hashtbl.t) : unit =
+                          (h : (string*int option*string option) SubpatternHashtbl.t) : unit =
    match pa with
    | Pattern(_,sp,spl,t,_,_) -> 
-      List.iter (fun sp ->
-         get_terminals_subpattern sp s h
-      ) (sp::spl)
+      let name = (to_token_case (match t with
+      | Some(Type(_,s)) -> s
+      | _ -> s)) in
+      let _ = List.fold_left (fun n sp ->
+         get_terminals_subpattern sp (name^"_"^(string_of_int n)) h;
+         n+1;
+      ) 1 (sp::spl) in ()
 
 and get_terminals_subpattern (sp : subpattern) (s : string)
-                             (h : (subpattern,(string*string option)) Hashtbl.t) : unit =
+                             (h : (string*int option*string option) SubpatternHashtbl.t) : unit =
    match sp with
    | SimpleSubpattern(_,IdentAtom(_,_),_) -> ()
-   | SimpleSubpattern(_,_,Options(_,_,_,_,_,Some(Type(_,t)))) ->
-      Hashtbl.replace h sp (s,Some(t)) (* TODO get_production_type t ? *)
-   | SimpleSubpattern(_,_,Options(_,_,_,_,_,_)) ->
-      Hashtbl.replace h sp (s,None)
-   | RangeSubpattern(_,_,_,Options(_,_,_,_,_,Some(Type(_,t)))) ->
-      Hashtbl.replace h sp (s,Some(t)) (* TODO get_production_type t ? *)
-   | RangeSubpattern(_,_,_,Options(_,_,_,_,_,_)) ->
-      Hashtbl.replace h sp (s,None)
+   | SimpleSubpattern(_,_,Options(_,_,prec,_,_,Some(Type(_,t)))) ->
+      SubpatternHashtbl.replace h sp (s,prec,Some(t)) (* TODO get_production_type t ? *)
+   | SimpleSubpattern(_,_,Options(_,_,prec,_,_,_)) ->
+      SubpatternHashtbl.replace h sp (s,prec,None)
+   | RangeSubpattern(_,_,_,Options(_,_,prec,_,_,Some(Type(_,t)))) ->
+      SubpatternHashtbl.replace h sp (s,prec,Some(t)) (* TODO get_production_type t ? *)
+   | RangeSubpattern(_,_,_,Options(_,_,prec,_,_,_)) ->
+      SubpatternHashtbl.replace h sp (s,prec,None)
    | CodeSubpattern(_,_) -> ()
 ;;
 
@@ -301,7 +313,7 @@ and generate_ast_atom_code file prefix a o =
 
 (* generate parser.mly *)
 let generate_parser_code file prefix g =
-   let h = ((Hashtbl.create 100) : (subpattern,(string*string option)) Hashtbl.t) in (* TODO - size? *)
+   let h = ((SubpatternHashtbl.create 100) : (string*int option*string option) SubpatternHashtbl.t) in (* TODO - size? *)
    get_terminals_grammar g h;
    match g with
    | Grammar(p,header,footer,Production(p2,name,pa,pal),prodl) ->
@@ -311,12 +323,25 @@ let generate_parser_code file prefix g =
    output_string file ("   open "^prefix^"ast;;\n");
    output_string file ("   open "^prefix^"utils;;\n");
    output_string file "%}\n";
-   Hashtbl.iter (fun k (s,ty) ->
+   let tab = SubpatternHashtbl.fold (fun k (s,prec,ty) res -> 
       let t = (match ty with
       | None -> ""
       | Some(s) -> "<"^s^"> ") in
-      output_string file ("%token "^t^s^"\n")
-   ) h;
+      (s,prec,t)::res
+   ) h [] in
+   let tab2 = List.sort
+   (fun (_,p1,_) (_,p2,_) ->
+      let i1 = (match p1 with
+      | None -> Pervasives.min_int
+      | Some(i) -> i) in
+      let i2 = (match p2 with
+      | None -> Pervasives.min_int
+      | Some(i) -> i) in
+      compare i1 i2
+   ) tab in
+   List.iter (fun (s,prec,t) ->
+      output_string file ("%token "^t^s^" /* "^(match prec with Some(p) -> string_of_int p | _ -> "")^" */\n")
+   ) tab2;
    output_string file "%token <int> INT\n";
    output_string file "%token PLUS MINUS TIMES DIV\n";
    output_string file "%start main /* the entry point */\n";
