@@ -478,11 +478,16 @@ let generate_main_code file prefix g =
 ;;
 
 (* generate utils.ml *)
-let generate_utils_code file =
+let generate_utils_code file g =
+   match g with
+   | Grammar(p,header,footer,_,_) ->
   output_string file "open Lexing;;\n";
   output_string file "open Parsing;;\n";
   output_string file "(* open Flags;; *)\n";
   output_string file "\n";
+  (match header with
+  | None -> ()
+  | Some(Code(_,s)) -> output_string file (s^"\n"));
   output_string file "(* data type for file positions *)\n";
   output_string file "type "; output_production_type file "Pos";
      output_string file " = NoPos | Pos of string*int*int;; (* file,line,col *)\n";
@@ -527,7 +532,10 @@ let generate_utils_code file =
   output_string file "          let cs = String.sub s 1 ((String.length s)-1) in\n";
   output_string file "          if (c=\"\n\") then (do_newline lb; 1+(count_newlines cs lb))\n";
   output_string file "                      else (count_newlines cs lb)\n";
-  output_string file ";;\n"
+  output_string file ";;\n";
+  (match footer with
+  | None -> ()
+  | Some(Code(_,s)) -> output_string file ("\n"^s));
 ;;
 
 let generate_skeleton_makefile file prefix =
@@ -672,7 +680,7 @@ let generate_code (*filename*) g2 =
     print_string "done.\n";
     let file_utils  = create_file (dir^prefix^"utils.ml"  ) in
     (* write the utils.ml contents *)
-    generate_utils_code file_utils;
+    generate_utils_code file_utils g;
     close_out file_utils;
     print_string "done.\n";
     let h = ((SubpatternHashtbl.create 100) :
