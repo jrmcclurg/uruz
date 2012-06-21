@@ -60,8 +60,8 @@ pattern_bar_list:
 ;
 
 pattern:
-   subpattern subpattern_list eof_op label code_block {
-      let (l,(pr,assoc)) = $4 in Pattern(get_current_pos (),$1,$2,l,$3,$5,pr,assoc)
+   subpattern_list eof_op label code_block {
+      let (l,(pr,assoc)) = $3 in Pattern(get_current_pos (),$1,l,$2,$4,pr,assoc)
    }
 ;
 
