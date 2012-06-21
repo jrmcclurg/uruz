@@ -50,6 +50,47 @@ let output_production_type file s =
    output_string file (get_production_type s)
 ;;
 
+let rec get_subpattern_default_type (sp : subpattern) : string option =
+   match sp with
+   | SimpleSubpattern(_,a,_) -> get_atom_default_type a
+   | RangeSubpattern(_,_,_,_) -> Some("string")
+   | CodeSubpattern(_,_) -> None
+
+and get_atom_default_type (a : atom) : string option =
+   match a with
+   | IdentAtom(_,s) -> Some(get_production_type s)
+   | StringAtom(_,s) -> Some(if (String.length s) > 1 then "string" else "char")
+   | CharsetsAtom(_,_) -> Some("char")
+   | ChoiceAtom(_,sp,spl) ->
+      let (all_chars,all_empty) = List.fold_left (fun (all_chars,all_empty) (Subpatterns(_,sp,spl)) ->
+         let all_chars2 = (if (not all_chars) then all_chars
+         else if (List.length spl) = 0 then ((get_subpattern_default_type sp) = Some("char"))
+         else false) in
+         let all_empty2 = (if (not all_empty) then all_empty
+         else List.fold_left (fun res sp ->
+            if (not res) then res
+            else ((get_subpattern_default_type sp) = None)
+         ) true (sp::spl)) in
+         (all_chars2,all_empty2)
+      ) (true,true) (sp::spl) in
+      if all_empty then None else
+      Some(if all_chars then "char" else "string")
+;;
+
+let rec is_pattern_empty (p : pattern) : bool = 
+   match p with
+   | Pattern(_,l,_,_,_,_,_) ->
+   List.fold_left (fun res sp ->
+      if (not res) then res
+      else (is_subpattern_empty sp)
+   ) true l
+
+and is_subpattern_empty (s : subpattern) : bool =
+   match (get_subpattern_default_type s) with
+   | None -> true
+   | _ -> false
+;;
+
 let create_file filename =
   print_string ("Creating "^filename^"... ");
   flush stdout;
@@ -157,15 +198,21 @@ and get_terminals_subpattern (sp : subpattern) (s : string)
    | SimpleSubpattern(_,_,Options(ps,_,prec,a,_,Some(Type(_,t)),_)) ->
       let x = (get_assoc_str a prec) in
       SubpatternHashtbl.replace h sp (s,x,Some(t),ps)
-   | SimpleSubpattern(_,_,Options(ps,_,prec,a,_,_,_)) ->
+   | SimpleSubpattern(_,_,Options(ps,_,prec,a,_,Some(EmptyType(_)),_)) ->
       let x = (get_assoc_str a prec) in
       SubpatternHashtbl.replace h sp (s,x,None,ps)
+   | SimpleSubpattern(_,_,Options(ps,_,prec,a,_,None,_)) ->
+      let x = (get_assoc_str a prec) in
+      SubpatternHashtbl.replace h sp (s,x,get_subpattern_default_type sp,ps)
    | RangeSubpattern(_,_,_,Options(ps,_,prec,a,_,Some(Type(_,t)),_)) ->
       let x = (get_assoc_str a prec) in
       SubpatternHashtbl.replace h sp (s,x,Some(t),ps)
-   | RangeSubpattern(_,_,_,Options(ps,_,prec,a,_,_,_)) ->
+   | RangeSubpattern(_,_,_,Options(ps,_,prec,a,_,Some(EmptyType(_)),_)) ->
       let x = (get_assoc_str a prec) in
       SubpatternHashtbl.replace h sp (s,x,None,ps)
+   | RangeSubpattern(_,_,_,Options(ps,_,prec,a,_,None,_)) ->
+      let x = (get_assoc_str a prec) in
+      SubpatternHashtbl.replace h sp (s,x,get_subpattern_default_type sp,ps)
    | CodeSubpattern(_,_) -> ()
 ;;
 
@@ -282,9 +329,10 @@ and generate_ast_pattern_code file prefix name n flag p s flag2 =
        output_string file " of ";
        output_production_type file "Pos";
        (*output_string file " * ";*)
+       if (not (is_pattern_empty p)) then (
        let _ = List.fold_left (fun flag s -> 
          generate_ast_subpattern_code file prefix flag s
-       ) true sl in ();
+       ) true sl in () );
        (true,n+1)
     ) else (
        (flag,n)
@@ -292,19 +340,26 @@ and generate_ast_pattern_code file prefix name n flag p s flag2 =
 and generate_ast_subpattern_code (file : out_channel) (prefix : string) (flag : bool) (s : subpattern) : bool =
   let f = (if flag then " * " else "") in
   match s with
-  | SimpleSubpattern(_,a,Options(_,o,_,_,_,None,_)) ->
+  | SimpleSubpattern(ps,a,Options(_,o,_,_,_,None,_)) ->
     output_string file f;
-    if (is_subpattern_flat s) then output_string file "string" else generate_ast_atom_code file prefix a o; true
+    (* TODO - i dont think this will always be a string *)
+    if (is_subpattern_flat s) then (
+       let t = (get_subpattern_default_type s) in
+       (match t with
+       | None -> false (* NOTE: there is at least one subpattern that is non-empty, so printing the " * " is okay *)
+       | Some(s) ->  output_string file s; true);
+    ) else (generate_ast_atom_code file prefix a o; true)
   | SimpleSubpattern(_,a,Options(_,o,_,_,_,Some(Type(_,t)),_)) ->
     output_string file f;
-    output_string file (str_remove_from_front t (prefix^"ast.")); (* TODO output_production_type file t; ? *)
+    output_string file (str_remove_from_front t (prefix^"ast."));
     true
   | RangeSubpattern(_,a1,a2,Options(_,o,_,_,_,None,_)) ->
     output_string file f;
+    (* TODO - will this will always be a string? *)
     output_string file "string"; true
   | RangeSubpattern(_,a1,a2,Options(_,o,_,_,_,Some(Type(_,t)),_)) ->
     output_string file f;
-    output_string file (str_remove_from_front t (prefix^"ast.")); (* TODO output_production_type file t; ? *)
+    output_string file (str_remove_from_front t (prefix^"ast."));
     true
   | _ -> 
      (*if (is_subpattern_flat s) then (
@@ -320,10 +375,18 @@ and generate_ast_atom_code file prefix a o =
   let f = fun () -> (match a with
   | IdentAtom(_,s) ->
     output_production_type file s
-  | StringAtom(_,_) ->
-    output_string file "string"
-  | CharsetsAtom(_,_) ->
-    output_string file "string"
+  | StringAtom(ps,st) ->
+    (* TODO - will this always be a string? *)
+    let t =  (get_atom_default_type a) in
+    (match t with
+    | None -> die_error ps "empty default type" (* TODO - this should never happen *)
+    | Some(t) -> output_string file t)
+  | CharsetsAtom(ps,_) ->
+    (* TODO - will this always be a string? *)
+    let t = (get_atom_default_type a) in
+    (match t with
+    | None -> die_error ps "empty default type"
+    | Some(t) -> output_string file t)
   | ChoiceAtom(_,Subpatterns(_,sub,subs),al) ->
     output_string file "(";
     let _ = List.fold_left (fun flag s -> 
@@ -456,9 +519,10 @@ let generate_lexer_code file prefix g (h : (string*((string*int) option)*string 
       | SimpleSubpattern(_,ChoiceAtom(_,sp,spl),Options(_,_,_,_,_,_,cd)) -> (("\"TODO\""),cd)
       | _ -> ("\"\"",None) (* TODO - fill this in *)
       ) in
-      let (bef,aft) = (match ty with
-      | None -> ("","")
-      | Some(s) -> ("",("(t)"))) in
+      let (bef,aft) = (match (ty,cd) with
+      | (None,_) -> ("","")
+      | (Some(s),None) -> ("","(s)")
+      | (Some(s),_) -> ("","(t)")) in
       let c = (match cd with
       | None -> ""
       | Some(Code(_,s)) -> ("let t = "^s^" in ")) in
