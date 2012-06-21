@@ -41,56 +41,6 @@ let get_assoc_str (a : assoc option) (pr : int option) : ((string*int) option) =
    | _ -> None
 ;;
 
-let get_production_type s =
-   if (is_capitalized s) then ((to_type_case s)^"_t")
-   else s 
-;;
-
-let output_production_type file s =
-   output_string file (get_production_type s)
-;;
-
-let rec get_subpattern_default_type (sp : subpattern) : string option =
-   match sp with
-   | SimpleSubpattern(_,a,_) -> get_atom_default_type a
-   | RangeSubpattern(_,_,_,_) -> Some("string")
-   | CodeSubpattern(_,_) -> None
-
-and get_atom_default_type (a : atom) : string option =
-   match a with
-   | IdentAtom(_,s) -> Some(get_production_type s)
-   | StringAtom(_,s) -> Some(if (String.length s) = 1 then "char" else "string")
-   | CharsetsAtom(_,_) -> Some("char")
-   | ChoiceAtom(_,sp,spl) ->
-      let (all_chars,all_empty) = List.fold_left (fun (all_chars,all_empty) (Subpatterns(_,sp,spl)) ->
-         let all_chars2 = (if (not all_chars) then all_chars
-         else if (List.length spl) = 0 then ((get_subpattern_default_type sp) = Some("char"))
-         else false) in
-         let all_empty2 = (if (not all_empty) then all_empty
-         else List.fold_left (fun res sp ->
-            if (not res) then res
-            else ((get_subpattern_default_type sp) = None)
-         ) true (sp::spl)) in
-         (all_chars2,all_empty2)
-      ) (true,true) (sp::spl) in
-      if all_empty then None else
-      Some(if all_chars then "char" else "string")
-;;
-
-let rec is_pattern_empty (p : pattern) : bool = 
-   match p with
-   | Pattern(_,l,_,_,_,_,_) ->
-   List.fold_left (fun res sp ->
-      if (not res) then res
-      else (is_subpattern_empty sp)
-   ) true l
-
-and is_subpattern_empty (s : subpattern) : bool =
-   match (get_subpattern_default_type s) with
-   | None -> true
-   | _ -> false
-;;
-
 let create_file filename =
   print_string ("Creating "^filename^"... ");
   flush stdout;
@@ -452,6 +402,7 @@ let generate_parser_code file prefix g (h : ((string*((string*int) option)*strin
       compare i1 i2
    ) tab in*)
    (* TODO - sort the following hashtable by the type name *)
+   output_string file "%token EOF\n";
    Hashtbl.iter (fun ty sl ->
       let t = (match ty with
       | None -> ""
@@ -489,7 +440,7 @@ let generate_parser_code file prefix g (h : ((string*((string*int) option)*strin
    let _ = List.fold_left (fun n (Production(p2,name,pa,pal)) ->
       let name2 = if n = 1 then "main" else (output_string file "\n"; (get_production_type name)) in
       output_string file (name2^":\n");
-      let _ = List.fold_left (fun k (Pattern(_,sl,_,_,cd,i,asc)) ->
+      let _ = List.fold_left (fun k (Pattern(_,sl,_,ef,cd,i,asc)) ->
          output_string file "   |";
          let _ = List.fold_left (fun j s ->
             let str = (try let (x,_,_,_) = SubpatternHashtbl.find h s in (" "^x) with _ -> 
@@ -501,6 +452,7 @@ let generate_parser_code file prefix g (h : ((string*((string*int) option)*strin
             output_string file (str);
             j+1
          ) 1 sl in
+         if ef then output_string file " EOF";
          (* TODO - add precedence *)
          (* TODO XXX - expand the *,+,? subpatterns first in a transformation pass *)
          output_string file " {";
@@ -545,10 +497,12 @@ let rec generate_lexer_code file prefix g (h : (string*((string*int) option)*str
       match s with
       | SimpleSubpattern(_,IdentAtom(_,_),_) -> ()
       | _ ->
-      output_string file "| ";
-      let _ = generate_lexer_subpattern_code file s in
-      output_string file (" as s { ignore s; "^c^name^aft^" }\n");
+         output_string file "| ";
+         let _ = generate_lexer_subpattern_code file s in
+         output_string file (" as s { ignore s; "^c^name^aft^" }\n");
    ) h;
+   output_string file "| eof { EOF }\n";
+   output_string file "| _ { lex_error \"lexing error\" lexbuf }";
 
 and generate_lexer_atom_code file a : bool =
    match a with
@@ -558,14 +512,14 @@ and generate_lexer_atom_code file a : bool =
    | CharsetsAtom(_,SingletonCharsets(_,c)) -> generate_lexer_charset_code file c; true
    | CharsetsAtom(_,DiffCharsets(_,c1,c2)) ->
       generate_lexer_charset_code file c1;
-      output_string file " \ "; (* TODO - is this the correct syntax for diff? *)
+      output_string file " # ";
       generate_lexer_charset_code file c2;
       true
-   | ChoiceAtom(_,s,sl) ->  (* TODO - is this choice thing ever empty? *)
+   | ChoiceAtom(_,s,sl) ->  (* NOTE - each os the subpattern lists is non-empty *)
       output_string file "(";
       let _ = List.fold_left (fun flag s ->
          if flag then output_string file " | ";
-         let _ = generate_lexer_subpatterns_code file s in (); (* TODO - do we want to pass this thru? *)
+         let _ = generate_lexer_subpatterns_code file s in ();
          true
       ) false (s::sl) in ();
       output_string file ")";

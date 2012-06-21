@@ -15,7 +15,7 @@ Statement -> Expr ';' { $1 } ;
 Expr      -> Integer         : IntExpr  { $1 }
            | Expr "+"<> 105 Expr : PlusExpr { add_ints $1 $3 } ;
 
-Integer -> "0"  { let x = String.make 1 $1 in (int_of_string x) }  
+Integer -> [12] \ [1]  { let x = String.make 1 $1 in (int_of_string x) }  
          | ('0' | [1-9] [0-9]*)<{int_of_string s}:int> 102 unary { $1 } ;
 // a subexpression is flat iff it is composed entirely of constants
 

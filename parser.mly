@@ -124,7 +124,14 @@ subpatterns_bar_list:
 ;
 
 subpatterns:
-     subpattern subpattern_list { Subpatterns(get_current_pos (),$1, $2) }
+     subpattern subpattern_list {
+        let ok = List.fold_left (fun res s ->
+           if res then res
+           else (not (is_subpattern_empty s))
+        ) false ($1::$2) in
+        if (not ok) then parse_error "empty subpattern list";
+        Subpatterns(get_current_pos (),$1, $2) 
+     }
 
 charsets:
      charset              { SingletonCharsets(get_current_pos (),$1) } 

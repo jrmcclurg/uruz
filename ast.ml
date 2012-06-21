@@ -3,7 +3,8 @@ open Utils;;
 type grammar = Grammar of pos * code option * code option * production * production list (* code,prods *)
  and code = Code of pos * string
  and production = Production of pos * string * pattern * pattern list (* name,patterns *)
- and pattern = Pattern of pos * subpattern list * typ option * bool * code option * int option * assoc option (* subpatterns,code *)
+ and pattern = Pattern of pos * subpattern list * typ option * bool * code option * int option * assoc option
+                               (* subpatterns,code *)
  and subpattern = SimpleSubpattern of pos * atom * opts
                 (* NOTE - the atoms in RangeSubpattern are required (by parser)
                  *        to be flat *)
@@ -717,4 +718,55 @@ and is_subpatterns_flat (sp : subpatterns) : bool =
          else if (is_subpattern_flat s) then true
          else false
       ) true (s::sl)
+;;
+
+
+let get_production_type s =
+   if (is_capitalized s) then ((to_type_case s)^"_t")
+   else s 
+;;
+
+let output_production_type file s =
+   output_string file (get_production_type s)
+;;
+
+let rec get_subpattern_default_type (sp : subpattern) : string option =
+   match sp with
+   | SimpleSubpattern(_,a,_) -> get_atom_default_type a
+   | RangeSubpattern(_,_,_,_) -> Some("string")
+   | CodeSubpattern(_,_) -> None
+
+and get_atom_default_type (a : atom) : string option =
+   match a with
+   | IdentAtom(_,s) -> Some(get_production_type s)
+   | StringAtom(_,s) -> Some(if (String.length s) = 1 then "char" else "string")
+   | CharsetsAtom(_,_) -> Some("char")
+   | ChoiceAtom(_,sp,spl) ->
+      let (all_chars,all_empty) = List.fold_left (fun (all_chars,all_empty) (Subpatterns(_,sp,spl)) ->
+         let all_chars2 = (if (not all_chars) then all_chars
+         else if (List.length spl) = 0 then ((get_subpattern_default_type sp) = Some("char"))
+         else false) in
+         let all_empty2 = (if (not all_empty) then all_empty
+         else List.fold_left (fun res sp ->
+            if (not res) then res
+            else ((get_subpattern_default_type sp) = None)
+         ) true (sp::spl)) in
+         (all_chars2,all_empty2)
+      ) (true,true) (sp::spl) in
+      if all_empty then None else
+      Some(if all_chars then "char" else "string")
+;;
+
+let rec is_pattern_empty (p : pattern) : bool = 
+   match p with
+   | Pattern(_,l,_,_,_,_,_) ->
+   List.fold_left (fun res sp ->
+      if (not res) then res
+      else (is_subpattern_empty sp)
+   ) true l
+
+and is_subpattern_empty (s : subpattern) : bool =
+   match (get_subpattern_default_type s) with
+   | None -> true
+   | _ -> false
 ;;
