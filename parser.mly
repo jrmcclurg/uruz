@@ -7,7 +7,7 @@
             | PrecOption of int
             | AssocOption of assoc
             | SuppPrintOption of bool
-            | TypeOption of typ
+            | TypeOption of (typ * code option)
    ;;
 
 %}
@@ -140,20 +140,20 @@ opts:
    opt_list {
       let p = get_current_pos () in
       let l = $1 in
-      let (opr,pri,assoc,supp_print,ty) =
-      List.fold_left (fun (opr,pri,assoc,supp_print,ty) o ->
-         match (o,opr,pri,assoc,supp_print,ty) with
-         | (OprOption(op),None,_,_,_,_) -> (Some(op),pri,assoc,supp_print,ty)
-         | (PrecOption(i),_,None,_,_,_) -> (opr,Some(i),assoc,supp_print,ty)
-         | (AssocOption(a),_,_,None,_,_) -> (opr,pri,Some(a),supp_print,ty)
-         | (SuppPrintOption(b),_,_,_,None,_) -> (opr,pri,assoc,Some(b),ty)
-         | (TypeOption(ty),_,_,_,_,None) -> (opr,pri,assoc,supp_print,Some(ty))
+      let (opr,pri,assoc,supp_print,ty,cd) =
+      List.fold_left (fun (opr,pri,assoc,supp_print,ty,cd) o ->
+         match (o,opr,pri,assoc,supp_print,ty,cd) with
+         | (OprOption(op),None,_,_,_,_,_) -> (Some(op),pri,assoc,supp_print,ty,cd)
+         | (PrecOption(i),_,None,_,_,_,_) -> (opr,Some(i),assoc,supp_print,ty,cd)
+         | (AssocOption(a),_,_,None,_,_,_) -> (opr,pri,Some(a),supp_print,ty,cd)
+         | (SuppPrintOption(b),_,_,_,None,_,_) -> (opr,pri,assoc,Some(b),ty,cd)
+         | (TypeOption((ty,cd)),_,_,_,_,None,_) -> (opr,pri,assoc,supp_print,Some(ty),cd)
          | _ -> parse_error "multiple modifiers of same type in options list"
-      ) (None,None,None,None,None) l in
+      ) (None,None,None,None,None,None) l in
       let sp = (match supp_print with
       | None -> false
       | _ -> true) in
-      Options(p,opr,pri,assoc,sp,ty)
+      Options(p,opr,pri,assoc,sp,ty,cd)
    }
 ;
 
@@ -192,6 +192,7 @@ op_supp_print:
 ;
 
 op_type:
-   | LANGLE RANGLE       { EmptyType(get_current_pos ()) }
-   | LANGLE IDENT RANGLE { Type(get_current_pos (), $2) }
+   | LANGLE code_block RANGLE       { (EmptyType(get_current_pos ()),$2) }
+   | LANGLE IDENT code_block RANGLE { (Type(get_current_pos (), $2),$3) }
+   | LANGLE code_block COLON IDENT RANGLE { (Type(get_current_pos (), $4),$2) }
 ;

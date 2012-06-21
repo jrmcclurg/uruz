@@ -138,7 +138,7 @@ and get_terminals_pattern (pa : pattern) (s : string)
       (match x with
       | None -> ()
       | _ -> SubpatternHashtbl.replace h
-                (SimpleSubpattern(NoPos,IdentAtom(NoPos,name),Options(NoPos,None,None,None,false,None)))
+                (SimpleSubpattern(NoPos,IdentAtom(NoPos,name),Options(NoPos,None,None,None,false,None,None)))
                 ((name^"_0"),x,None,ps)); (* TODO - does this work? *)
       let b = ((List.length spl) = 1) in
       let _ = List.fold_left (fun n sp ->
@@ -149,21 +149,21 @@ and get_terminals_pattern (pa : pattern) (s : string)
 and get_terminals_subpattern (sp : subpattern) (s : string)
                              (h : (string*((string*int) option)*string option*pos) SubpatternHashtbl.t) : unit =
    match sp with
-   | SimpleSubpattern(_,IdentAtom(_,_),Options(ps,_,prec,a,_,_)) ->
+   | SimpleSubpattern(_,IdentAtom(_,_),Options(ps,_,prec,a,_,_,_)) ->
       let x = (get_assoc_str a prec) in
       (match x with
       | Some(_) -> die_error ps "cannot set options for non-terminal"
       | _ -> ())
-   | SimpleSubpattern(_,_,Options(ps,_,prec,a,_,Some(Type(_,t)))) ->
+   | SimpleSubpattern(_,_,Options(ps,_,prec,a,_,Some(Type(_,t)),_)) ->
       let x = (get_assoc_str a prec) in
       SubpatternHashtbl.replace h sp (s,x,Some(t),ps)
-   | SimpleSubpattern(_,_,Options(ps,_,prec,a,_,_)) ->
+   | SimpleSubpattern(_,_,Options(ps,_,prec,a,_,_,_)) ->
       let x = (get_assoc_str a prec) in
       SubpatternHashtbl.replace h sp (s,x,None,ps)
-   | RangeSubpattern(_,_,_,Options(ps,_,prec,a,_,Some(Type(_,t)))) ->
+   | RangeSubpattern(_,_,_,Options(ps,_,prec,a,_,Some(Type(_,t)),_)) ->
       let x = (get_assoc_str a prec) in
       SubpatternHashtbl.replace h sp (s,x,Some(t),ps)
-   | RangeSubpattern(_,_,_,Options(ps,_,prec,a,_,_)) ->
+   | RangeSubpattern(_,_,_,Options(ps,_,prec,a,_,_,_)) ->
       let x = (get_assoc_str a prec) in
       SubpatternHashtbl.replace h sp (s,x,None,ps)
    | CodeSubpattern(_,_) -> ()
@@ -292,17 +292,17 @@ and generate_ast_pattern_code file prefix name n flag p s flag2 =
 and generate_ast_subpattern_code (file : out_channel) (prefix : string) (flag : bool) (s : subpattern) : bool =
   let f = (if flag then " * " else "") in
   match s with
-  | SimpleSubpattern(_,a,Options(_,o,_,_,_,None)) ->
+  | SimpleSubpattern(_,a,Options(_,o,_,_,_,None,_)) ->
     output_string file f;
     if (is_subpattern_flat s) then output_string file "string" else generate_ast_atom_code file prefix a o; true
-  | SimpleSubpattern(_,a,Options(_,o,_,_,_,Some(Type(_,t)))) ->
+  | SimpleSubpattern(_,a,Options(_,o,_,_,_,Some(Type(_,t)),_)) ->
     output_string file f;
     output_string file (str_remove_from_front t (prefix^"ast.")); (* TODO output_production_type file t; ? *)
     true
-  | RangeSubpattern(_,a1,a2,Options(_,o,_,_,_,None)) ->
+  | RangeSubpattern(_,a1,a2,Options(_,o,_,_,_,None,_)) ->
     output_string file f;
     output_string file "string"; true
-  | RangeSubpattern(_,a1,a2,Options(_,o,_,_,_,Some(Type(_,t)))) ->
+  | RangeSubpattern(_,a1,a2,Options(_,o,_,_,_,Some(Type(_,t)),_)) ->
     output_string file f;
     output_string file (str_remove_from_front t (prefix^"ast.")); (* TODO output_production_type file t; ? *)
     true
@@ -339,20 +339,17 @@ and generate_ast_atom_code file prefix a o =
 ;;
 
 (* generate parser.mly *)
-let generate_parser_code file prefix g =
-   let h = ((SubpatternHashtbl.create 100) :
-      (string*((string*int) option)*string option*pos) SubpatternHashtbl.t) in (* TODO - size? *)
+let generate_parser_code file prefix g (h : ((string*((string*int) option)*string option*pos) SubpatternHashtbl.t)) =
    let toks = ((Hashtbl.create 100) : (string option,string list) Hashtbl.t) in (* type,token_names *)
    let assocs = ((Hashtbl.create 100) : (int,(string*string list)) Hashtbl.t) in (* prec,assoc,token_names *)
-   get_terminals_grammar g h;
    match g with
-   | Grammar(p,header,footer,Production(p2,name,pa,pal),prodl) ->
+   | Grammar(p,header,footer,(Production(p2,name,pa,pal) as prodf),prodl) ->
    output_warning_msg file "/*" " *" " */";
    output_string file "\n\n";
    output_string file "%{\n";
    output_string file ("   open "^prefix^"ast;;\n");
    output_string file ("   open "^prefix^"utils;;\n");
-   output_string file "%}\n";
+   output_string file "%}\n\n";
    SubpatternHashtbl.iter (fun k (s,assoc_str,ty,ps) -> 
       let a = (try Hashtbl.find toks ty with _ -> []) in
       Hashtbl.replace toks ty (s::a);
@@ -391,6 +388,7 @@ let generate_parser_code file prefix g =
       ) olen (List.sort (String.compare) sl) in
       output_string file "\n";
    ) toks;
+   output_string file "\n";
    let assocl = Hashtbl.fold (fun i (s,sl) res ->
       (i,s,sl)::res
    ) assocs [] in
@@ -405,20 +403,44 @@ let generate_parser_code file prefix g =
    (*List.iter (fun (s,prec,t) ->
       output_string file ("%token "^t^s^" /* "^(match prec with Some(p) -> string_of_int p | _ -> "")^" */\n")
    ) tab2;*)
-   output_string file "%token PLUS /* (* XXX TODO - get rid of this *) */\n";
+   output_string file "\n";
    output_string file "%start main /* the entry point */\n";
    output_string file ("%type <"^prefix^"ast."^(get_production_type name)^"> main\n"); (* TODO XXX - find the root type *)
    output_string file "%%\n";
-   output_string file "main:\n";
-   output_string file ("   PLUS { "^name^"(NoPos,None) }\n");
-   output_string file ";\n";
+   let _ = List.fold_left (fun n (Production(p2,name,pa,pal)) ->
+      let name2 = if n = 1 then "main" else (output_string file "\n"; (get_production_type name)) in
+      output_string file (name2^":\n");
+      let _ = List.fold_left (fun k (Pattern(_,sl,_,_,cd,i,asc)) ->
+         output_string file "   |";
+         let _ = List.fold_left (fun j s ->
+            let str = (try let (x,_,_,_) = SubpatternHashtbl.find h s in (" "^x) with _ -> 
+               match s with
+               | SimpleSubpattern(_,IdentAtom(_,name),_) -> (" "^(get_production_type name))
+               | CodeSubpattern(_,_) -> ""
+               | _ -> "XXX" (* TODO - this should never happen - do error? *)
+            ) in
+            output_string file (str);
+            j+1
+         ) 1 sl in
+         (* TODO - add precedence *)
+         (* TODO XXX - expand the *,+,? subpatterns first in a transformation pass *)
+         output_string file " {";
+         (match cd with
+         | None -> output_string file " "
+         | Some(Code(_,s)) -> output_string file s);
+         output_string file "}\n";
+         k+1
+      ) 1 (pa::pal) in 
+      output_string file ";\n";
+      n+1
+   ) 1 (prodf::prodl) in ();
    output_string file "\n";
    output_string file "%%\n";
    output_string file "(* footer code *)\n";
 ;;
 
 (* generate lexer.mll *)
-let generate_lexer_code file prefix g =
+let generate_lexer_code file prefix g (h : (string*((string*int) option)*string option*pos) SubpatternHashtbl.t) =
    output_warning_msg file "(*" " *" " *)";
    output_string file "\n\n";
    output_string file "{\n";
@@ -427,7 +449,21 @@ let generate_lexer_code file prefix g =
    output_string file ("   open "^prefix^"utils;;\n");
    output_string file "}\n";
    output_string file "rule token = parse\n";
-   output_string file "| \"+\" { PLUS }\n";
+   (* TODO XXX - sort and all that - I THINK THE ORDER NEEDS TO CORRESPOND TO FILE ORDER *)
+   SubpatternHashtbl.iter (fun s (name,_,ty,p) ->
+      let (str,cd) = (match s with
+      | SimpleSubpattern(_,StringAtom(_,s1),Options(_,_,_,_,_,_,cd)) -> (("\""^s1^"\""),cd)
+      | SimpleSubpattern(_,ChoiceAtom(_,sp,spl),Options(_,_,_,_,_,_,cd)) -> (("\"TODO\""),cd)
+      | _ -> ("\"\"",None) (* TODO - fill this in *)
+      ) in
+      let (bef,aft) = (match ty with
+      | None -> ("","")
+      | Some(s) -> ("",("(t)"))) in
+      let c = (match cd with
+      | None -> ""
+      | Some(Code(_,s)) -> ("let t = "^s^" in ")) in
+      output_string file ("| "^str^" as s { ignore s; "^c^name^aft^" }\n");
+   ) h;
 ;;
 
 let generate_main_code file prefix g =
@@ -639,14 +675,17 @@ let generate_code (*filename*) g2 =
     generate_utils_code file_utils;
     close_out file_utils;
     print_string "done.\n";
+    let h = ((SubpatternHashtbl.create 100) :
+       (string*((string*int) option)*string option*pos) SubpatternHashtbl.t) in (* TODO - size? *)
+    get_terminals_grammar g h;
     let file_parser = create_file (dir^prefix^"parser.mly") in
     (* write the parser.mly contents *)
-    generate_parser_code file_parser prefix_up g;
+    generate_parser_code file_parser prefix_up g h;
     close_out file_parser;
     print_string "done.\n";
     let file_lexer  = create_file (dir^prefix^"lexer.mll" ) in
     (* write the lexer.mll contents *)
-    generate_lexer_code file_lexer prefix_up g;
+    generate_lexer_code file_lexer prefix_up g h;
     close_out file_lexer;
     print_string "done.\n";
     let file_main   = create_file (dir^prefix^"main.ml"   ) in

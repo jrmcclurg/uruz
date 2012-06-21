@@ -21,7 +21,7 @@ type grammar = Grammar of pos * code option * code option * production * product
              | ListCharset of pos * chars list * bool
  and chars = SingletonChars of pos * char
            | RangeChars of pos * char * char
- and opts = Options of pos * op option * int option * assoc option * bool * typ option
+ and opts = Options of pos * op option * int option * assoc option * bool * typ option * code option
  and op = StarOp of pos
         | PlusOp of pos
         | QuestionOp of pos
@@ -116,8 +116,8 @@ and equal_atom (a1 : atom) (a2 : atom) : bool =
 
 and equal_opts (o1 : opts) (o2 : opts) : bool =
    match (o1,o2) with
-   | (Options(_,o,i,a,b,t),Options(_,ot,it,at,bt,tt)) ->
-      ((equal_op_opt o ot) && (i = it) && (equal_assoc_opt a at) && (b = bt) && (equal_typ_opt t tt))
+   | (Options(_,o,i,a,b,t,c),Options(_,ot,it,at,bt,tt,ct)) ->
+      ((equal_op_opt o ot) && (i = it) && (equal_assoc_opt a at) && (b = bt) && (equal_typ_opt t tt) && (equal_code_opt c ct))
 
 and equal_charsets (c1 : charsets) (c2 : charsets) : bool =
    match (c1,c2) with
@@ -230,7 +230,7 @@ and reloc_chars (c : chars) =
 
 and reloc_opts (o : opts) = 
    match o with
-   | Options(p,o,i,a,b,t) -> Options(NoPos,reloc_op_opt o,i,reloc_assoc_opt a,b,reloc_typ_opt t)
+   | Options(p,o,i,a,b,t,c) -> Options(NoPos,reloc_op_opt o,i,reloc_assoc_opt a,b,reloc_typ_opt t,reloc_code_opt c)
 
 and reloc_op (o : op) =
    match o with
@@ -619,7 +619,7 @@ and print_chars (n:int) (crs:chars) : unit =
 
 and print_opts (n:int) (o1:opts) : unit =
    match o1 with
-   | Options(p,o,i,a,sp,typo) ->
+   | Options(p,o,i,a,sp,typo,co) ->
       print_indent n "Options(\n";
       print_pos (n+1) p;
       print_string ",\n";
@@ -634,6 +634,11 @@ and print_opts (n:int) (o1:opts) : unit =
       (match typo with
       | None -> print_indent (n+1) "None"
       | Some(typ) -> print_indent (n+1) "Some(\n"; print_typ (n+2) typ;
+                     print_string "\n"; print_indent (n+1) ")");
+      print_string ",\n";
+      (match co with
+      | None -> print_indent (n+1) "None"
+      | Some(c) -> print_indent (n+1) "Some(\n"; print_code (n+2) c;
                      print_string "\n"; print_indent (n+1) ")");
       print_string "\n";
       print_indent n ")";

@@ -7,15 +7,16 @@
    let add_ints a b = a + b;;
 }
 
-Program   -> "start"<>@ ({ let p = $1 in print_string p }) Statement? "end"<> eof { Program($P,$2) } ;
+Program   ->   { Program(NoPos,None) } 
+             | "start"<>@ ({ let p = $1 in print_string p }) Statement? "end"<> eof : Program 21 left { Program(NoPos,None) } ;
 
 Statement -> Expr ';'<> { $1 } ;
 
 Expr      -> Integer         : IntExpr  { $1 }
-           | Expr "+"<> Expr : PlusExpr { add_ints $1 $3 } ;
+           | Expr "+"<> 105 Expr : PlusExpr { $1 + $3 (*add_ints $1 $3*) } ;
 
-Integer -> ('0' | [1-9] [0-9]*)<int> { int_of_string $1 } ;
+Integer -> ('0' | [1-9] [0-9]*)<{int_of_string s}:int> 102 unary { $1 } ;
 // a subexpression is flat iff it is composed entirely of constants
 
-SingleComm -> ("//" [^\n]*)<> :  {} ;  /* throw away single-line comments */
-MultiComm  -> "/*" .. "*/" <> : {} ;  /* throw away recursive multiline comments */
+SingleComm -> ("//" [^\n]*)<> left 100:  {} ;  /* throw away single-line comments */
+MultiComm  -> "/*" .. "*/" <> right 101: {} ;  /* throw away recursive multiline comments */
