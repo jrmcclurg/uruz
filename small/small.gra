@@ -10,7 +10,7 @@
 Program   ->   { Program(NoPos,'x',None) } 
              | "b" "start"<>@ ({ let p = $1 in print_string p }) Statement? "end"<> eof : Program 21 left { Program(NoPos,$1,None) } ;
 
-Statement -> Expr ';'<> { $1 } ;
+Statement -> Expr ';' { $1 } ;
 
 Expr      -> Integer         : IntExpr  { $1 }
            | Expr "+"<> 105 Expr : PlusExpr { add_ints $1 $3 } ;

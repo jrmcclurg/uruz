@@ -59,7 +59,7 @@ let rec get_subpattern_default_type (sp : subpattern) : string option =
 and get_atom_default_type (a : atom) : string option =
    match a with
    | IdentAtom(_,s) -> Some(get_production_type s)
-   | StringAtom(_,s) -> Some(if (String.length s) > 1 then "string" else "char")
+   | StringAtom(_,s) -> Some(if (String.length s) = 1 then "char" else "string")
    | CharsetsAtom(_,_) -> Some("char")
    | ChoiceAtom(_,sp,spl) ->
       let (all_chars,all_empty) = List.fold_left (fun (all_chars,all_empty) (Subpatterns(_,sp,spl)) ->
@@ -112,10 +112,20 @@ and flatten_production p =
 and flatten_pattern prefix p = 
   print_string "flatten_pattern\n";
   match p with
-  | Pattern(p,slx,label,eof,c,i,asc) -> let sl = slx in let (nsl,nl,_) =
-    List.fold_right (fun s (sl2,l,n) ->
-      let (s2,e) = flatten_subpattern (prefix^"_"^(string_of_int n)) s in (s2::sl2,e@l,n-1)
-    ) sl ([],[],List.length sl) in
+  | Pattern(p,slx,label,eof,c,i,asc) -> let sl = slx in let (nsl,nl,_,_) =
+    List.fold_right (fun s (sl2,l,n,flag) ->
+       (* NOTE - pull out range patterns *)
+       let new_pref = (prefix^"_"^(string_of_int n)) in
+       match s with
+       | RangeSubpattern(rp,ra1,ra2,ro) ->
+          if flag then (s::sl2, l, n-1, false)
+          else ((SimpleSubpattern(rp,IdentAtom(rp,new_pref),Options(rp,None,None,None,false,None,None)))::sl2,
+          [Production(rp,new_pref,Pattern(rp,[s],None,false,None,None,None),[])]@l, n-1, false)
+    (* (IdentAtom(p,prefix),Production(p,prefix,List.hd temp,List.tl temp)::nl) *)
+       | CodeSubpattern(_,_) -> (s::sl2, l, n-1, true)
+       | _ ->
+          let (s2,e) = flatten_subpattern new_pref s in (s2::sl2,e@l,n-1,false)
+    ) sl ([],[],List.length sl,true) in
     (Pattern(p,nsl,label,eof,c,i,asc),nl)
 and flatten_subpattern prefix s = 
   print_string "flatten_subpattern\n";
@@ -183,37 +193,43 @@ and get_terminals_pattern (pa : pattern) (s : string)
                 ((name^"_0"),x,None,ps)); (* TODO - does this work? *)
       let b = ((List.length spl) = 1) in
       let _ = List.fold_left (fun n sp ->
-         get_terminals_subpattern sp (name^(if b then "" else ("_"^(string_of_int n)))) h;
-         n+1;
+         get_terminals_subpattern sp (name^(if b then "" else ("_"^(string_of_int n)))) h n;
       ) 1 spl in ()
 
 and get_terminals_subpattern (sp : subpattern) (s : string)
-                             (h : (string*((string*int) option)*string option*pos) SubpatternHashtbl.t) : unit =
+                             (h : (string*((string*int) option)*string option*pos) SubpatternHashtbl.t) (n : int) : int =
    match sp with
    | SimpleSubpattern(_,IdentAtom(_,_),Options(ps,_,prec,a,_,_,_)) ->
       let x = (get_assoc_str a prec) in
       (match x with
       | Some(_) -> die_error ps "cannot set options for non-terminal"
-      | _ -> ())
+      | _ -> ());
+      n+1
    | SimpleSubpattern(_,_,Options(ps,_,prec,a,_,Some(Type(_,t)),_)) ->
       let x = (get_assoc_str a prec) in
-      SubpatternHashtbl.replace h sp (s,x,Some(t),ps)
+      SubpatternHashtbl.replace h sp (s,x,Some(t),ps);
+      n+1
    | SimpleSubpattern(_,_,Options(ps,_,prec,a,_,Some(EmptyType(_)),_)) ->
       let x = (get_assoc_str a prec) in
-      SubpatternHashtbl.replace h sp (s,x,None,ps)
+      SubpatternHashtbl.replace h sp (s,x,None,ps);
+      n+1
    | SimpleSubpattern(_,_,Options(ps,_,prec,a,_,None,_)) ->
       let x = (get_assoc_str a prec) in
-      SubpatternHashtbl.replace h sp (s,x,get_subpattern_default_type sp,ps)
+      SubpatternHashtbl.replace h sp (s,x,get_subpattern_default_type sp,ps);
+      n+1
    | RangeSubpattern(_,_,_,Options(ps,_,prec,a,_,Some(Type(_,t)),_)) ->
       let x = (get_assoc_str a prec) in
-      SubpatternHashtbl.replace h sp (s,x,Some(t),ps)
+      SubpatternHashtbl.replace h sp (s,x,Some(t),ps);
+      n+1
    | RangeSubpattern(_,_,_,Options(ps,_,prec,a,_,Some(EmptyType(_)),_)) ->
       let x = (get_assoc_str a prec) in
-      SubpatternHashtbl.replace h sp (s,x,None,ps)
+      SubpatternHashtbl.replace h sp (s,x,None,ps);
+      n+1
    | RangeSubpattern(_,_,_,Options(ps,_,prec,a,_,None,_)) ->
       let x = (get_assoc_str a prec) in
-      SubpatternHashtbl.replace h sp (s,x,get_subpattern_default_type sp,ps)
-   | CodeSubpattern(_,_) -> ()
+      SubpatternHashtbl.replace h sp (s,x,get_subpattern_default_type sp,ps);
+      n+1
+   | CodeSubpattern(_,_) -> n
 ;;
 
 let generate_makefile_vars file =
@@ -503,7 +519,7 @@ let generate_parser_code file prefix g (h : ((string*((string*int) option)*strin
 ;;
 
 (* generate lexer.mll *)
-let generate_lexer_code file prefix g (h : (string*((string*int) option)*string option*pos) SubpatternHashtbl.t) =
+let rec generate_lexer_code file prefix g (h : (string*((string*int) option)*string option*pos) SubpatternHashtbl.t) =
    output_warning_msg file "(*" " *" " *)";
    output_string file "\n\n";
    output_string file "{\n";
@@ -526,9 +542,75 @@ let generate_lexer_code file prefix g (h : (string*((string*int) option)*string 
       let c = (match cd with
       | None -> ""
       | Some(Code(_,s)) -> ("let t = "^s^" in ")) in
-      output_string file ("| "^str^" as s { ignore s; "^c^name^aft^" }\n");
+      match s with
+      | SimpleSubpattern(_,IdentAtom(_,_),_) -> ()
+      | _ ->
+      output_string file "| ";
+      let _ = generate_lexer_subpattern_code file s in
+      output_string file (" as s { ignore s; "^c^name^aft^" }\n");
    ) h;
+
+and generate_lexer_atom_code file a : bool =
+   match a with
+   | IdentAtom(ps,s) -> false (* NOTE - this is only used to provide the %prec things to parser.mly,
+                               *        so just ignore it*)
+   | StringAtom(_,s) -> output_string file ("\""^s^"\""); true
+   | CharsetsAtom(_,SingletonCharsets(_,c)) -> generate_lexer_charset_code file c; true
+   | CharsetsAtom(_,DiffCharsets(_,c1,c2)) ->
+      generate_lexer_charset_code file c1;
+      output_string file " \ "; (* TODO - is this the correct syntax for diff? *)
+      generate_lexer_charset_code file c2;
+      true
+   | ChoiceAtom(_,s,sl) ->  (* TODO - is this choice thing ever empty? *)
+      output_string file "(";
+      let _ = List.fold_left (fun flag s ->
+         if flag then output_string file " | ";
+         let _ = generate_lexer_subpatterns_code file s in (); (* TODO - do we want to pass this thru? *)
+         true
+      ) false (s::sl) in ();
+      output_string file ")";
+      true
+
+and generate_lexer_subpatterns_code file sp =
+   match sp with
+   | Subpatterns(_,s,sl) ->
+      let (_,res) = List.fold_left (fun (flag,res) s ->
+         if flag then output_string file " ";
+         let flag2 = generate_lexer_subpattern_code file s in
+         (flag2,(res||flag2))
+      ) (true,false) (s::sl) in
+      res
+
+and generate_lexer_subpattern_code file s : bool =
+   (* TODO - what about code subpatterns, i.e. empty patterns *)
+   match s with
+   | SimpleSubpattern(_,a,_) -> generate_lexer_atom_code file a
+   | RangeSubpattern(_,a1,a2,_) -> generate_lexer_atom_code file a1  (* TODO - the rest goes in the semantic rule *)
+   | CodeSubpattern(_,_) -> false
+
+and generate_lexer_charset_code file c =
+   match c with
+   | WildcardCharset(_) -> output_string file "_"
+   | SingletonCharset(_,c) -> output_string file ("'"^(Char.escaped c)^"'")  (* TODO - escaped!!!! *)
+   | ListCharset(_,cl,inv) ->
+      output_string file "[";
+      let t = (if inv then (output_string file "^"; true) else false) in
+      let _ = List.fold_left (fun flag c ->
+         if flag then output_string file " ";
+         generate_lexer_chars_code file c;
+         true
+      ) t cl in
+      output_string file "]";
+
+and generate_lexer_chars_code file c =
+   match c with
+   | SingletonChars(_,c) -> output_string file ("'"^(Char.escaped c)^"'") (* TODO - escaped!! *)
+   | RangeChars(_,c1,c2) -> 
+      output_string file ("'"^(Char.escaped c1)^"'-'"^(Char.escaped c2)^"'")
 ;;
+(* TODO - handle ?,+,* options for the terminals *)
+
+(* TODO - handle the eof.  Also, what is the bool in Options? *)
 
 let generate_main_code file prefix g =
    output_warning_msg file "(*" " *" " *)";

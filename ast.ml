@@ -688,13 +688,10 @@ and print_typ (n:int) (ty:typ) : unit =
 ;;
 
 let rec is_subpattern_flat (s : subpattern) : bool =
-   print_string "is_subpattern_flat? ";
-   print_subpattern 0 s;
-   print_string " = ";
    let result = 
    (match s with
    | SimpleSubpattern(_,a1,_) -> is_atom_flat a1
-   | RangeSubpattern(_,a1,a2,_) -> (is_atom_flat a1) && (is_atom_flat a2)
+   | RangeSubpattern(_,a1,a2,_) -> false (*(is_atom_flat a1) && (is_atom_flat a2)*)
    | CodeSubpattern(_,_) -> true) in
    print_string (if result then "true" else "false");
    print_string "\n";
