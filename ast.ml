@@ -265,13 +265,13 @@ and reloc_typ_opt (t : typ option) =
    | Some(t) -> Some(reloc_typ t)
 ;;
 
-print_string "ast.ml\n";;
+(*print_string "ast.ml\n";;
 
 let t1 = SimpleSubpattern(NoPos,StringAtom(NoPos,"+"),Options(NoPos,None,None,None,false,None)) ;;
 let t2 = SimpleSubpattern(Pos("file",1,2),StringAtom(Pos("other",123,123),"+"),Options(NoPos,None,None,None,false,None)) ;;
 if ((reloc_subpattern t1) = (reloc_subpattern t2)) then print_string "EQUAL!!!!\n";;
 print_int (Hashtbl.hash (reloc_subpattern t1)); print_string "\n";;
-print_int (Hashtbl.hash (reloc_subpattern t2)); print_string "\n";;
+print_int (Hashtbl.hash (reloc_subpattern t2)); print_string "\n";;*)
 
 let rec string_explode (s:string) : char list =
    if (String.length s) > 0 then
@@ -317,11 +317,18 @@ let string_of_string (s:string) : string =
    Scanf.sscanf s3 "%S" (fun x -> x)
 ;;
 
-let rec print_indent2 n s =
-   if n=0 then print_string s
-   else (print_string " "; print_indent2 (n-1) s)
+let rec output_indent2 file n s =
+   if n=0 then output_string file s
+   else (output_string file " "; output_indent2 file (n-1) s)
+
+and output_indent file n s =
+   output_indent2 file (n*3) s
+
 and print_indent n s =
-   print_indent2 (n*3) s
+   output_indent stdout n s
+
+and output_spaces file n s =
+   output_indent2 file n s
 ;;
 
 let rec get_grammar_pos (g : grammar) : pos =

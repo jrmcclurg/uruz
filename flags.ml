@@ -24,6 +24,9 @@ let opt_level = ref (None : string option);;
 let compile_static = ref false;;
 let debug_symbols = ref false;;
 let libs = (Hashtbl.create 5 : (string,unit) Hashtbl.t);;
+let page_width = ref 70;;
+let default_assoc = ref "left";;
+let default_prec = ref Pervasives.max_int;;
 
 let error_and_exit s =
    output_string stderr ("Error: "^s^"\n");

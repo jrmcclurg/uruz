@@ -29,6 +29,18 @@ let output_warning_msg (f : out_channel) (s1 : string) (s2 : string) (s3 : strin
    s3)
 ;;
 
+let get_assoc_str (a : assoc option) (pr : int option) : ((string*int) option) =
+   match (a,pr) with
+   | (Some(LeftAssoc(p)),None) -> Some("left",!default_prec)
+   | (Some(LeftAssoc(p)),Some(i)) -> Some("left",i)
+   | (Some(RightAssoc(p)),None) -> Some("right",!default_prec)
+   | (Some(RightAssoc(p)),Some(i)) -> Some("right",i)
+   | (Some(UnaryAssoc(p)),None) -> Some("nonassoc",!default_prec)
+   | (Some(UnaryAssoc(p)),Some(i)) -> Some("nonassoc",i)
+   | (None,Some(i)) -> Some(!default_assoc,i)
+   | _ -> None
+;;
+
 let get_production_type s =
    if (is_capitalized s) then ((to_type_case s)^"_t")
    else s 
@@ -98,7 +110,7 @@ and flatten_subpatterns prefix sp =
 ;;
 
 let rec get_terminals_grammar (g : grammar)
-                              (h : (string*int option*string option) SubpatternHashtbl.t) : unit =
+                              (h : (string*((string*int) option)*string option*pos) SubpatternHashtbl.t) : unit =
    match g with
    | Grammar(_,_,_,pr,prl) ->
       List.iter (fun pr ->
@@ -106,7 +118,7 @@ let rec get_terminals_grammar (g : grammar)
       ) (pr::prl)
 
 and get_terminals_production (pr : production)
-                             (h : (string*int option*string option) SubpatternHashtbl.t) : unit =
+                             (h : (string*((string*int) option)*string option*pos) SubpatternHashtbl.t) : unit =
    match pr with
    | Production(_,name,pa,pal) ->
       let b = ((List.length pal) = 0) in
@@ -116,29 +128,34 @@ and get_terminals_production (pr : production)
       ) 1 (pa::pal) in ()
 
 and get_terminals_pattern (pa : pattern) (s : string)
-                          (h : (string*int option*string option) SubpatternHashtbl.t) : unit =
+                          (h : (string*((string*int) option)*string option*pos) SubpatternHashtbl.t) : unit =
    match pa with
    | Pattern(_,sp,spl,t,_,_) -> 
       let name = (to_token_case (match t with
       | Some(Type(_,s)) -> s
       | _ -> s)) in
+      let b = ((List.length spl) = 0) in
       let _ = List.fold_left (fun n sp ->
-         get_terminals_subpattern sp (name^"_"^(string_of_int n)) h;
+         get_terminals_subpattern sp (name^(if b then "" else ("_"^(string_of_int n)))) h;
          n+1;
       ) 1 (sp::spl) in ()
 
 and get_terminals_subpattern (sp : subpattern) (s : string)
-                             (h : (string*int option*string option) SubpatternHashtbl.t) : unit =
+                             (h : (string*((string*int) option)*string option*pos) SubpatternHashtbl.t) : unit =
    match sp with
    | SimpleSubpattern(_,IdentAtom(_,_),_) -> ()
-   | SimpleSubpattern(_,_,Options(_,_,prec,_,_,Some(Type(_,t)))) ->
-      SubpatternHashtbl.replace h sp (s,prec,Some(t)) (* TODO get_production_type t ? *)
-   | SimpleSubpattern(_,_,Options(_,_,prec,_,_,_)) ->
-      SubpatternHashtbl.replace h sp (s,prec,None)
-   | RangeSubpattern(_,_,_,Options(_,_,prec,_,_,Some(Type(_,t)))) ->
-      SubpatternHashtbl.replace h sp (s,prec,Some(t)) (* TODO get_production_type t ? *)
-   | RangeSubpattern(_,_,_,Options(_,_,prec,_,_,_)) ->
-      SubpatternHashtbl.replace h sp (s,prec,None)
+   | SimpleSubpattern(ps,_,Options(_,_,prec,a,_,Some(Type(_,t)))) ->
+      let x = (get_assoc_str a prec) in
+      SubpatternHashtbl.replace h sp (s,x,Some(t),ps) (* TODO get_production_type t ? *)
+   | SimpleSubpattern(ps,_,Options(_,_,prec,a,_,_)) ->
+      let x = (get_assoc_str a prec) in
+      SubpatternHashtbl.replace h sp (s,x,None,ps)
+   | RangeSubpattern(ps,_,_,Options(_,_,prec,a,_,Some(Type(_,t)))) ->
+      let x = (get_assoc_str a prec) in
+      SubpatternHashtbl.replace h sp (s,x,Some(t),ps) (* TODO get_production_type t ? *)
+   | RangeSubpattern(ps,_,_,Options(_,_,prec,a,_,_)) ->
+      let x = (get_assoc_str a prec) in
+      SubpatternHashtbl.replace h sp (s,x,None,ps)
    | CodeSubpattern(_,_) -> ()
 ;;
 
@@ -313,7 +330,10 @@ and generate_ast_atom_code file prefix a o =
 
 (* generate parser.mly *)
 let generate_parser_code file prefix g =
-   let h = ((SubpatternHashtbl.create 100) : (string*int option*string option) SubpatternHashtbl.t) in (* TODO - size? *)
+   let h = ((SubpatternHashtbl.create 100) :
+      (string*((string*int) option)*string option*pos) SubpatternHashtbl.t) in (* TODO - size? *)
+   let toks = ((Hashtbl.create 100) : (string option,string list) Hashtbl.t) in (* type,token_names *)
+   let assocs = ((Hashtbl.create 100) : (int,(string*string list)) Hashtbl.t) in (* prec,assoc,token_names *)
    get_terminals_grammar g h;
    match g with
    | Grammar(p,header,footer,Production(p2,name,pa,pal),prodl) ->
@@ -323,13 +343,19 @@ let generate_parser_code file prefix g =
    output_string file ("   open "^prefix^"ast;;\n");
    output_string file ("   open "^prefix^"utils;;\n");
    output_string file "%}\n";
-   let tab = SubpatternHashtbl.fold (fun k (s,prec,ty) res -> 
-      let t = (match ty with
-      | None -> ""
-      | Some(s) -> "<"^s^"> ") in
-      (s,prec,t)::res
-   ) h [] in
-   let tab2 = List.sort
+   SubpatternHashtbl.iter (fun k (s,assoc_str,ty,ps) -> 
+      let a = (try Hashtbl.find toks ty with _ -> []) in
+      Hashtbl.replace toks ty (s::a);
+      (match assoc_str with
+      | None -> ()
+      | Some((asc2,prec2)) ->
+         let (asc,sl) = (try Hashtbl.find assocs prec2 with _ -> (asc2,[])) in
+         if (asc <> asc2) then die_error ps ("terminal symbol "^s^" cannot have "^
+                                                asc2^" assoc at precedence "^(string_of_int prec2));
+         Hashtbl.replace assocs prec2 (asc,(s::sl));
+      );
+   ) h;
+   (*let tab2 = List.sort
    (fun (_,p1,_) (_,p2,_) ->
       let i1 = (match p1 with
       | None -> Pervasives.min_int
@@ -338,12 +364,37 @@ let generate_parser_code file prefix g =
       | None -> Pervasives.min_int
       | Some(i) -> i) in
       compare i1 i2
-   ) tab in
-   List.iter (fun (s,prec,t) ->
+   ) tab in*)
+   (* TODO - sort the following hashtable by the type name *)
+   Hashtbl.iter (fun ty sl ->
+      let t = (match ty with
+      | None -> ""
+      | Some(s) -> " <"^s^">") in
+      let o = ("%token"^t) in
+      let olen = String.length o in
+      output_string file o;
+      let _ = List.fold_left (fun n s ->
+         let x = (" "^s) in 
+         let n2 = n+(String.length x) in
+         let n3 = if n2 > !page_width then (output_string file "\n"; output_spaces file olen ""; 0) else n2 in
+         output_string file x; n3
+      ) olen (List.sort (String.compare) sl) in
+      output_string file "\n";
+   ) toks;
+   let assocl = Hashtbl.fold (fun i (s,sl) res ->
+      (i,s,sl)::res
+   ) assocs [] in
+   List.iter (fun (i,s,sl) ->
+      output_string file ("%"^s);
+      List.iter (fun s ->
+         output_string file (" "^s);
+      ) sl;
+      output_string file (" /* "^(string_of_int i)^" */\n");
+   ) (List.sort (fun (i1,_,_) (i2,_,_) -> compare i2 i1) assocl);
+   (*List.iter (fun (s,prec,t) ->
       output_string file ("%token "^t^s^" /* "^(match prec with Some(p) -> string_of_int p | _ -> "")^" */\n")
-   ) tab2;
-   output_string file "%token <int> INT\n";
-   output_string file "%token PLUS MINUS TIMES DIV\n";
+   ) tab2;*)
+   output_string file "%token PLUS /* (* XXX TODO - get rid of this *) */\n";
    output_string file "%start main /* the entry point */\n";
    output_string file ("%type <"^prefix^"ast."^(get_production_type name)^"> main\n"); (* TODO XXX - find the root type *)
    output_string file "%%\n";
