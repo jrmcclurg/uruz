@@ -71,11 +71,11 @@ and flatten_production p =
 and flatten_pattern prefix p = 
   print_string "flatten_pattern\n";
   match p with
-  | Pattern(p,sx,slx,label,eof,c) -> let sl = sx::slx in let (nsl,nl,_) =
+  | Pattern(p,sx,slx,label,eof,c,i,asc) -> let sl = sx::slx in let (nsl,nl,_) =
     List.fold_right (fun s (sl2,l,n) ->
       let (s2,e) = flatten_subpattern (prefix^"_"^(string_of_int n)) s in (s2::sl2,e@l,n-1)
     ) sl ([],[],List.length sl) in
-    (Pattern(p,List.hd nsl,List.tl nsl,label,eof,c),nl)
+    (Pattern(p,List.hd nsl,List.tl nsl,label,eof,c,i,asc),nl)
 and flatten_subpattern prefix s = 
   print_string "flatten_subpattern\n";
   if (is_subpattern_flat s) then (s,[])
@@ -98,7 +98,7 @@ and flatten_atom prefix a =
     ) spl ([],[],List.length spl) in
     print_string ("flatten_atom \n"^(string_of_int (List.length nl)));
     if (List.length spl) = 1 then (a,[]) else
-    let temp = List.map (fun (Subpatterns(pa,x,l)) -> Pattern(pa,x,l,None,false,None)) nspl (* TODO *) in
+    let temp = List.map (fun (Subpatterns(pa,x,l)) -> Pattern(pa,x,l,None,false,None,None,None)) nspl (* TODO *) in
     (IdentAtom(p,prefix),Production(p,prefix,List.hd temp,List.tl temp)::nl)
   | _                -> (a,[])
 and flatten_subpatterns prefix sp = 
@@ -130,10 +130,16 @@ and get_terminals_production (pr : production)
 and get_terminals_pattern (pa : pattern) (s : string)
                           (h : (string*((string*int) option)*string option*pos) SubpatternHashtbl.t) : unit =
    match pa with
-   | Pattern(_,sp,spl,t,_,_) -> 
+   | Pattern(ps,sp,spl,t,_,_,i,asc) -> 
       let name = (to_token_case (match t with
       | Some(Type(_,s)) -> s
       | _ -> s)) in
+      let x = get_assoc_str asc i in
+      (match x with
+      | None -> ()
+      | _ -> SubpatternHashtbl.replace h
+                (SimpleSubpattern(NoPos,IdentAtom(NoPos,name),Options(NoPos,None,None,None,false,None)))
+                ((name^"_0"),x,None,ps)); (* TODO - does this work? *)
       let b = ((List.length spl) = 0) in
       let _ = List.fold_left (fun n sp ->
          get_terminals_subpattern sp (name^(if b then "" else ("_"^(string_of_int n)))) h;
@@ -143,17 +149,21 @@ and get_terminals_pattern (pa : pattern) (s : string)
 and get_terminals_subpattern (sp : subpattern) (s : string)
                              (h : (string*((string*int) option)*string option*pos) SubpatternHashtbl.t) : unit =
    match sp with
-   | SimpleSubpattern(_,IdentAtom(_,_),_) -> ()
-   | SimpleSubpattern(ps,_,Options(_,_,prec,a,_,Some(Type(_,t)))) ->
+   | SimpleSubpattern(_,IdentAtom(_,_),Options(ps,_,prec,a,_,_)) ->
       let x = (get_assoc_str a prec) in
-      SubpatternHashtbl.replace h sp (s,x,Some(t),ps) (* TODO get_production_type t ? *)
-   | SimpleSubpattern(ps,_,Options(_,_,prec,a,_,_)) ->
+      (match x with
+      | Some(_) -> die_error ps "cannot set options for non-terminal"
+      | _ -> ())
+   | SimpleSubpattern(_,_,Options(ps,_,prec,a,_,Some(Type(_,t)))) ->
+      let x = (get_assoc_str a prec) in
+      SubpatternHashtbl.replace h sp (s,x,Some(t),ps)
+   | SimpleSubpattern(_,_,Options(ps,_,prec,a,_,_)) ->
       let x = (get_assoc_str a prec) in
       SubpatternHashtbl.replace h sp (s,x,None,ps)
-   | RangeSubpattern(ps,_,_,Options(_,_,prec,a,_,Some(Type(_,t)))) ->
+   | RangeSubpattern(_,_,_,Options(ps,_,prec,a,_,Some(Type(_,t)))) ->
       let x = (get_assoc_str a prec) in
-      SubpatternHashtbl.replace h sp (s,x,Some(t),ps) (* TODO get_production_type t ? *)
-   | RangeSubpattern(ps,_,_,Options(_,_,prec,a,_,_)) ->
+      SubpatternHashtbl.replace h sp (s,x,Some(t),ps)
+   | RangeSubpattern(_,_,_,Options(ps,_,prec,a,_,_)) ->
       let x = (get_assoc_str a prec) in
       SubpatternHashtbl.replace h sp (s,x,None,ps)
    | CodeSubpattern(_,_) -> ()
@@ -242,7 +252,7 @@ and generate_ast_production_code file prefix flag2 p =
     if r then output_string file "\n"
 and generate_ast_pattern_code file prefix name n flag p s flag2 =
   if flag then  output_string file "\n";
-  match p with Pattern(_,sx,slx,labelo,eof,c) ->
+  match p with Pattern(_,sx,slx,labelo,eof,c,_,_) ->
     let (ignore,label) = (match labelo with
     | None -> (false,None)
     | Some(Type(_,l)) -> (false,Some(l))
@@ -384,6 +394,7 @@ let generate_parser_code file prefix g =
    let assocl = Hashtbl.fold (fun i (s,sl) res ->
       (i,s,sl)::res
    ) assocs [] in
+   (* TODO - add the line wrap for this loop, and sort each list *)
    List.iter (fun (i,s,sl) ->
       output_string file ("%"^s);
       List.iter (fun s ->

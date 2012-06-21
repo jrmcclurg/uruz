@@ -60,7 +60,9 @@ pattern_bar_list:
 ;
 
 pattern:
-   subpattern subpattern_list label eof_op code_block { Pattern(get_current_pos (),$1,$2,$3,$4,$5) }
+   subpattern subpattern_list eof_op label code_block {
+      let (l,(pr,assoc)) = $4 in Pattern(get_current_pos (),$1,$2,l,$3,$5,pr,assoc)
+   }
 ;
 
 eof_op:
@@ -69,9 +71,23 @@ eof_op:
 ;
 
 label:
-                 { None }
-   | COLON IDENT { Some(Type(get_current_pos (), $2)) }
-   | COLON       { Some(EmptyType(get_current_pos ())) }
+                 { (None,(None,None)) }
+   | COLON IDENT pattern_opts { (Some(Type(get_current_pos (), $2)),$3) }
+   | COLON       pattern_opts { (Some(EmptyType(get_current_pos ())),$2) }
+;
+
+pattern_opts:
+   opt_list {
+      let l = $1 in
+      let (pri,assoc) =
+      List.fold_left (fun (pri,assoc) o ->
+         match (o,pri,assoc) with
+         | (PrecOption(i),None,_) -> (Some(i),assoc)
+         | (AssocOption(a),_,None) -> (pri,Some(a))
+         | _ -> parse_error "malformed rule associativity/precedence"
+      ) (None,None) l in
+      (pri,assoc)
+   }
 ;
 
 subpattern_list:
@@ -132,7 +148,7 @@ opts:
          | (AssocOption(a),_,_,None,_,_) -> (opr,pri,Some(a),supp_print,ty)
          | (SuppPrintOption(b),_,_,_,None,_) -> (opr,pri,assoc,Some(b),ty)
          | (TypeOption(ty),_,_,_,_,None) -> (opr,pri,assoc,supp_print,Some(ty))
-         | _ -> parse_error "multiple modifiers of same tye in options list"
+         | _ -> parse_error "multiple modifiers of same type in options list"
       ) (None,None,None,None,None) l in
       let sp = (match supp_print with
       | None -> false

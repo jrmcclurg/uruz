@@ -3,7 +3,7 @@ open Utils;;
 type grammar = Grammar of pos * code option * code option * production * production list (* code,prods *)
  and code = Code of pos * string
  and production = Production of pos * string * pattern * pattern list (* name,patterns *)
- and pattern = Pattern of pos * subpattern * subpattern list * typ option * bool * code option (* subpatterns,code *)
+ and pattern = Pattern of pos * subpattern * subpattern list * typ option * bool * code option * int option * assoc option (* subpatterns,code *)
  and subpattern = SimpleSubpattern of pos * atom * opts
                 (* NOTE - the atoms in RangeSubpattern are required (by parser)
                  *        to be flat *)
@@ -65,10 +65,10 @@ and equal_production_list (pl : production list) (plt : production list) : bool 
 
 and equal_pattern (p1 : pattern) (p2 : pattern) : bool =
    match (p1,p2) with
-   | (Pattern(_,p,pl,t,b,c),Pattern(_,pt,plt,tt,bt,ct)) ->
+   | (Pattern(_,p,pl,t,b,c,i,asc),Pattern(_,pt,plt,tt,bt,ct,it,asct)) ->
       if (List.length pl) <> (List.length plt) then false
       else ((equal_subpattern p pt) && (equal_subpattern_list pl plt) &&
-            (equal_typ_opt t tt) && (b = bt) && (equal_code_opt c ct))
+            (equal_typ_opt t tt) && (b = bt) && (equal_code_opt c ct) && (i = it) && (equal_assoc_opt asc asct))
 
 and equal_pattern_list (pl : pattern list) (plt : pattern list) : bool =
       if (List.length pl) <> (List.length plt) then false
@@ -192,8 +192,8 @@ and reloc_production (p : production) =
 
 and reloc_pattern (p : pattern) = 
    match p with
-   | Pattern(p,s,sl,t,b,c) ->
-      Pattern(NoPos,reloc_subpattern s,List.map (fun s -> reloc_subpattern s) sl,reloc_typ_opt t,b,reloc_code_opt c)
+   | Pattern(p,s,sl,t,b,c,i,asc) ->
+      Pattern(NoPos,reloc_subpattern s,List.map (fun s -> reloc_subpattern s) sl,reloc_typ_opt t,b,reloc_code_opt c,i,reloc_assoc_opt asc)
 
 and reloc_subpattern (s : subpattern) =
    match s with
@@ -432,7 +432,7 @@ and print_production (n:int) (pr:production) : unit =
 
 and print_pattern (n:int) (pa:pattern) : unit =
    match pa with
-   | Pattern(p,sx,slx,label,eof,s) ->
+   | Pattern(p,sx,slx,label,eof,s,i,asc) ->
       let sl = sx::slx in
       print_indent n "Pattern(\n";
       print_pos (n+1) p;
@@ -456,6 +456,12 @@ and print_pattern (n:int) (pa:pattern) : unit =
                    print_code (n+2) s; print_string "\n"; print_indent (n+1) ")" );
       print_string ",\n";
       print_indent (n+1) (if eof then "true" else "false");
+      print_string ",\n";
+      (match i with
+      | None -> print_indent (n+1) "None"
+      | Some(i) -> print_indent (n+1) "Some("; print_int i; print_string ")");
+      print_string ",\n";
+      print_assoc (n+1) asc;
       print_string "\n";
       print_indent n ")";
 
