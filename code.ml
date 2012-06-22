@@ -517,8 +517,7 @@ let rec generate_lexer_code file prefix g (h : (string*((string*int) option)*str
    (* TODO XXX - sort and all that - I THINK THE ORDER NEEDS TO CORRESPOND TO FILE ORDER *)
    SubpatternHashtbl.iter (fun s (name,_,ty,p) ->
       let (cd) = (match s with
-      | SimpleSubpattern(_,StringAtom(_,s1),Options(_,_,_,_,_,_,cd)) -> (cd)
-      | SimpleSubpattern(_,ChoiceAtom(_,sp,spl),Options(_,_,_,_,_,_,cd)) -> (cd)
+      | SimpleSubpattern(_,_,Options(_,_,_,_,_,_,cd)) -> (cd)
       | _ -> (None) (* TODO - fill this in *)
       ) in
       let (bef,aft) = (match (ty,cd) with
@@ -565,7 +564,7 @@ and generate_lexer_subpatterns_code file sp =
          if flag then output_string file " ";
          let flag2 = generate_lexer_subpattern_code file s in
          (flag2,(res||flag2))
-      ) (true,false) (s::sl) in
+      ) (false,false) (s::sl) in
       res
 
 and generate_lexer_subpattern_code file s : bool =
