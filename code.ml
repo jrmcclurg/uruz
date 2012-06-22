@@ -63,19 +63,47 @@ and flatten_pattern prefix p =
   print_string "flatten_pattern\n";
   match p with
   | Pattern(p,slx,label,eof,c,i,asc) -> let sl = slx in let (nsl,nl,_,_) =
+    let len = List.fold_left (fun res s ->
+       match s with
+       | CodeSubpattern(_,_) -> res
+       | _ -> res+1
+    ) 0 sl in
     List.fold_right (fun s (sl2,l,n,flag) ->
        (* NOTE - pull out range patterns *)
+       (* NOTE - pull out *,+,?-modified stuff *)
        let new_pref = (prefix^"_"^(string_of_int n)) in
        match s with
        | RangeSubpattern(rp,ra1,ra2,ro) ->
           if flag then (s::sl2, l, n-1, false)
           else ((SimpleSubpattern(rp,IdentAtom(rp,new_pref),Options(rp,None,None,None,false,None,None)))::sl2,
           [Production(rp,new_pref,Pattern(rp,[s],None,false,None,None,None),[])]@l, n-1, false)
-    (* (IdentAtom(p,prefix),Production(p,prefix,List.hd temp,List.tl temp)::nl) *)
-       | CodeSubpattern(_,_) -> (s::sl2, l, n-1, true)
+       | SimpleSubpattern(rp,IdentAtom(rp2,name),Options(rp3,Some(o),o1,o2,o3,typo,o5)) ->
+          let the_typename = (get_production_type name) in
+          let (nm,e,tp) = (match o with
+          | StarOp(_) ->
+             let nm = (new_pref^"_list") in
+             (nm,[Production(rp,nm,Pattern(rp,[],Some(EmptyType(rp)),false,Some(Code(rp," [] ")),None,None),
+                                  [Pattern(rp,[s;
+                                  SimpleSubpattern(rp,IdentAtom(rp,nm),Options(rp,None,None,None,false,None,None))],
+                                  Some(EmptyType(rp)),false,Some(Code(rp," $1::$2 ")),None,None)])],
+              (the_typename^" list"))
+          | PlusOp(_) ->
+             let nm = (new_pref^"_nlist") in
+             (nm,[Production(rp,nm,Pattern(rp,[s],Some(EmptyType(rp)),false,Some(Code(rp," ($1,[]) ")),None,None),
+                                  [Pattern(rp,[s;
+                                  SimpleSubpattern(rp,IdentAtom(rp,nm),Options(rp,None,None,None,false,None,None))],
+                                  Some(EmptyType(rp)),false,Some(Code(rp," let (h,l) = $2 in ($1,h::l) ")),None,None)])],
+              ("("^the_typename^" * "^the_typename^" list)"))
+          | QuestionOp(_) -> ((new_pref^"_opt"),[],"")
+          ) in
+          let use_type = (match typo with
+          | None -> Some(Type(rp3,tp))
+          | _ -> typo) in
+          ((SimpleSubpattern(rp,IdentAtom(rp2,nm),Options(rp3,None,o1,o2,o3,use_type,o5)))::sl2, e@l, n-1, false)
+       | CodeSubpattern(_,_) -> (s::sl2, l, n, true)
        | _ ->
           let (s2,e) = flatten_subpattern new_pref s in (s2::sl2,e@l,n-1,false)
-    ) sl ([],[],List.length sl,true) in
+    ) sl ([],[],len,true) in
     (Pattern(p,nsl,label,eof,c,i,asc),nl)
 and flatten_subpattern prefix s = 
   print_string "flatten_subpattern\n";
@@ -152,7 +180,7 @@ and get_terminals_subpattern (sp : subpattern) (s : string)
    | SimpleSubpattern(_,IdentAtom(_,_),Options(ps,_,prec,a,_,_,_)) ->
       let x = (get_assoc_str a prec) in
       (match x with
-      | Some(_) -> die_error ps "cannot set options for non-terminal"
+      | Some(_) -> die_error ps "cannot set options for non-terminal" (* TODO - this should never happen (done in parser) *)
       | _ -> ());
       n+1
    | SimpleSubpattern(_,_,Options(ps,_,prec,a,_,Some(Type(_,t)),_)) ->
@@ -435,35 +463,41 @@ let generate_parser_code file prefix g (h : ((string*((string*int) option)*strin
    ) tab2;*)
    output_string file "\n";
    output_string file "%start main /* the entry point */\n";
-   output_string file ("%type <"^prefix^"ast."^(get_production_type name)^"> main\n"); (* TODO XXX - find the root type *)
+   output_string file ("%type <"^prefix^"ast."^(get_production_type name)^"> main\n");
    output_string file "%%\n";
-   let _ = List.fold_left (fun n (Production(p2,name,pa,pal)) ->
-      let name2 = if n = 1 then "main" else (output_string file "\n"; (get_production_type name)) in
-      output_string file (name2^":\n");
-      let _ = List.fold_left (fun k (Pattern(_,sl,_,ef,cd,i,asc)) ->
-         output_string file "   |";
-         let _ = List.fold_left (fun j s ->
-            let str = (try let (x,_,_,_) = SubpatternHashtbl.find h s in (" "^x) with _ -> 
-               match s with
-               | SimpleSubpattern(_,IdentAtom(_,name),_) -> (" "^(get_production_type name))
-               | CodeSubpattern(_,_) -> ""
-               | _ -> "XXX" (* TODO - this should never happen - do error? *)
-            ) in
-            output_string file (str);
-            j+1
-         ) 1 sl in
-         if ef then output_string file " EOF";
-         (* TODO - add precedence *)
-         (* TODO XXX - expand the *,+,? subpatterns first in a transformation pass *)
-         output_string file " {";
-         (match cd with
-         | None -> output_string file " "
-         | Some(Code(_,s)) -> output_string file s);
-         output_string file "}\n";
-         k+1
-      ) 1 (pa::pal) in 
-      output_string file ";\n";
-      n+1
+   let _ = List.fold_left (fun n ((Production(p2,name,pa,pal)) as pr) ->
+      (* TODO - make sure (via parser?) that the first production is non-empty *)
+      if (not (is_production_empty pr)) then (
+         let name2 = if n = 1 then "main" else (output_string file "\n"; (get_production_type name)) in
+         output_string file (name2^":\n");
+         let _ = List.fold_left (fun k (Pattern(_,sl,_,ef,cd,i,asc)) ->
+            match cd with
+            | None -> k
+            | _ -> (
+               output_string file "   |";
+               let _ = List.fold_left (fun j s ->
+                  let str = (try let (x,_,_,_) = SubpatternHashtbl.find h s in (" "^x) with _ -> 
+                     match s with
+                     | SimpleSubpattern(_,IdentAtom(_,name),_) -> (" "^(get_production_type name))
+                     | CodeSubpattern(_,_) -> ""
+                     | _ -> "XXX" (* TODO - this should never happen - do error? *)
+                  ) in
+                  output_string file (str);
+                  j+1
+               ) 1 sl in
+               if ef then output_string file " EOF";
+               (* TODO - add precedence *)
+               output_string file " {";
+               (match cd with
+               | None -> output_string file " "
+               | Some(Code(_,s)) -> output_string file s);
+               output_string file "}\n";
+               k+1
+            )
+         ) 1 (pa::pal) in 
+         output_string file ";\n";
+         n+1
+      ) else n
    ) 1 (prodf::prodl) in ();
    output_string file "\n";
    output_string file "%%\n";
@@ -482,24 +516,23 @@ let rec generate_lexer_code file prefix g (h : (string*((string*int) option)*str
    output_string file "rule token = parse\n";
    (* TODO XXX - sort and all that - I THINK THE ORDER NEEDS TO CORRESPOND TO FILE ORDER *)
    SubpatternHashtbl.iter (fun s (name,_,ty,p) ->
-      let (str,cd) = (match s with
-      | SimpleSubpattern(_,StringAtom(_,s1),Options(_,_,_,_,_,_,cd)) -> (("\""^s1^"\""),cd)
-      | SimpleSubpattern(_,ChoiceAtom(_,sp,spl),Options(_,_,_,_,_,_,cd)) -> (("\"TODO\""),cd)
-      | _ -> ("\"\"",None) (* TODO - fill this in *)
+      let (cd) = (match s with
+      | SimpleSubpattern(_,StringAtom(_,s1),Options(_,_,_,_,_,_,cd)) -> (cd)
+      | SimpleSubpattern(_,ChoiceAtom(_,sp,spl),Options(_,_,_,_,_,_,cd)) -> (cd)
+      | _ -> (None) (* TODO - fill this in *)
       ) in
       let (bef,aft) = (match (ty,cd) with
-      | (None,_) -> ("","")
-      | (Some(s),None) -> ("","(s)")
-      | (Some(s),_) -> ("","(t)")) in
-      let c = (match cd with
-      | None -> ""
-      | Some(Code(_,s)) -> ("let t = "^s^" in ")) in
+      | (None,None) -> ("",name)
+      | (None,Some(Code(_,s) as c)) -> ("",if (is_code_empty c) then "token lexbuf" else name)
+      | (Some(s),None) -> ("",(name^"(s)"))
+      | (Some(_),Some(Code(_,s) as c)) ->
+         ("",if (is_code_empty c) then "token lexbuf" else ("let t = "^s^" in ignore t; "^name^"(t)"))) in
       match s with
       | SimpleSubpattern(_,IdentAtom(_,_),_) -> ()
       | _ ->
          output_string file "| ";
          let _ = generate_lexer_subpattern_code file s in
-         output_string file (" as s { ignore s; "^c^name^aft^" }\n");
+         output_string file (" as s { ignore s; "^aft^" }\n");
    ) h;
    output_string file "| eof { EOF }\n";
    output_string file "| _ { lex_error \"lexing error\" lexbuf }";
@@ -538,7 +571,14 @@ and generate_lexer_subpatterns_code file sp =
 and generate_lexer_subpattern_code file s : bool =
    (* TODO - what about code subpatterns, i.e. empty patterns *)
    match s with
-   | SimpleSubpattern(_,a,_) -> generate_lexer_atom_code file a
+   | SimpleSubpattern(_,a,Options(_,o,_,_,_,_,_)) -> 
+      let r = generate_lexer_atom_code file a in
+      (match o with
+      | Some(StarOp(_)) -> output_string file "*"
+      | Some(PlusOp(_)) -> output_string file "+"
+      | Some(QuestionOp(_)) -> output_string file "?"
+      | _ -> ());
+      r
    | RangeSubpattern(_,a1,a2,_) -> generate_lexer_atom_code file a1  (* TODO - the rest goes in the semantic rule *)
    | CodeSubpattern(_,_) -> false
 
@@ -588,49 +628,96 @@ let generate_utils_code file g =
   (match header with
   | None -> ()
   | Some(Code(_,s)) -> output_string file (s^"\n"));
+  let p = (get_production_type "Pos") in
   output_string file "(* data type for file positions *)\n";
-  output_string file "type "; output_production_type file "Pos";
-     output_string file " = NoPos | Pos of string*int*int;; (* file,line,col *)\n";
+  output_string file ("type "^p^" = NoPos | Pos of string*int*int;; (* file,line,col *)\n");
   output_string file "\n";
   output_string file "exception Parse_error;;\n";
-  output_string file "\n";
-  output_string file "let parse_error s = \n";
-  output_string file "  let p         = symbol_end_pos ()  in\n";
-  output_string file "  let file_name = p.Lexing.pos_fname in\n";
-  output_string file "  let line_num  = p.Lexing.pos_lnum  in\n";
-  output_string file "  let col_num   = (p.Lexing.pos_cnum-p.Lexing.pos_bol+1) in\n";
-  output_string file "  print_string (\"Parse error in '\"^file_name^\n";
-  output_string file "    \"' on line \"^(string_of_int line_num)^\" col \"^(string_of_int\n";
-  output_string file "    col_num)^\"!\n\"\n";
-  output_string file "  )\n";
-  output_string file ";;\n";
-  output_string file "\n";
-  output_string file "let get_current_pos () =\n";
-  output_string file "  let p         = symbol_start_pos () in\n";
-  output_string file "  let file_name = p.Lexing.pos_fname  in\n";
-  output_string file "  let line_num  = p.Lexing.pos_lnum   in\n";
-  output_string file "  let col_num   = (p.Lexing.pos_cnum-p.Lexing.pos_bol+1) in\n";
-  output_string file "  Pos(file_name,line_num,col_num)\n";
-  output_string file ";;\n";
-  output_string file "\n";
-  output_string file "let get_pos p =\n";
-  output_string file "  let file_name = p.Lexing.pos_fname in\n";
-  output_string file "  let line_num  = p.Lexing.pos_lnum  in\n";
-  output_string file "  let col_num   = (p.Lexing.pos_cnum-p.Lexing.pos_bol+1) in\n";
-  output_string file "  Pos(file_name,line_num,col_num)\n";
-  output_string file ";;\n";
-  output_string file "\n";
   output_string file "exception Lexing_error;;\n";
   output_string file "\n";
+  output_string file "(* do_error p s\n";
+  output_string file " *\n";
+  output_string file " * Print error message\n";
+  output_string file " *\n";
+  output_string file " * p - the location of the error\n";
+  output_string file " * s - the error message\n";
+  output_string file " *\n";
+  output_string file " * returns unit\n";
+  output_string file " *)\n";
+  output_string file ("let do_error (p : "^p^") (s : string) : unit =\n");
+  output_string file "   print_string \"Error\";\n";
+  output_string file "   print_string (match p with\n";
+  output_string file "   | NoPos -> \"\"\n";
+  output_string file "   | Pos(file_name,line_num,col_num) -> (\" in '\"^file_name^\n";
+  output_string file "    \"' on line \"^(string_of_int line_num)^\" col \"^(string_of_int\n";
+  output_string file "    col_num))\n";
+  output_string file "   );\n";
+  output_string file "   print_string (\": \"^s^\"\\n\")\n";
+  output_string file ";;\n";
+  output_string file "\n";
+  output_string file ("let die_error (p : "^p^") (s : string) =\n");
+  output_string file "   do_error p s;\n";
+  output_string file "   exit 1;\n";
+  output_string file ";;\n";
+  output_string file "\n";
+  output_string file "(* dies with a general position-based error *)\n";
+  output_string file "let pos_error (s : string) (p : position) = \n";
+  output_string file "   let file_name = p.Lexing.pos_fname in\n";
+  output_string file "   let line_num  = p.Lexing.pos_lnum  in\n";
+  output_string file "   let col_num   = (p.Lexing.pos_cnum-p.Lexing.pos_bol+1) in\n";
+  output_string file "   let ps        = Pos(file_name,line_num,col_num) in\n";
+  output_string file "   do_error ps s\n";
+  output_string file ";;\n";
+  output_string file "\n";
+  output_string file "(* dies with a parse error s *)\n";
+  output_string file "let parse_error (s : string) = \n";
+  output_string file "   pos_error s (symbol_end_pos ());\n";
+  output_string file "   raise Parse_error\n";
+  output_string file ";;\n";
+  output_string file "\n";
+  output_string file "(* dies with a lexing error *)\n";
+  output_string file "let lex_error (s : string) (lexbuf : Lexing.lexbuf) = \n";
+  output_string file "   pos_error s (Lexing.lexeme_end_p lexbuf);\n";
+  output_string file "   raise Lexing_error\n";
+  output_string file ";;\n";
+  output_string file "\n";
+  output_string file "(* gets a pos data structure using the current lexing pos *)\n";
+  output_string file "let get_current_pos () =\n";
+  output_string file "   let p         = symbol_start_pos () in\n";
+  output_string file "   let file_name = p.Lexing.pos_fname  in\n";
+  output_string file "   let line_num  = p.Lexing.pos_lnum   in\n";
+  output_string file "   let col_num   = (p.Lexing.pos_cnum-p.Lexing.pos_bol+1) in\n";
+  output_string file "   Pos(file_name,line_num,col_num)\n";
+  output_string file ";;\n";
+  output_string file "\n";
+  output_string file "(* gets a pos data structure from a lexing position *)\n";
+  output_string file "let get_pos (p : Lexing.position) =\n";
+  output_string file "   let file_name = p.Lexing.pos_fname in\n";
+  output_string file "   let line_num  = p.Lexing.pos_lnum  in\n";
+  output_string file "   let col_num   = (p.Lexing.pos_cnum-p.Lexing.pos_bol+1) in\n";
+  output_string file "   Pos(file_name,line_num,col_num)\n";
+  output_string file ";;\n";
+  output_string file "\n";
+  output_string file "(* updates the lexer position to the next line\n";
+  output_string file " * (this is used since we skip newlines in the\n";
+  output_string file " *  lexer, but we still wish to remember them\n";
+  output_string file " *  for proper line positions) *)\n";
   output_string file "let do_newline lb = \n";
-  output_string file "  Lexing.new_line lb\n";
+  output_string file "   Lexing.new_line lb\n";
+  output_string file ";;\n";
+  output_string file "\n";
+  output_string file "(* dies with a system error s *)\n";
+  output_string file "let die_system_error (s : string) =\n";
+  output_string file "   print_string s;\n";
+  output_string file "   print_string \"\\n\";\n";
+  output_string file "   exit 1\n";
   output_string file ";;\n";
   output_string file "\n";
   output_string file "let rec count_newlines s lb = match s with\n";
   output_string file "  | \"\" -> 0\n";
   output_string file "  | _  -> let c = String.sub s 0 1 in\n";
   output_string file "          let cs = String.sub s 1 ((String.length s)-1) in\n";
-  output_string file "          if (c=\"\n\") then (do_newline lb; 1+(count_newlines cs lb))\n";
+  output_string file "          if (c=\"\\n\") then (do_newline lb; 1+(count_newlines cs lb))\n";
   output_string file "                      else (count_newlines cs lb)\n";
   output_string file ";;\n";
   (match footer with

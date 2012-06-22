@@ -770,3 +770,29 @@ and is_subpattern_empty (s : subpattern) : bool =
    | None -> true
    | _ -> false
 ;;
+
+let parse_type (p : pos) (s : string) : typ = 
+   let sp = "[\r\n\t ]+" in
+   let t = Str.global_replace (Str.regexp sp) " " s in
+   let t2 = Str.global_replace (Str.regexp ("^"^sp)) "" t in
+   let t3 = Str.global_replace (Str.regexp (sp^"$")) "" t2 in
+   if t3 = "" then EmptyType(p) else Type(p,t3)
+;;
+
+let is_production_empty (p : production) : bool = 
+   match p with
+   | Production(_,_,pa,pal) -> 
+      List.fold_left (fun res pa ->
+         match pa with
+         | Pattern(_,_,_,_,Some(Code(_,_)),_,_) -> false
+         | _ -> res
+      ) true (pa::pal)
+;;
+
+let is_code_empty (c : code) : bool =
+   match c with
+   | Code(p,s) ->
+   let sp = "[\r\n\t ]+" in
+   let t = Str.global_replace (Str.regexp sp) "" s in
+   if t = "" then true else false 
+;;

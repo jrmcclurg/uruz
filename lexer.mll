@@ -19,6 +19,7 @@ rule token = parse
         CODE(p, s) }
 | "/*" { comment 0 lexbuf }
 | '[' (([^'\\' ']']* ('\\' _)*)* as s) ']' { CHARSET(Ast.string_of_string ("\""^s^"\"")) }
+(*| '<' ([^ '>' '{' '}']* as s) '>' { TYPENAME(s) }*)
 | '"' (([^'\\' '"']* ('\\' _)*)*) '"' as s { STRINGQUOT(Ast.string_of_string s) }
 | '\'' (([^'\\' '\''] |
          ('\\' ('\\'|'"'|'\''|'n'|'r'|'t'|'b')) |

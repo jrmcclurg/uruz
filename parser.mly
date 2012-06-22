@@ -14,7 +14,7 @@
 %token <int> INT
 %token <string> IDENT
 %token <Lexing.position*string> CODE
-%token <string> STRINGQUOT 
+%token <string> STRINGQUOT TYPENAME
 %token <string> CHARSET
 %token <char> CHARQUOT
 %token PLUS MINUS TIMES DIV
@@ -77,7 +77,7 @@ label:
 ;
 
 pattern_opts:
-   opt_list {
+   pattern_opt_list {
       let l = $1 in
       let (pri,assoc) =
       List.fold_left (fun (pri,assoc) o ->
@@ -90,13 +90,30 @@ pattern_opts:
    }
 ;
 
+pattern_opt_list:
+                                  { [] }
+   | pattern_opt pattern_opt_list { $1::$2 }
+;
+
+pattern_opt:
+   | op_prec       { PrecOption($1) }
+   | op_assoc      { AssocOption($1) }
+   
+;
+
 subpattern_list:
                                 { [] }
    | subpattern subpattern_list { $1::$2 }
 ;
 
 subpattern:
-     atom opts             { SimpleSubpattern(get_current_pos (),$1,$2) }
+     atom opts             { let msg = "only flat expressions may have precedence/associativity modifiers" in
+                             if (not (is_atom_flat $1)) then (
+                             match $2 with
+                             | Options(ps,_,Some(i),_,_,_,_) -> die_error ps msg
+                             | Options(ps,_,_,Some(a),_,_,_) -> die_error ps msg
+                             | _ -> ());
+                             SimpleSubpattern(get_current_pos (),$1,$2) }
    | atom RANGE atom opts  { let msg = "range expressions cannot contain identifiers" in
                              if (not (is_atom_flat $1)) then (
                                 die_error (get_atom_pos $1) msg
@@ -199,7 +216,13 @@ op_supp_print:
 ;
 
 op_type:
-   | LANGLE code_block RANGLE       { (EmptyType(get_current_pos ()),$2) }
-   | LANGLE IDENT code_block RANGLE { (Type(get_current_pos (), $2),$3) }
-   | LANGLE code_block COLON IDENT RANGLE { (Type(get_current_pos (), $4),$2) }
+   | LANGLE code_block RANGLE       { match $2 with
+                                      | None -> (EmptyType(get_current_pos ()),None)
+                                      | Some(Code(_,s)) -> (parse_type (get_current_pos ()) s, None)
+                                    }
+   | LANGLE code_block COLON code_block RANGLE {
+      match $4 with
+      | None -> (EmptyType(get_current_pos ()),$2)
+      | Some(Code(p,s)) -> ((parse_type p s),$2)
+   }
 ;

@@ -7,17 +7,23 @@
    let add_ints a b = a + b;;
 }
 
-Program   ->   { Program(NoPos,'x',None) } 
-             | "b" "start"<>@ ({ let p = $1 in print_string p }) Statement? "end"<> eof : Program 21 left { Program(NoPos,$1,None) } ;
+Program   ->   "b" "start"< >@ ({ let p = $1 in print_string p }) Statement+ <{(int * int list)}>
+               "end"<> eof { Program(NoPos,$1,$3) } ;
+// (Statement(NoPos,IntExpr(NoPos,Integer(NoPos,123))),[])
 
-Statement -> Expr ';' { $1 } ;
+Statement -> Expr<{int}> ';'<> { $1 } ;
 
-Expr      -> Integer         : IntExpr  { $1 }
-           | Expr "+"<> 105 Expr : PlusExpr { add_ints $1 $3 } ;
+Expr      -> Integer<{int}>         : IntExpr  { $1 }
+           | Expr<{int}> "+"<> left Expr<{int}> : PlusExpr { add_ints $1 $3 } ;
 
-Integer -> [12] \ [1]  { let x = String.make 1 $1 in (int_of_string x) }  
-         | ('0' | [1-9] [0-9]*)<{int_of_string s}:int> 102 unary { $1 } ;
+Integer -> ('0' | [1-9] [0-9]*)<{int_of_string s}:{int}> { $1 } ;
 // a subexpression is flat iff it is composed entirely of constants
 
-SingleComm -> ("//" [^\n]*)<> left 100:  {} ;  /* throw away single-line comments */
-MultiComm  -> "/*" .. "*/" <> right 101: {} ;  /* throw away recursive multiline comments */
+SingleComm -> ("//" [^\n]*)<{}:> : ;  /* throw away single-line comments */
+MultiComm  -> "/*" .. "*/" <> : ;  /* throw away recursive multiline comments */
+
+Blanks -> ([\r\n\t ])<{}:> : ;
+
+{
+   (* this is the trailer *)
+}
