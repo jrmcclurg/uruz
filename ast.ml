@@ -694,8 +694,6 @@ let rec is_subpattern_flat (s : subpattern) : bool =
    | SimpleSubpattern(_,a1,_) -> is_atom_flat a1
    | RangeSubpattern(_,a1,a2,_) -> false (*(is_atom_flat a1) && (is_atom_flat a2)*)
    | CodeSubpattern(_,_) -> true) in
-   print_string (if result then "true" else "false");
-   print_string "\n";
    result
 
 and is_atom_flat (a : atom) : bool =

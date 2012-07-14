@@ -13,13 +13,12 @@ rule token = parse
 | "right" { RIGHT }
 | "unary" { UNARY }
 | '/' '/' [^'\n']* { token lexbuf }
-| ['a'-'z' 'A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_' '.']* as s { IDENT(s) (* TODO - '.' probably shouldn't be allowed *) }
+| ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9']* as s { IDENT(s) }
 | '{' { let p = Lexing.lexeme_start_p lexbuf in
         let s = code 0 "" lexbuf in
         CODE(p, s) }
 | "/*" { comment 0 lexbuf }
 | '[' (([^'\\' ']']* ('\\' _)*)* as s) ']' { CHARSET(Ast.string_of_string ("\""^s^"\"")) }
-(*| '<' ([^ '>' '{' '}']* as s) '>' { TYPENAME(s) }*)
 | '"' (([^'\\' '"']* ('\\' _)*)*) '"' as s { STRINGQUOT(Ast.string_of_string s) }
 | '\'' (([^'\\' '\''] |
          ('\\' ('\\'|'"'|'\''|'n'|'r'|'t'|'b')) |
@@ -42,13 +41,7 @@ rule token = parse
 | ')' { RPAREN }
 | ".." { RANGE }
 | eof { EOF }
-| _ { let p = Lexing.lexeme_end_p lexbuf in
-      let file_name = p.Lexing.pos_fname in
-      let line_num = p.Lexing.pos_lnum in
-      let col_num = (p.Lexing.pos_cnum-p.Lexing.pos_bol) in
-      print_string ("Lexical error in '"^file_name^
-   "' on line "^(string_of_int line_num)^" col "^(string_of_int
-   col_num)^"!\n"); raise Lexing_error }
+| _ { lex_error "lexing error" lexbuf }
 
 and code n s = parse
 | '{' { code (n+1) (s^"{") lexbuf }
