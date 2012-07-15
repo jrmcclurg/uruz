@@ -6,9 +6,7 @@ type grammar = Grammar of pos * code option * code option * production * product
  and pattern = Pattern of pos * subpattern list * typ option * bool * code option * int option * assoc option
                                (* subpatterns,code *)
  and subpattern = SimpleSubpattern of pos * atom * opts
-                (* NOTE - the atoms in RangeSubpattern are required (by parser)
-                 *        to be flat *)
-                | RangeSubpattern of pos * atom * atom * opts
+                | RangeSubpattern of pos * string * string * opts
                 | CodeSubpattern of pos * code
  and atom = IdentAtom of pos * string
           | StringAtom of pos * string
@@ -83,7 +81,7 @@ and equal_subpattern (p1 : subpattern) (p2 : subpattern) : bool =
    match (p1,p2) with
    | (SimpleSubpattern(_,a,o),SimpleSubpattern(_,at,ot)) -> ((equal_atom a at) && (equal_opts o ot))
    | (RangeSubpattern(_,a1,a2,o),RangeSubpattern(_,a1t,a2t,ot)) ->
-      ((equal_atom a1 a1t) && (equal_atom a2 a2t) && (equal_opts o ot))
+      ((a1 = a1t) && (a2 = a2t) && (equal_opts o ot))
    | (CodeSubpattern(_,c),CodeSubpattern(_,ct)) -> (equal_code c ct)
    | _ -> false
 
@@ -199,7 +197,7 @@ and reloc_pattern (p : pattern) =
 and reloc_subpattern (s : subpattern) =
    match s with
    | SimpleSubpattern(p,a,o) -> SimpleSubpattern(NoPos,reloc_atom a,reloc_opts o)
-   | RangeSubpattern(p,a1,a2,o) -> RangeSubpattern(NoPos,reloc_atom a1,reloc_atom a2,reloc_opts o)
+   | RangeSubpattern(p,a1,a2,o) -> RangeSubpattern(NoPos,a1,a2,reloc_opts o)
    | CodeSubpattern(p,c) -> CodeSubpattern(NoPos,reloc_code c)
 
 and reloc_atom (a : atom) =
@@ -481,9 +479,9 @@ and print_subpattern (n:int) (sp:subpattern) : unit =
       print_indent n "RangeSubpattern(\n";
       print_pos (n+1) p;
       print_string ",\n";
-      print_atom (n+2) a1;
+      print_indent (n+2) a1;
       print_string ",\n";
-      print_atom (n+2) a2;
+      print_indent (n+2) a2;
       print_string ",\n";
       print_opts (n+1) o;
       print_string "\n";

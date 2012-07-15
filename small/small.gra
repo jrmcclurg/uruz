@@ -19,7 +19,8 @@ Expr      -> Integer<{int}>         : IntExpr  { $1 }
 Integer -> ('0' | [1-9] [0-9]*)<{int_of_string s}:{int}> { $1 } ;
 
 SingleComm -> ("//" [^\n]*)<{}:> : ;  /* throw away single-line comments */
-MultiComm  -> "/*" .. "*/" <> : ;  /* throw away recursive multiline comments */
+MultiComm  -> "/*" .. "*/" <{}:> : ;  /* throw away recursive multiline comments */
+MultiComm2  -> "{" .. "}"  : ;  /* throw away recursive multiline comments */
 
 Blanks -> ((([\r\n\t ])))<{}:> : ;
 

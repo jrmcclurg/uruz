@@ -114,17 +114,15 @@ subpattern:
                              | Options(ps,_,_,Some(a),_,_,_) -> die_error ps msg
                              | _ -> ());
                              SimpleSubpattern(get_current_pos (),$1,$2) }
-   | atom RANGE atom opts  { let msg = "range expressions cannot contain identifiers" in
-                             if (not (is_atom_flat $1)) then (
-                                die_error (get_atom_pos $1) msg
-                             );
-                             if (not (is_atom_flat $3)) then (
-                                die_error (get_atom_pos $3) msg
-                             );
-                             RangeSubpattern(get_current_pos (),$1,$3,$4) }
+   | quot RANGE quot opts  { RangeSubpattern(get_current_pos (),$1,$3,$4) }
    | LPAREN CODE RPAREN    { let (p,s) = $2 in
                              let p2 = get_pos p in
                              CodeSubpattern(p2,Code(p2,s)) }
+;
+
+quot:
+   | CHARQUOT   { String.make 1 $1 }
+   | STRINGQUOT { $1 }
 ;
 
 atom:

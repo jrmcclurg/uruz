@@ -108,10 +108,7 @@ and flatten_subpattern prefix s =
   else
   match s with
   | SimpleSubpattern(p,a,o)    -> let (a2,nl) = flatten_atom prefix a in (SimpleSubpattern(p,a2,o),nl)
-  | RangeSubpattern(p,a1,a2,o) ->
-    let (a12,nl1) = flatten_atom (prefix^"_1") a1 in
-    let (a22,nl2) = flatten_atom (prefix^"_2") a2 in
-    (RangeSubpattern(p,a12,a22,o),nl1@nl2)
+  | RangeSubpattern(p,a1,a2,o) -> (s,[])
   | CodeSubpattern(_,_) -> (s,[])
 and flatten_atom prefix a = 
   match a with
@@ -504,36 +501,57 @@ let rec generate_lexer_code file prefix g (h : (string*((string*int) option)*str
    output_warning_msg file "(*\n" " *" " *" " *)";
    output_string file "\n\n";
    output_string file "{\n";
-   output_string file ("   open "^prefix^"parser;; (* The type token is defined in parser.mli *)\n");
+   output_string file ("   open "^prefix^"parser;;\n");
    output_string file ("   open "^prefix^"ast;;\n");
    output_string file ("   open "^prefix^"utils;;\n");
    output_string file "}\n\n";
+   output_string file ("(* The type \"token\" is defined in "^prefix^"parser.mli *)\n");
    output_string file "rule token = parse\n";
    (* TODO XXX - sort and all that - I THINK THE ORDER NEEDS TO CORRESPOND TO FILE ORDER *)
    let hl = SubpatternHashtbl.fold (fun s (name,assoc_prec,ty,p) res ->
       (name,s,assoc_prec,ty,p)::res
    ) h [] in
    let hl2 = List.sort (fun (name1,_,_,_,_) (name2,_,_,_,_) -> compare name1 name2) hl in
-   List.iter (fun (name,s,_,ty,p) ->
-      let (cd) = (match s with
-      | SimpleSubpattern(_,_,Options(_,_,_,_,_,_,cd)) -> (cd)
-      | _ -> (None) (* TODO - fill this in *)
+   let tb = "token lexbuf" in
+   let rules = List.fold_left (fun rules (name,s,_,ty,p) ->
+      let (cd,aft2,tok,rules2) = (match s with
+      | SimpleSubpattern(_,_,Options(_,_,_,_,_,_,cd)) -> (cd,None,tb,"")
+      | RangeSubpattern(p,a,b,Options(_,_,_,_,_,_,cd)) ->
+         let temp = (match cd with
+            | Some(Code(_,_) as c) -> if (is_code_empty c) then tb else "s"
+            | None -> "s"
+         ) in
+         let rule_name = ("entry_"^(String.lowercase name)) in
+         (cd,Some("let s = "^rule_name^" 0 \"\" lexbuf in"),"s",
+            ("\nand "^rule_name^" n s = parse\n"^
+            "| \""^a^"\" { "^rule_name^" (n+1) (s^\""^a^"\") lexbuf }\n"^
+            "| \""^b^"\" { if (n=0) then "^temp^" else "^rule_name^" (n-1) (s^\""^b^"\") lexbuf }\n"^
+            "| _ as c { if c='\\n' then do_newline lexbuf;\n"^
+            "           "^rule_name^" n (Printf.sprintf \"%s%c\" s c) lexbuf }\n")
+         )
+      | CodeSubpattern(_,_) -> (None,None,"","") (* TODO - this should never happen *)
       ) in
-      let (bef,aft) = (match (ty,cd) with
+      let (bef,aft) = (match (ty,cd) with (* TODO - bef not used *)
+      (* TODO XXX - should <> cause the "token lexbuf" to be generated? *)
       | (None,None) -> ("",name)
-      | (None,Some(Code(_,s) as c)) -> ("",if (is_code_empty c) then "token lexbuf" else name)
+      | (None,Some(Code(_,s) as c)) -> ("",if (is_code_empty c) then tok else name)
       | (Some(s),None) -> ("",(name^"(s)"))
       | (Some(_),Some(Code(_,s) as c)) ->
-         ("",if (is_code_empty c) then "token lexbuf" else ("let t = "^s^" in ignore t; "^name^"(t)"))) in
-      match s with
+         ("",if (is_code_empty c) then tok else ("let t = "^s^" in ignore t; "^name^"(t)"))) in
+      (match s with
       | SimpleSubpattern(_,IdentAtom(_,_),_) -> ()
       | _ ->
          output_string file "| ";
          let _ = generate_lexer_subpattern_code file s in
-         output_string file (" as s { ignore s; "^aft^" }\n");
-   ) hl2;
+         (match aft2 with
+         | None -> output_string file (" as s { ignore s; "^aft^" }\n")
+         | Some(a) -> output_string file (" { "^a^" ignore s; "^aft^" }\n"))
+      );
+      (rules^rules2)
+   ) "" hl2 in
    output_string file "| eof { EOF }\n";
-   output_string file "| _ { lex_error \"lexing error\" lexbuf }";
+   output_string file "| _ { lex_error \"lexing error\" lexbuf }\n";
+   output_string file rules
 
 and generate_lexer_atom_code file a : bool =
    match a with
@@ -577,7 +595,7 @@ and generate_lexer_subpattern_code file s : bool =
       | Some(QuestionOp(_)) -> output_string file "?"
       | _ -> ());
       r
-   | RangeSubpattern(_,a1,a2,_) -> generate_lexer_atom_code file a1  (* TODO - the rest goes in the semantic rule *)
+   | RangeSubpattern(_,a1,a2,_) -> output_string file ("\""^a1^"\""); true  (* TODO - the rest goes in the semantic rule *)
    | CodeSubpattern(_,_) -> false
 
 and generate_lexer_charset_code file c =
