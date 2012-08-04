@@ -142,3 +142,44 @@ let parse_command_line () : in_channel =
       with _ -> die_system_error ("can't read from file: "^(!filename))
    )
 ;;
+
+let rec output_indent2 file n s =
+   if n=0 then output_string file s
+   else (output_string file " "; output_indent2 file (n-1) s)
+
+and output_indent file n s =
+   output_indent2 file (n*3) s
+
+and print_indent n s =
+   output_indent stdout n s
+
+and output_spaces file n s =
+   output_indent2 file n s
+;;
+
+let rec string_explode (s:string) : char list =
+   if (String.length s) > 0 then
+      (String.get s 0)::(string_explode (String.sub s 1 ((String.length s)-1)))
+   else
+      []
+;;
+
+let three_hd (cl: char list) : char list * char list = 
+   match cl with
+   | a::b::c::l -> (a::b::c::[],l)
+   | a::b::l    -> (a::b::[],l)
+   | a::l       -> (a::[],l)
+   | _          -> ([],cl)
+;;
+
+let char_of_string (s:string) : char =
+   let s2 = Str.global_replace (Str.regexp_string "\\[") "[" s in
+   let s3 = Str.global_replace (Str.regexp_string "\\]") "]" s2 in
+   Scanf.sscanf s3 "%C" (fun x -> x)
+;;
+
+let string_of_string (s:string) : string =
+   let s2 = Str.global_replace (Str.regexp_string "\\[") "[" s in
+   let s3 = Str.global_replace (Str.regexp_string "\\]") "]" s2 in
+   Scanf.sscanf s3 "%S" (fun x -> x)
+;;

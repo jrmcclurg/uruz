@@ -1,181 +1,189 @@
+(*
+ * Parser Generator Generator (PGG)
+ * by Jedidiah R. McClurg
+ * Department of EECS
+ * Northwestern University
+ * http://www.jrmcclurg.com/
+ *
+ * Copyright © 2012 Jedidiah R. McClurg
+ * Distributed under the terms of the
+ * GNU General Public License
+ *)
+
+(** Abstract Syntax Tree (AST) functionality *)
 open Utils;;
 
-type grammar = Grammar of pos * code option * code option * production * production list (* code,prods *)
- and code = Code of pos * string
- and production = Production of pos * string * pattern * pattern list (* name,patterns *)
- and pattern = Pattern of pos * subpattern list * typ option * bool * code option * int option * assoc option
-                               (* subpatterns,code *)
- and subpattern = SimpleSubpattern of pos * atom * opts
-                | RangeSubpattern of pos * string * string * opts
-                | CodeSubpattern of pos * code
- and atom = IdentAtom of pos * string
-          | StringAtom of pos * string
-          | CharsetsAtom of pos * charsets
-          | ChoiceAtom of pos * subpatterns * subpatterns list
- and subpatterns = Subpatterns of pos * subpattern * subpattern list
- and charsets = SingletonCharsets of pos * charset
-              | DiffCharsets of pos * charset * charset
- and charset = WildcardCharset of pos
-             | SingletonCharset of pos * char 
-             | ListCharset of pos * chars list * bool
- and chars = SingletonChars of pos * char
-           | RangeChars of pos * char * char
- and opts = Options of pos * op option * int option * assoc option * bool * typ option * code option
- and op = StarOp of pos
-        | PlusOp of pos
-        | QuestionOp of pos
- and assoc = LeftAssoc of pos
-           | RightAssoc of pos
-           | UnaryAssoc of pos
- and typ = EmptyType of pos
-         | Type of pos * string
+(** {b AST data structures} *)
+
+(** AST node for a grammar file *)
+type grammar = Grammar of pos * code option * code option * production * production list (**
+                Grammar file having given
+                pos,
+                header OCaml code,
+                trailer OCaml code,
+                first production, 
+                successive productions *)
+
+(** AST node for a production *)
+and production = Production of pos * string * pattern * pattern list (**
+                   Production having given
+                   position,
+                   name,
+                   first pattern,
+                   successive patterns *)
+
+(** AST node for a pattern *)
+and pattern = Pattern of pos * subpattern list * typ option * bool * code option * int option * assoc option (**
+                Pattern having given
+                position,
+                subpatterns,
+                type,
+                EOF flag,
+                OCaml code,
+                precedence,
+                associativity *)
+
+(** AST node for a subpattern *)
+and subpattern = SimpleSubpattern of pos * atom * opts (**
+                   Atomic subpattern having given
+                   position,
+                   atom,
+                   options *)
+               | RecursiveSubpattern of pos * string * string * opts (**
+                  Recursive subpattern having given
+                  position,
+                  prefix,
+                  suffix,
+                  options *)
+               | CodeSubpattern of pos * code (**
+                  Code subpattern having given
+                  position,
+                  OCaml code *)
+
+(** AST node for an atom *)
+and atom = IdentAtom of pos * string (**
+            Identifier atom having given
+            position,
+            name *)
+         | StringAtom of pos * string (**
+            String atom having given
+            position,
+            text *)
+         | CharsetsAtom of pos * charsets (**
+            Charsets atom having given
+            position,
+            charsets *)
+         | ChoiceAtom of pos * subpatterns * subpatterns list (**
+            Choice atom having given
+            position,
+            first collection of subpatterns,
+            additional collections of subpatterns *)
+
+(** AST node for subpatterns *)
+and subpatterns = Subpatterns of pos * subpattern * subpattern list (**
+                   Subpatterns having given
+                   position,
+                   first subpattern,
+                   sucessive subpatterns *)
+
+(** AST node for charsets *)
+and charsets = SimpleCharsets of pos * charset (**
+                Simple charsets having given
+                position,
+                charset *)
+             | DiffCharsets of pos * charset * charset (**
+                Difference charsets having given
+                position,
+                first charset,
+                second charset *)
+
+(** AST node for a charset *)
+and charset = WildcardCharset of pos (**
+               Wildcard charset having given
+               position *)
+            | SingletonCharset of pos * char (**
+               Singleton charset having given
+               position,
+               character *)
+            | ListCharset of pos * chars list * bool (**
+               List charset having given
+               position,
+               characters,
+               flag for inversion *)
+
+(** AST node for chars *)
+and chars = SingletonChars of pos * char (**
+             Singleton chars having given
+             position,
+             character *)
+          | RangeChars of pos * char * char (**
+             Range chars having given
+             position,
+             beginning char,
+             ending char *)
+
+(** AST node for options *)
+and opts = Options of pos * op option * int option * assoc option * bool * typ option * code option (**
+            Options having given
+            position,
+            operator,
+            precedence,
+            associativity,
+            flag for pretty-print suppression,
+            type,
+            OCaml code *)
+
+(** AST node for operator *)
+and op = StarOp of pos (**
+          Star operator having given
+          position *)
+       | PlusOp of pos (**
+          Plus operator having given
+          position *)
+       | QuestionOp of pos (**
+          Question operator having given
+          position *)
+
+(** AST node for associativity *)
+and assoc = LeftAssoc of pos (**
+             Left associativity having given
+             position *)
+          | RightAssoc of pos (**
+             Right associativity having given
+             position *)
+          | UnaryAssoc of pos (**
+             Unary (no) associativity having given
+             position *)
+
+(** AST node for type *)
+and typ = EmptyType of pos (**
+           Empty type having given
+           position *)
+        | Type of pos * string (**
+           Type having given
+           position,
+           name *)
+
+(** AST node for code *)
+and code = Code of pos * string (**
+            Code block having given
+            position, 
+            OCaml code *)
 ;;
 
-let rec equal_grammar (g1 : grammar) (g2 : grammar) : bool =
-   match (g1,g2) with
-   | (Grammar(_,c1,c2,p,pl),Grammar(_,c1t,c2t,pt,plt)) ->
-      if (List.length pl) <> (List.length plt) then false
-      else ((equal_code_opt c1 c1t) && (equal_code_opt c2 c2t) && (equal_production p pt) && 
-      (equal_production_list pl plt))
+(** {b Functions for normalizing position} *)
 
-and equal_code (c1 : code) (c2 : code) : bool = 
-   match (c1,c2) with
-   | (Code(_,s1),Code(_,s2)) -> s1 = s2
-
-and equal_code_opt (c1 : code option) (c2 : code option) : bool = 
-   match (c1,c2) with
-   | (None,None) -> true
-   | (Some(c1),Some(c2)) -> equal_code c1 c2
-   | _ -> false
-
-and equal_production (p1 : production) (p2 : production) : bool =
-   match (p1,p2) with
-   | (Production(_,s,p,pl),Production(_,st,pt,plt)) ->
-      if (List.length pl) <> (List.length plt) then false
-      else ((s = st) && (equal_pattern p pt) && (equal_pattern_list pl plt))
-
-and equal_production_list (pl : production list) (plt : production list) : bool =
-      if (List.length pl) <> (List.length plt) then false
-      else (
-      List.fold_left2 (fun res p1 p2 ->
-         if (not res) then res
-         else equal_production p1 p2
-      ) true pl plt)
-
-and equal_pattern (p1 : pattern) (p2 : pattern) : bool =
-   match (p1,p2) with
-   | (Pattern(_,pl,t,b,c,i,asc),Pattern(_,plt,tt,bt,ct,it,asct)) ->
-      if (List.length pl) <> (List.length plt) then false
-      else ((equal_subpattern_list pl plt) &&
-            (equal_typ_opt t tt) && (b = bt) && (equal_code_opt c ct) && (i = it) && (equal_assoc_opt asc asct))
-
-and equal_pattern_list (pl : pattern list) (plt : pattern list) : bool =
-      if (List.length pl) <> (List.length plt) then false
-      else (
-      List.fold_left2 (fun res p1 p2 ->
-         if (not res) then res
-         else equal_pattern p1 p2
-      ) true pl plt)
-
-and equal_subpattern (p1 : subpattern) (p2 : subpattern) : bool =
-   match (p1,p2) with
-   | (SimpleSubpattern(_,a,o),SimpleSubpattern(_,at,ot)) -> ((equal_atom a at) && (equal_opts o ot))
-   | (RangeSubpattern(_,a1,a2,o),RangeSubpattern(_,a1t,a2t,ot)) ->
-      ((a1 = a1t) && (a2 = a2t) && (equal_opts o ot))
-   | (CodeSubpattern(_,c),CodeSubpattern(_,ct)) -> (equal_code c ct)
-   | _ -> false
-
-and equal_subpattern_list (pl : subpattern list) (plt : subpattern list) : bool =
-      if (List.length pl) <> (List.length plt) then false
-      else (
-      List.fold_left2 (fun res p1 p2 ->
-         if (not res) then res
-         else equal_subpattern p1 p2
-      ) true pl plt)
-
-and equal_typ (c1 : typ) (c2 : typ) : bool = 
-   match (c1,c2) with
-   | (EmptyType(_),EmptyType(_)) -> true
-   | (Type(_,s1),Type(_,s2)) -> s1 = s2
-   | _ -> false
-
-and equal_typ_opt (c1 : typ option) (c2 : typ option) : bool = 
-   match (c1,c2) with
-   | (None,None) -> true
-   | (Some(c1),Some(c2)) -> equal_typ c1 c2
-   | _ -> false
-
-and equal_atom (a1 : atom) (a2 : atom) : bool =
-   match (a1,a2) with
-   | (IdentAtom(_,s1),IdentAtom(_,s2)) -> s1 = s2
-   | (StringAtom(_,s1),StringAtom(_,s2)) -> s1 = s2
-   | (CharsetsAtom(_,c1),CharsetsAtom(_,c2)) -> equal_charsets c1 c2
-   | (ChoiceAtom(_,s,sl),ChoiceAtom(_,st,slt)) -> ((equal_subpatterns s st) && (equal_subpatterns_list sl slt))
-   | _ -> false
-
-and equal_opts (o1 : opts) (o2 : opts) : bool =
-   match (o1,o2) with
-   | (Options(_,o,i,a,b,t,c),Options(_,ot,it,at,bt,tt,ct)) ->
-      ((equal_op_opt o ot) && (i = it) && (equal_assoc_opt a at) && (b = bt) && (equal_typ_opt t tt) && (equal_code_opt c ct))
-
-and equal_charsets (c1 : charsets) (c2 : charsets) : bool =
-   match (c1,c2) with
-   | (SingletonCharsets(_,c),SingletonCharsets(_,ct)) -> equal_charset c ct
-   | (DiffCharsets(_,c1,c2),DiffCharsets(_,c1t,c2t)) -> ((equal_charset c1 c1t) && (equal_charset c2 c2t))
-   | _ -> false
-
-and equal_subpatterns (c1 : subpatterns) (c2 : subpatterns) : bool =
-   match (c1,c2) with
-   | (Subpatterns(_,s,sl),Subpatterns(_,st,slt)) -> ((equal_subpattern s st) && (equal_subpattern_list sl slt))
-
-and equal_subpatterns_list (pl : subpatterns list) (plt : subpatterns list) : bool =
-      if (List.length pl) <> (List.length plt) then false
-      else (
-      List.fold_left2 (fun res p1 p2 ->
-         if (not res) then res
-         else equal_subpatterns p1 p2
-      ) true pl plt)
-
-and equal_op (o1 : op) (o2 : op) : bool = 
-   match (o1,o2) with
-   | (StarOp(_),StarOp(_)) -> true
-   | (PlusOp(_),PlusOp(_)) -> true
-   | (QuestionOp(_),QuestionOp(_)) -> true
-   | _ -> false
-
-and equal_op_opt (o1 : op option) (o2 : op option) : bool = 
-   match (o1,o2) with
-   | (None,None) -> true
-   | (Some(o1),Some(o2)) -> equal_op o1 o2
-   | _ -> false
-
-and equal_assoc (o1 : assoc) (o2 : assoc) : bool = 
-   match (o1,o2) with
-   | (LeftAssoc(_),LeftAssoc(_)) -> true
-   | (RightAssoc(_),RightAssoc(_)) -> true
-   | (UnaryAssoc(_),UnaryAssoc(_)) -> true
-   | _ -> false
-
-and equal_assoc_opt (o1 : assoc option) (o2 : assoc option) : bool = 
-   match (o1,o2) with
-   | (None,None) -> true
-   | (Some(a1),Some(a2)) -> equal_assoc a1 a2
-   | _ -> false
-
-and equal_charset (c1 : charset) (c2 : charset) : bool =
-   match (c1,c2) with
-   | (WildcardCharset(_),WildcardCharset(_)) -> true
-   | (SingletonCharset(_,c1),SingletonCharset(_,c2)) -> (c1 = c2)
-   | (ListCharset(_,c,b),ListCharset(_,ct,bt)) -> ((c = ct) && (b = bt))
-   | _ -> false
-
-;;
-
+(** Removes position from grammar:
+    [reloc_grammar g]
+    @param g the grammar to normalize *)
 let rec reloc_grammar (g : grammar) =
    match g with
    | Grammar(p,c1,c2,pr,prl) -> Grammar(NoPos,reloc_code_opt c1,reloc_code_opt c2,
                                         reloc_production pr,List.map (fun p -> reloc_production p) prl)
 
+(** Removes position from code:
+    [reloc_code c]
+    @param c the code to normalize *)
 and reloc_code (c : code) =
    match c with
    | Code(p,s) -> Code(NoPos,s)
@@ -197,7 +205,7 @@ and reloc_pattern (p : pattern) =
 and reloc_subpattern (s : subpattern) =
    match s with
    | SimpleSubpattern(p,a,o) -> SimpleSubpattern(NoPos,reloc_atom a,reloc_opts o)
-   | RangeSubpattern(p,a1,a2,o) -> RangeSubpattern(NoPos,a1,a2,reloc_opts o)
+   | RecursiveSubpattern(p,a1,a2,o) -> RecursiveSubpattern(NoPos,a1,a2,reloc_opts o)
    | CodeSubpattern(p,c) -> CodeSubpattern(NoPos,reloc_code c)
 
 and reloc_atom (a : atom) =
@@ -213,7 +221,7 @@ and reloc_subpatterns (s : subpatterns) =
 
 and reloc_charsets (c : charsets) =
    match c with
-   | SingletonCharsets(p,c) -> SingletonCharsets(NoPos,reloc_charset c)
+   | SimpleCharsets(p,c) -> SimpleCharsets(NoPos,reloc_charset c)
    | DiffCharsets(p,c1,c2) -> DiffCharsets(NoPos,reloc_charset c1,reloc_charset c2)
 
 and reloc_charset (c : charset) =
@@ -264,83 +272,9 @@ and reloc_typ_opt (t : typ option) =
    | Some(t) -> Some(reloc_typ t)
 ;;
 
-(*print_string "ast.ml\n";;
+(* TODO XXX - add functions such as get_grammar_pos and is_grammar_eq *)
 
-let t1 = SimpleSubpattern(NoPos,StringAtom(NoPos,"+"),Options(NoPos,None,None,None,false,None)) ;;
-let t2 = SimpleSubpattern(Pos("file",1,2),StringAtom(Pos("other",123,123),"+"),Options(NoPos,None,None,None,false,None)) ;;
-if ((reloc_subpattern t1) = (reloc_subpattern t2)) then print_string "EQUAL!!!!\n";;
-print_int (Hashtbl.hash (reloc_subpattern t1)); print_string "\n";;
-print_int (Hashtbl.hash (reloc_subpattern t2)); print_string "\n";;*)
-
-let rec string_explode (s:string) : char list =
-   if (String.length s) > 0 then
-      (String.get s 0)::(string_explode (String.sub s 1 ((String.length s)-1)))
-   else
-      []
-;;
-
-let three_hd (cl: char list) : char list * char list = 
-   match cl with
-   | a::b::c::l -> (a::b::c::[],l)
-   | a::b::l    -> (a::b::[],l)
-   | a::l       -> (a::[],l)
-   | _          -> ([],cl)
-;;
-
-let rec compile_char_list (cl: char list) : chars list = 
-   let (hd,tl) = three_hd cl in
-   match hd with
-   | a::'-'::c::[] -> (RangeChars(NoPos,a,c))::(compile_char_list tl)
-   | a::b::c::[]   -> (SingletonChars(NoPos,a))::(compile_char_list (b::c::tl))
-   | a::b::[]      -> (SingletonChars(NoPos,a))::(compile_char_list (b::tl))
-   | a::[]         -> (SingletonChars(NoPos,a))::(compile_char_list (tl))
-   | _             -> []
-;;
-
-let compile_charset (s:string) : chars list * bool =
-   let l = string_explode s in
-   match l with
-   | '^'::cs -> (compile_char_list cs, true)
-   | _       -> (compile_char_list l , false)
-;;
-
-let char_of_string (s:string) : char =
-   let s2 = Str.global_replace (Str.regexp_string "\\[") "[" s in
-   let s3 = Str.global_replace (Str.regexp_string "\\]") "]" s2 in
-   Scanf.sscanf s3 "%C" (fun x -> x)
-;;
-
-let string_of_string (s:string) : string =
-   let s2 = Str.global_replace (Str.regexp_string "\\[") "[" s in
-   let s3 = Str.global_replace (Str.regexp_string "\\]") "]" s2 in
-   Scanf.sscanf s3 "%S" (fun x -> x)
-;;
-
-let rec output_indent2 file n s =
-   if n=0 then output_string file s
-   else (output_string file " "; output_indent2 file (n-1) s)
-
-and output_indent file n s =
-   output_indent2 file (n*3) s
-
-and print_indent n s =
-   output_indent stdout n s
-
-and output_spaces file n s =
-   output_indent2 file n s
-;;
-
-let rec get_grammar_pos (g : grammar) : pos =
-   match g with
-   | Grammar(p,_,_,_,_) -> p
-
-and get_atom_pos (a : atom) : pos =
-   match a with
-   | IdentAtom(p,_) -> p
-   | StringAtom(p,_) -> p
-   | CharsetsAtom(p,_) -> p
-   | ChoiceAtom(p,_,_) -> p
-;;
+(** {b Functions for pretty-printing AST nodes} *)
 
 let rec print_grammar (n:int) (g:grammar) : unit =
    match g with
@@ -475,8 +409,8 @@ and print_subpattern (n:int) (sp:subpattern) : unit =
       print_opts (n+1) o;
       print_string "\n";
       print_indent n ")";
-   | RangeSubpattern(p,a1,a2,o) ->
-      print_indent n "RangeSubpattern(\n";
+   | RecursiveSubpattern(p,a1,a2,o) ->
+      print_indent n "RecursiveSubpattern(\n";
       print_pos (n+1) p;
       print_string ",\n";
       print_indent (n+2) a1;
@@ -551,8 +485,8 @@ and print_subpatterns (n:int) (s:subpatterns) : unit =
 
 and print_charsets (n:int) (cs:charsets) : unit =
    match cs with
-   | SingletonCharsets(p,c) ->
-      print_indent n "SingletonCharsets(\n";
+   | SimpleCharsets(p,c) ->
+      print_indent n "SimpleCharsets(\n";
       print_pos (n+1) p;
       print_string ",\n";
       print_charset (n+1) c;
@@ -686,11 +620,60 @@ and print_typ (n:int) (ty:typ) : unit =
       print_indent n ")";
 ;;
 
+(** {b Functions for handling type info} *)
+
+let get_production_type s =
+   if (is_capitalized s) then ((to_type_case s)^"_t")
+   else s 
+;;
+
+let output_production_type file s =
+   output_string file (get_production_type s)
+;;
+
+let parse_type (p : pos) (s : string) : typ = 
+   let sp = "[\r\n\t ]+" in
+   let t = Str.global_replace (Str.regexp sp) " " s in
+   let t2 = Str.global_replace (Str.regexp ("^"^sp)) "" t in
+   let t3 = Str.global_replace (Str.regexp (sp^"$")) "" t2 in
+   if t3 = "" then EmptyType(p) else Type(p,t3)
+;;
+
+
+let rec get_subpattern_default_type (sp : subpattern) : string option =
+   match sp with
+   | SimpleSubpattern(_,a,_) -> get_atom_default_type a
+   | RecursiveSubpattern(_,_,_,_) -> Some("string")
+   | CodeSubpattern(_,_) -> None
+
+and get_atom_default_type (a : atom) : string option =
+   match a with
+   | IdentAtom(_,s) -> Some(get_production_type s)
+   | StringAtom(_,s) -> Some(if (String.length s) = 1 then "char" else "string")
+   | CharsetsAtom(_,_) -> Some("char")
+   | ChoiceAtom(_,sp,spl) ->
+      let (all_chars,all_empty) = List.fold_left (fun (all_chars,all_empty) (Subpatterns(_,sp,spl)) ->
+         let all_chars2 = (if (not all_chars) then all_chars
+         else if (List.length spl) = 0 then ((get_subpattern_default_type sp) = Some("char"))
+         else false) in
+         let all_empty2 = (if (not all_empty) then all_empty
+         else List.fold_left (fun res sp ->
+            if (not res) then res
+            else ((get_subpattern_default_type sp) = None)
+         ) true (sp::spl)) in
+         (all_chars2,all_empty2)
+      ) (true,true) (sp::spl) in
+      if all_empty then None else
+      Some(if all_chars then "char" else "string")
+;;
+
+(** {b Functions for checking structure of AST nodes} *)
+
 let rec is_subpattern_flat (s : subpattern) : bool =
    let result = 
    (match s with
    | SimpleSubpattern(_,a1,_) -> is_atom_flat a1
-   | RangeSubpattern(_,a1,a2,_) -> false (*(is_atom_flat a1) && (is_atom_flat a2)*)
+   | RecursiveSubpattern(_,a1,a2,_) -> false (*(is_atom_flat a1) && (is_atom_flat a2)*)
    | CodeSubpattern(_,_) -> true) in
    result
 
@@ -716,43 +699,6 @@ and is_subpatterns_flat (sp : subpatterns) : bool =
       ) true (s::sl)
 ;;
 
-
-let get_production_type s =
-   if (is_capitalized s) then ((to_type_case s)^"_t")
-   else s 
-;;
-
-let output_production_type file s =
-   output_string file (get_production_type s)
-;;
-
-let rec get_subpattern_default_type (sp : subpattern) : string option =
-   match sp with
-   | SimpleSubpattern(_,a,_) -> get_atom_default_type a
-   | RangeSubpattern(_,_,_,_) -> Some("string")
-   | CodeSubpattern(_,_) -> None
-
-and get_atom_default_type (a : atom) : string option =
-   match a with
-   | IdentAtom(_,s) -> Some(get_production_type s)
-   | StringAtom(_,s) -> Some(if (String.length s) = 1 then "char" else "string")
-   | CharsetsAtom(_,_) -> Some("char")
-   | ChoiceAtom(_,sp,spl) ->
-      let (all_chars,all_empty) = List.fold_left (fun (all_chars,all_empty) (Subpatterns(_,sp,spl)) ->
-         let all_chars2 = (if (not all_chars) then all_chars
-         else if (List.length spl) = 0 then ((get_subpattern_default_type sp) = Some("char"))
-         else false) in
-         let all_empty2 = (if (not all_empty) then all_empty
-         else List.fold_left (fun res sp ->
-            if (not res) then res
-            else ((get_subpattern_default_type sp) = None)
-         ) true (sp::spl)) in
-         (all_chars2,all_empty2)
-      ) (true,true) (sp::spl) in
-      if all_empty then None else
-      Some(if all_chars then "char" else "string")
-;;
-
 let rec is_pattern_empty (p : pattern) : bool = 
    match p with
    | Pattern(_,l,_,_,_,_,_) ->
@@ -765,14 +711,6 @@ and is_subpattern_empty (s : subpattern) : bool =
    match (get_subpattern_default_type s) with
    | None -> true
    | _ -> false
-;;
-
-let parse_type (p : pos) (s : string) : typ = 
-   let sp = "[\r\n\t ]+" in
-   let t = Str.global_replace (Str.regexp sp) " " s in
-   let t2 = Str.global_replace (Str.regexp ("^"^sp)) "" t in
-   let t3 = Str.global_replace (Str.regexp (sp^"$")) "" t2 in
-   if t3 = "" then EmptyType(p) else Type(p,t3)
 ;;
 
 let is_production_empty (p : production) : bool = 
@@ -791,4 +729,23 @@ let is_code_empty (c : code) : bool =
    let sp = "[\r\n\t ]+" in
    let t = Str.global_replace (Str.regexp sp) "" s in
    if t = "" then true else false 
+;;
+
+(** {b Functions for handling charsets} *)
+
+let rec compile_char_list (cl: char list) : chars list = 
+   let (hd,tl) = three_hd cl in
+   match hd with
+   | a::'-'::c::[] -> (RangeChars(NoPos,a,c))::(compile_char_list tl)
+   | a::b::c::[]   -> (SingletonChars(NoPos,a))::(compile_char_list (b::c::tl))
+   | a::b::[]      -> (SingletonChars(NoPos,a))::(compile_char_list (b::tl))
+   | a::[]         -> (SingletonChars(NoPos,a))::(compile_char_list (tl))
+   | _             -> []
+;;
+
+let compile_charset (s:string) : chars list * bool =
+   let l = string_explode s in
+   match l with
+   | '^'::cs -> (compile_char_list cs, true)
+   | _       -> (compile_char_list l , false)
 ;;

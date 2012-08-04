@@ -44,34 +44,25 @@
 
 \centerline{\large {\bf Abstract}}
 \vspace{0.15in}
-Abstract goes here. 
-This paper will change the world.
-This paper will change the world.
-This paper will change the world.
-This paper will change the world.
-This paper will change the world.
-This paper will change the world.
-This paper will change the world.
-This paper will change the world.
-This paper will change the world.
-This paper will change the world.
-This paper will change the world.
-This paper will change the world.
-This paper will change the world.
-This paper will change the world.
-This paper will change the world.
-This paper will change the world.
-This paper will change the world.
-This paper will change the world.
-This paper will change the world.
-This paper will change the world.
-This paper will change the world.
-This paper will change the world.
-This paper will change the world.
-This paper will change the world.
-This paper will change the world.
-This paper will change the world.
+When developing programming languages, it is very important
+to get the syntax just right.  This involves first making a
+parser, and then adjusting the parser through many iterations
+as the language's grammar changes and evolves through the
+development.  Each time this happens, both the parser and
+the Abstract Syntax Tree (AST) data structures and manipulation
+functionality needs to change.  This process can become very
+tiresome, and can take time away from development of the
+language's functionality.  Thus, we have built the Parser
+Generator Generator (PGG) system to automate this unnecessary
+attention to the language syntax.  PGG takes a high-level
+grammar specification, in an expressive EBNF form, and
+produces the corresponding OCaml lexer/parser scripts, as
+well as AST data structures and manipulation functions.  The
+tool can also emit the necessary skeleton code to allow
+PGG to be integrated into the build for the project.  This
+allows for projects where the entire lexing/parsing/AST
+frontend is specified in a highly-readable EBNF form.
 
 \vspace{0.5in}
-{\bf Keywords:} Some keywords ....
+{\bf Keywords:} Parser, Lexer, AST, EBNF, OCaml
 \end{document}

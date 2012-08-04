@@ -53,6 +53,9 @@ flags.$(CMO):	flags.ml version.$(CMO)
 version.$(CMO): version.ml
 		$(OCAMLC) -c version.ml
 
+docs:
+		ocamldoc -html -d ../docs/api/ *.ml
+
 version:
 		echo let commit = \"`git log -n 1 --pretty=oneline | sed "s/\s.*//g"`\"\;\; > version.ml
 		echo let commit_num = \"`git shortlog -s | sed "s/\s*\([0-9]*\)\s*.*$$/\1/g"`\"\;\; >> version.ml

@@ -71,7 +71,7 @@ and flatten_pattern prefix p =
        (* NOTE - pull out *,+,?-modified stuff *)
        let new_pref = (prefix^"_"^(string_of_int n)) in
        match s with
-       | RangeSubpattern(rp,ra1,ra2,ro) ->
+       | RecursiveSubpattern(rp,ra1,ra2,ro) ->
           if flag then (s::sl2, l, n-1, false)
           else ((SimpleSubpattern(rp,IdentAtom(rp,new_pref),Options(rp,None,None,None,false,None,None)))::sl2,
           [Production(rp,new_pref,Pattern(rp,[s],None,false,None,None,None),[])]@l, n-1, false)
@@ -108,7 +108,7 @@ and flatten_subpattern prefix s =
   else
   match s with
   | SimpleSubpattern(p,a,o)    -> let (a2,nl) = flatten_atom prefix a in (SimpleSubpattern(p,a2,o),nl)
-  | RangeSubpattern(p,a1,a2,o) -> (s,[])
+  | RecursiveSubpattern(p,a1,a2,o) -> (s,[])
   | CodeSubpattern(_,_) -> (s,[])
 and flatten_atom prefix a = 
   match a with
@@ -187,15 +187,15 @@ and get_terminals_subpattern (sp : subpattern) (s : string)
       let x = (get_assoc_str a prec) in
       SubpatternHashtbl.replace h sp (s,x,get_subpattern_default_type sp,ps);
       n+1
-   | RangeSubpattern(_,_,_,Options(ps,_,prec,a,_,Some(Type(_,t)),_)) ->
+   | RecursiveSubpattern(_,_,_,Options(ps,_,prec,a,_,Some(Type(_,t)),_)) ->
       let x = (get_assoc_str a prec) in
       SubpatternHashtbl.replace h sp (s,x,Some(t),ps);
       n+1
-   | RangeSubpattern(_,_,_,Options(ps,_,prec,a,_,Some(EmptyType(_)),_)) ->
+   | RecursiveSubpattern(_,_,_,Options(ps,_,prec,a,_,Some(EmptyType(_)),_)) ->
       let x = (get_assoc_str a prec) in
       SubpatternHashtbl.replace h sp (s,x,None,ps);
       n+1
-   | RangeSubpattern(_,_,_,Options(ps,_,prec,a,_,None,_)) ->
+   | RecursiveSubpattern(_,_,_,Options(ps,_,prec,a,_,None,_)) ->
       let x = (get_assoc_str a prec) in
       SubpatternHashtbl.replace h sp (s,x,get_subpattern_default_type sp,ps);
       n+1
@@ -339,11 +339,11 @@ and generate_ast_subpattern_code (file : out_channel) (prefix : string) (flag : 
     output_string file f;
     output_string file (str_remove_from_front t (prefix^"ast."));
     true
-  | RangeSubpattern(_,a1,a2,Options(_,o,_,_,_,None,_)) ->
+  | RecursiveSubpattern(_,a1,a2,Options(_,o,_,_,_,None,_)) ->
     output_string file f;
     (* TODO - will this will always be a string? *)
     output_string file "string"; true
-  | RangeSubpattern(_,a1,a2,Options(_,o,_,_,_,Some(Type(_,t)),_)) ->
+  | RecursiveSubpattern(_,a1,a2,Options(_,o,_,_,_,Some(Type(_,t)),_)) ->
     output_string file f;
     output_string file (str_remove_from_front t (prefix^"ast."));
     true
@@ -516,7 +516,7 @@ let rec generate_lexer_code file prefix g (h : (string*((string*int) option)*str
    let rules = List.fold_left (fun rules (name,s,_,ty,p) ->
       let (cd,aft2,tok,rules2) = (match s with
       | SimpleSubpattern(_,_,Options(_,_,_,_,_,_,cd)) -> (cd,None,tb,"")
-      | RangeSubpattern(p,a,b,Options(_,_,_,_,_,_,cd)) ->
+      | RecursiveSubpattern(p,a,b,Options(_,_,_,_,_,_,cd)) ->
          let temp = (match cd with
             | Some(Code(_,_) as c) -> if (is_code_empty c) then tb else "s"
             | None -> "s"
@@ -558,7 +558,7 @@ and generate_lexer_atom_code file a : bool =
    | IdentAtom(ps,s) -> false (* NOTE - this is only used to provide the %prec things to parser.mly,
                                *        so just ignore it*)
    | StringAtom(_,s) -> output_string file ("\""^s^"\""); true
-   | CharsetsAtom(_,SingletonCharsets(_,c)) -> generate_lexer_charset_code file c; true
+   | CharsetsAtom(_,SimpleCharsets(_,c)) -> generate_lexer_charset_code file c; true
    | CharsetsAtom(_,DiffCharsets(_,c1,c2)) ->
       generate_lexer_charset_code file c1;
       output_string file " # ";
@@ -595,7 +595,7 @@ and generate_lexer_subpattern_code file s : bool =
       | Some(QuestionOp(_)) -> output_string file "?"
       | _ -> ());
       r
-   | RangeSubpattern(_,a1,a2,_) -> output_string file ("\""^a1^"\""); true  (* TODO - the rest goes in the semantic rule *)
+   | RecursiveSubpattern(_,a1,a2,_) -> output_string file ("\""^a1^"\""); true  (* TODO - the rest goes in the semantic rule *)
    | CodeSubpattern(_,_) -> false
 
 and generate_lexer_charset_code file c =
