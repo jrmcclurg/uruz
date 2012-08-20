@@ -1,0 +1,25 @@
+#---------------------------------------------------
+# File : run (shell script)
+#
+# Created : Debjit Sinha (11-17-2006)
+#---------------------------------------------------
+
+FILE=cover
+
+latex $FILE.tex
+bibtex $FILE.tex
+latex $FILE.tex
+latex $FILE.tex
+texi2dvi $FILE.tex
+dvips -P cmz -t letter -o $FILE.ps $FILE.dvi
+ps2pdf $FILE.ps
+rm -rf $FILE.aux $FILE.bbl $FILE.blg $FILE.dvi $FILE.log
+
+echo "---------------------------------------------------------"
+echo "    Cover page generator for NWU EECS Tech Report"
+echo "---------------------------------------------------------"
+echo " Tex file: $FILE.tex"
+echo " Output file: $FILE.ps, $FILE.pdf ..." 
+echo " Done ! (Created by Debjit Sinha, 11/17/2006)"
+echo "---------------------------------------------------------"
+

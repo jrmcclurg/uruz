@@ -1,0 +1,68 @@
+\documentclass{article}
+\usepackage{mymacros,graphicx,setspace} %% changed "doublespace" to "setspace"
+\pagestyle{empty}
+\setstretch{1.0}
+
+\setlength{\topmargin}{0.0in}
+\setlength{\headheight}{0.0in}
+\setlength{\headsep}{0.0in}
+
+\setlength{\textheight}{8.2in}
+\setlength{\footskip}{0.0in}
+
+\setlength{\textwidth}{6.0in}
+\setlength{\oddsidemargin}{0.25in}
+\setlength{\evensidemargin}{0.0in}
+
+\begin{document}
+\vspace{-3.0in}
+\begin{figure}
+\centering
+\includegraphics[width=2.5in]{nwu}
+\end{figure}
+
+%\centerline{\huge {\bf NORTHWESTERN}}
+%\vspace{0.1in}
+%\centerline{\Large {\bf UNIVERSITY}}
+%\vspace{0.3in}
+%
+\centerline{\Large Department of Electrical Engineering and Computer Science}
+\vspace{0.2in}
+
+\centerline{\Large { Technical Report}}
+\vspace{0.05in}
+\centerline{\Large { NWU-EECS-00-00}}
+\vspace{0.05in}
+\centerline{\Large { June 27, 2012}}
+\vspace{0.3in}
+
+\centerline{\Large {\bf Parser Generator Generator (PGG) -- a Tool for}}
+\centerline{\Large {\bf Rapid Parser Construction via EBNF Grammars}}
+\vspace{0.3in}
+\centerline{\large {\bf Jedidiah McClurg \hspace {0.2in} Goce Trajcevski}}
+\vspace{0.8in}
+
+\centerline{\large {\bf Abstract}}
+\vspace{0.15in}
+When developing programming languages, it is very important
+to get the syntax just right.  This involves first making a
+parser, and then adjusting the parser through many iterations
+as the language's grammar changes and evolves through the
+development.  Each time this happens, both the parser and
+the Abstract Syntax Tree (AST) data structures and manipulation
+functionality needs to change.  This process can become very
+tiresome, and can take time away from development of the
+language's functionality.  Thus, we have built the Parser
+Generator Generator (PGG) system to automate this unnecessary
+attention to the language syntax.  PGG takes a high-level
+grammar specification, in an expressive EBNF form, and
+produces the corresponding OCaml lexer/parser scripts, as
+well as AST data structures and manipulation functions.  The
+tool can also emit the necessary skeleton code to allow
+PGG to be integrated into the build for the project.  This
+allows for projects where the entire lexing/parsing/AST
+frontend is specified in a highly-readable EBNF form.
+
+\vspace{0.5in}
+{\bf Keywords:} Parser, Lexer, AST, EBNF, OCaml
+\end{document}
