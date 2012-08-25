@@ -264,120 +264,104 @@ let rec generate_ast_code file prefix g =
   output_string file "\n(* AST Data Structure *)\n\n";
   match g with Grammar(_,_,_,px,plx) ->
   let pl = px::plx in
-  let _ = List.fold_left (fun flag p -> 
-    generate_ast_production_code file prefix flag p;
-    true
-  ) false pl in output_string file ";;\n";
-and generate_ast_production_code file prefix flag2 p =
+  let (_,str) = List.fold_left (fun (flag,str) p -> 
+    (true, (str^(generate_ast_production_code file prefix flag p)))
+  ) (false,"") pl in output_string file (str^";;\n");
+and generate_ast_production_code file prefix flag2 p : string =
   match p with Production(_,s,px,plx) ->
     let pl = px::plx in
-    let (r,_) = List.fold_left (fun (flag,n) p ->
-      generate_ast_pattern_code file prefix s (if (List.length pl)>1 then n else 0) flag p s flag2;
+    let (r,_,str) = List.fold_left (fun (flag,n,str) p ->
+      let (flag2,n2,str2) = generate_ast_pattern_code file prefix s (if (List.length pl)>1 then n else 0) flag p s flag2 in
+      (flag2,n2,str^str2)
       (* (true,n+1) *)
-    ) (false,1) pl in ();
-    if r then output_string file "\n"
-and generate_ast_pattern_code file prefix name n flag p s flag2 =
-  if flag then  output_string file "\n";
+    ) (false,1,"") pl in
+    (if r then (str^"\n") else "")
+and generate_ast_pattern_code file prefix name n flag p s flag2 : (bool * int * string) =
+  let prefix_str = (if flag then "\n" else "") in
   match p with Pattern(_,slx,labelo,eof,c,_,_) ->
     let (ignore,label) = (match labelo with
     | None -> (false,None)
     | Some(Type(_,l)) -> (false,Some(l))
     | _ -> (true,None)) in
     if (not ignore) then (
-       if (not flag) then (
-          if flag2 then output_string file "\n";
-          output_string file (if flag2 then " and" else "type");
-          output_string file " ";
-          output_production_type file s;
-          output_string file " =\n";
-       );
-       let sl = slx in
-       output_string file (if (*flag*) true then "   |" else "    ");
-       output_string file " ";
+       let result =
+       ((if (not flag) then (
+          (if flag2 then "\n" else "")^
+          (if flag2 then " and" else "type")^
+          (" ")^
+          (get_production_type s)^
+          (" =\n")
+       ) else "")^
+       ("   |")^
+       (" ")^
        (match label with
-       | None -> (
-         output_string file name;
-         if n > 0 then (
-           output_string file "_";
-           output_string file (string_of_int n)
-         ) else ();
-       )
-       | Some(label) ->
-         output_string file label
-       );
-       output_string file " of ";
-       output_production_type file "Pos";
-       (*output_string file " * ";*)
-       if (not (is_pattern_empty p)) then (
-       let _ = List.fold_left (fun flag s -> 
-         generate_ast_subpattern_code file prefix flag s
-       ) true sl in () );
-       (true,n+1)
+       | None -> (name^(if n > 0 then ("_"^(string_of_int n)) else ""))
+       | Some(label) -> label )^
+       (" of ")^
+       (get_production_type "Pos")^
+       (if (not (is_pattern_empty p)) then (
+       let (_,str) = List.fold_left (fun (flag,str) s -> 
+          let (flag2,str2) = generate_ast_subpattern_code file prefix flag s in
+          (flag2,str^str2)
+       ) (true,"") slx in str) else "")) in
+       (true,n+1,prefix_str^result)
     ) else (
-       (flag,n)
+       (flag,n,prefix_str)
     )
-and generate_ast_subpattern_code (file : out_channel) (prefix : string) (flag : bool) (s : subpattern) : bool =
+and generate_ast_subpattern_code (file : out_channel) (prefix : string) (flag : bool) (s : subpattern) : (bool*string) =
   let f = (if flag then " * " else "") in
   match s with
   | SimpleSubpattern(ps,a,Options(_,o,_,_,None,_,_)) ->
-    output_string file f;
     (* TODO - i dont think this will always be a string *)
-    if (is_subpattern_flat s) then (
+    let (flg,str) = (if (is_subpattern_flat s) then (
        let t = (get_subpattern_default_type s) in
        (match t with
-       | None -> false (* NOTE: there is at least one subpattern that is non-empty, so printing the " * " is okay *)
-       | Some(s) ->  output_string file s; true);
-    ) else (generate_ast_atom_code file prefix a o; true)
+       | None -> (false,"") (* NOTE: there is at least one subpattern that is non-empty, so printing the " * " is okay *)
+       | Some(s) ->  (true,s))
+    ) else (
+       let str = (generate_ast_atom_code file prefix a o) in (true,str)
+    )) in
+    (flg,(f^str))
   | SimpleSubpattern(_,a,Options(_,o,_,_,Some(Type(_,t)),_,_)) ->
-    output_string file f;
-    output_string file (str_remove_from_front t (prefix^"ast."));
-    true
+    (true, (f^(str_remove_from_front t (prefix^"ast."))))
   | RecursiveSubpattern(_,a1,a2,Options(_,o,_,_,None,_,_)) ->
-    output_string file f;
     (* TODO - will this will always be a string? *)
-    output_string file "string"; true
+    (true, (f^"string"))
   | RecursiveSubpattern(_,a1,a2,Options(_,o,_,_,Some(Type(_,t)),_,_)) ->
-    output_string file f;
-    output_string file (str_remove_from_front t (prefix^"ast."));
-    true
+    let str = (f^(str_remove_from_front t (prefix^"ast."))) in
+    (true,str)
   | _ -> 
-     (*if (is_subpattern_flat s) then (
-       output_string file f;
-       output_string file "string"; true
-     )
-     else*) flag
-  (*| CodeSubpattern(_,_) -> output_string file "???"*) (* TODO - this shouldn't happen *)
-and generate_ast_atom_code file prefix a o =
-  (match o with
-  | Some(PlusOp(_)) -> output_string file "("
-  | _ -> () );
-  let f = fun () -> (match a with
-  | IdentAtom(_,s) ->
-    output_production_type file s
+     (flag,"")
+and generate_ast_atom_code file prefix a o : string =
+  ((match o with
+  | Some(PlusOp(_)) -> "("
+  | _ -> "" )^
+  (let f = fun () -> (match a with
+  | IdentAtom(_,s) -> get_production_type s
   | StringAtom(ps,st) ->
     (* TODO - will this always be a string? *)
-    let t =  (get_atom_default_type a) in
+    (let t =  (get_atom_default_type a) in
     (match t with
     | None -> die_error ps "empty default type" (* TODO - this should never happen *)
-    | Some(t) -> output_string file t)
+    | Some(t) -> t))
   | CharsetsAtom(ps,_) ->
     (* TODO - will this always be a string? *)
-    let t = (get_atom_default_type a) in
+    (let t = (get_atom_default_type a) in
     (match t with
     | None -> die_error ps "empty default type"
-    | Some(t) -> output_string file t)
+    | Some(t) -> t))
   | ChoiceAtom(_,Subpatterns(_,sub,subs),al) ->
-    output_string file "(";
-    let _ = List.fold_left (fun flag s -> 
-      generate_ast_subpattern_code file prefix flag s
-    ) false (sub::subs) in ();
-    output_string file ")"
-  ) in f ();
+    ("("^
+    (let (_,str) = List.fold_left (fun (flag,str) s -> 
+      let (flag2,str2) = generate_ast_subpattern_code file prefix flag s in
+      (flag2,str^str2)
+    ) (false,"") (sub::subs) in str)^")")
+  ) in ((f ())^
   (match o with
-  | Some(StarOp(_)) -> output_string file " list"
-  | Some(PlusOp(_)) -> output_string file " * "; f (); output_string file " list)"
-  | Some(QuestionOp(_)) -> output_string file " option"
-  | _ -> () )
+  | Some(StarOp(_)) -> " list"
+  | Some(PlusOp(_)) -> (" * "^(f ())^" list)")
+  | Some(QuestionOp(_)) -> " option"
+  | _ -> "" ))))
 ;;
 
 (* generate parser.mly *)
