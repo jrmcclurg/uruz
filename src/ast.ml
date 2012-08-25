@@ -55,10 +55,10 @@ and subpattern = SimpleSubpattern of pos * atom * opts (**
                   prefix,
                   suffix,
                   options *)
-               | CodeSubpattern of pos * code (**
+               (*| CodeSubpattern of pos * code (**
                   Code subpattern having given
                   position,
-                  OCaml code *)
+                  OCaml code *)  *)
 
 (** AST node for an atom *)
 and atom = IdentAtom of pos * string (**
@@ -123,15 +123,15 @@ and chars = SingletonChars of pos * char (**
              ending char *)
 
 (** AST node for options *)
-and opts = Options of pos * op option * int option * assoc option * bool * typ option * code option (**
+and opts = Options of pos * op option * int option * assoc option * typ option * code option * code option (**
             Options having given
             position,
             operator,
             precedence,
             associativity,
-            flag for pretty-print suppression,
             type,
-            OCaml code *)
+            OCaml code for lexer,
+            OCaml code for pretty-print *)
 
 (** AST node for operator *)
 and op = StarOp of pos (**
@@ -206,7 +206,6 @@ and reloc_subpattern (s : subpattern) =
    match s with
    | SimpleSubpattern(p,a,o) -> SimpleSubpattern(NoPos,reloc_atom a,reloc_opts o)
    | RecursiveSubpattern(p,a1,a2,o) -> RecursiveSubpattern(NoPos,a1,a2,reloc_opts o)
-   | CodeSubpattern(p,c) -> CodeSubpattern(NoPos,reloc_code c)
 
 and reloc_atom (a : atom) =
    match a with
@@ -237,7 +236,7 @@ and reloc_chars (c : chars) =
 
 and reloc_opts (o : opts) = 
    match o with
-   | Options(p,o,i,a,b,t,c) -> Options(NoPos,reloc_op_opt o,i,reloc_assoc_opt a,b,reloc_typ_opt t,reloc_code_opt c)
+   | Options(p,o,i,a,t,c,cp) -> Options(NoPos,reloc_op_opt o,i,reloc_assoc_opt a,reloc_typ_opt t,reloc_code_opt c,reloc_code_opt cp)
 
 and reloc_op (o : op) =
    match o with
@@ -420,13 +419,6 @@ and print_subpattern (n:int) (sp:subpattern) : unit =
       print_opts (n+1) o;
       print_string "\n";
       print_indent n ")";
-   | CodeSubpattern(p,c) ->
-      print_indent n "CodeSubpattern(\n";
-      print_pos (n+1) p;
-      print_string ",\n";
-      print_code (n+2) c;
-      print_string "\n";
-      print_indent n ")";
 
 and print_atom (n:int) (a:atom) : unit =
    match a with
@@ -552,7 +544,7 @@ and print_chars (n:int) (crs:chars) : unit =
 
 and print_opts (n:int) (o1:opts) : unit =
    match o1 with
-   | Options(p,o,i,a,sp,typo,co) ->
+   | Options(p,o,i,a,typo,co,cpo) ->
       print_indent n "Options(\n";
       print_pos (n+1) p;
       print_string ",\n";
@@ -562,14 +554,17 @@ and print_opts (n:int) (o1:opts) : unit =
       print_string ",\n";
       print_assoc (n+1) a;
       print_string ",\n";
-      print_indent (n+1) (if sp then "true" else "false");
-      print_string ",\n";
       (match typo with
       | None -> print_indent (n+1) "None"
       | Some(typ) -> print_indent (n+1) "Some(\n"; print_typ (n+2) typ;
                      print_string "\n"; print_indent (n+1) ")");
       print_string ",\n";
       (match co with
+      | None -> print_indent (n+1) "None"
+      | Some(c) -> print_indent (n+1) "Some(\n"; print_code (n+2) c;
+                     print_string "\n"; print_indent (n+1) ")");
+      print_string ",\n";
+      (match cpo with
       | None -> print_indent (n+1) "None"
       | Some(c) -> print_indent (n+1) "Some(\n"; print_code (n+2) c;
                      print_string "\n"; print_indent (n+1) ")");
@@ -644,7 +639,6 @@ let rec get_subpattern_default_type (sp : subpattern) : string option =
    match sp with
    | SimpleSubpattern(_,a,_) -> get_atom_default_type a
    | RecursiveSubpattern(_,_,_,_) -> Some("string")
-   | CodeSubpattern(_,_) -> None
 
 and get_atom_default_type (a : atom) : string option =
    match a with
@@ -674,7 +668,7 @@ let rec is_subpattern_flat (s : subpattern) : bool =
    (match s with
    | SimpleSubpattern(_,a1,_) -> is_atom_flat a1
    | RecursiveSubpattern(_,a1,a2,_) -> false (*(is_atom_flat a1) && (is_atom_flat a2)*)
-   | CodeSubpattern(_,_) -> true) in
+   ) in
    result
 
 and is_atom_flat (a : atom) : bool =
@@ -743,9 +737,23 @@ let rec compile_char_list (cl: char list) : chars list =
    | _             -> []
 ;;
 
+(** Compiles an escaped string into a chars list.
+    Returns [(c,inv)], i.e. list of chars and flag for inverted charsets
+    @param s the escaped string to compile *)
 let compile_charset (s:string) : chars list * bool =
    let l = string_explode s in
    match l with
    | '^'::cs -> (compile_char_list cs, true)
    | _       -> (compile_char_list l , false)
+;;
+
+(** {b Other stuff that needs to be categorized TODO XXX} *)
+
+let set_subpattern_code (s : subpattern) (co : code option) : subpattern =
+   match (s,co) with
+   | (SimpleSubpattern(p,a,Options(p2,op,prec,assoc,ty,cd,_)),Some(c)) ->
+      SimpleSubpattern(p,a,Options(p2,op,prec,assoc,ty,cd,Some(c)))
+   | (RecursiveSubpattern(p,pre,suf,Options(p2,op,prec,assoc,ty,cd,_)),Some(c)) ->
+      RecursiveSubpattern(p,pre,suf,Options(p2,op,prec,assoc,ty,cd,Some(c)))
+   | _ -> s
 ;;

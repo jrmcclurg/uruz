@@ -6,8 +6,8 @@
    type opt = OprOption of op
             | PrecOption of int
             | AssocOption of assoc
-            | SuppPrintOption of bool
             | TypeOption of (typ * code option)
+            | PrintOption of code
    ;;
 
 %}
@@ -102,8 +102,8 @@ pattern_opt:
 ;
 
 subpattern_list:
-                                { [] }
-   | subpattern subpattern_list { $1::$2 }
+                                              { [] }
+   | subpattern subpattern_list               { $1::$2 }
 ;
 
 subpattern:
@@ -115,9 +115,6 @@ subpattern:
                              | _ -> ());
                              SimpleSubpattern(get_current_pos (),$1,$2) }
    | quot RECUR quot opts  { RecursiveSubpattern(get_current_pos (),$1,$3,$4) }
-   | LPAREN CODE RPAREN    { let (p,s) = $2 in
-                             let p2 = get_pos p in
-                             CodeSubpattern(p2,Code(p2,s)) }
 ;
 
 quot:
@@ -139,14 +136,7 @@ subpatterns_bar_list:
 ;
 
 subpatterns:
-     subpattern subpattern_list {
-        let ok = List.fold_left (fun res s ->
-           if res then res
-           else (not (is_subpattern_empty s))
-        ) false ($1::$2) in
-        if (not ok) then parse_error "empty subpattern list";
-        Subpatterns(get_current_pos (),$1, $2) 
-     }
+   | subpattern subpattern_list { Subpatterns(get_current_pos (),$1,$2) }
 
 charsets:
      charset              { SimpleCharsets(get_current_pos (),$1) } 
@@ -162,20 +152,17 @@ opts:
    opt_list {
       let p = get_current_pos () in
       let l = $1 in
-      let (opr,pri,assoc,supp_print,ty,cd) =
-      List.fold_left (fun (opr,pri,assoc,supp_print,ty,cd) o ->
-         match (o,opr,pri,assoc,supp_print,ty,cd) with
-         | (OprOption(op),None,_,_,_,_,_) -> (Some(op),pri,assoc,supp_print,ty,cd)
-         | (PrecOption(i),_,None,_,_,_,_) -> (opr,Some(i),assoc,supp_print,ty,cd)
-         | (AssocOption(a),_,_,None,_,_,_) -> (opr,pri,Some(a),supp_print,ty,cd)
-         | (SuppPrintOption(b),_,_,_,None,_,_) -> (opr,pri,assoc,Some(b),ty,cd)
-         | (TypeOption((ty,cd)),_,_,_,_,None,_) -> (opr,pri,assoc,supp_print,Some(ty),cd)
+      let (opr,pri,assoc,ty,cd,cp) =
+      List.fold_left (fun (opr,pri,assoc,ty,cd,cp) o ->
+         match (o,opr,pri,assoc,ty,cd,cp) with
+         | (OprOption(op),None,_,_,_,_,_) -> (Some(op),pri,assoc,ty,cd,cp)
+         | (PrecOption(i),_,None,_,_,_,_) -> (opr,Some(i),assoc,ty,cd,cp)
+         | (AssocOption(a),_,_,None,_,_,_) -> (opr,pri,Some(a),ty,cd,cp)
+         | (TypeOption((ty,cd)),_,_,_,None,_,_) -> (opr,pri,assoc,Some(ty),cd,cp)
+         | (PrintOption(c),_,_,_,_,_,None) -> (opr,pri,assoc,ty,cd,Some(c))
          | _ -> parse_error "multiple modifiers of same type in options list"
       ) (None,None,None,None,None,None) l in
-      let sp = (match supp_print with
-      | None -> false
-      | _ -> true) in
-      Options(p,opr,pri,assoc,sp,ty,cd)
+      Options(p,opr,pri,assoc,ty,cd,cp)
    }
 ;
 
@@ -185,11 +172,11 @@ opt_list:
 ;
 
 opt:
-   | op_opr        { OprOption($1) }
-   | op_prec       { PrecOption($1) }
-   | op_assoc      { AssocOption($1) }
-   | op_supp_print { SuppPrintOption($1) }
-   | op_type       { TypeOption($1) }
+   | op_opr         { OprOption($1) }
+   | op_prec        { PrecOption($1) }
+   | op_assoc       { AssocOption($1) }
+   | op_type        { TypeOption($1) }
+   | SUPPPRINT CODE { let (p,s) = $2 in PrintOption(Code(get_pos p,s)) }
    
 ;
 
@@ -207,10 +194,6 @@ op_assoc:
    | LEFT  { LeftAssoc(get_current_pos ()) }
    | RIGHT { RightAssoc(get_current_pos ()) }
    | UNARY { UnaryAssoc(get_current_pos ()) }
-;
-
-op_supp_print:
-   | SUPPPRINT { true }
 ;
 
 op_type:

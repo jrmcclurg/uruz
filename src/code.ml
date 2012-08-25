@@ -61,11 +61,7 @@ and flatten_production p =
 and flatten_pattern prefix p = 
   match p with
   | Pattern(p,slx,label,eof,c,i,asc) -> let sl = slx in let (nsl,nl,_,_) =
-    let len = List.fold_left (fun res s ->
-       match s with
-       | CodeSubpattern(_,_) -> res
-       | _ -> res+1
-    ) 0 sl in
+    let len = List.length sl in
     List.fold_right (fun s (sl2,l,n,flag) ->
        (* NOTE - pull out range patterns *)
        (* NOTE - pull out *,+,?-modified stuff *)
@@ -73,23 +69,23 @@ and flatten_pattern prefix p =
        match s with
        | RecursiveSubpattern(rp,ra1,ra2,ro) ->
           if flag then (s::sl2, l, n-1, false)
-          else ((SimpleSubpattern(rp,IdentAtom(rp,new_pref),Options(rp,None,None,None,false,None,None)))::sl2,
+          else ((SimpleSubpattern(rp,IdentAtom(rp,new_pref),Options(rp,None,None,None,None,None,None)))::sl2,
           [Production(rp,new_pref,Pattern(rp,[s],None,false,None,None,None),[])]@l, n-1, false)
-       | SimpleSubpattern(rp,IdentAtom(rp2,name),Options(rp3,Some(o),o1,o2,o3,typo,o5)) ->
+       | SimpleSubpattern(rp,IdentAtom(rp2,name),Options(rp3,Some(o),o1,o2,typo,o5,o6)) ->
           let the_typename = (get_production_type name) in
           let (nm,e,tp) = (match o with
           | StarOp(_) ->
              let nm = (new_pref^"_list") in
              (nm,[Production(rp,nm,Pattern(rp,[],Some(EmptyType(rp)),false,Some(Code(rp," [] ")),None,None),
                                   [Pattern(rp,[s;
-                                  SimpleSubpattern(rp,IdentAtom(rp,nm),Options(rp,None,None,None,false,None,None))],
+                                  SimpleSubpattern(rp,IdentAtom(rp,nm),Options(rp,None,None,None,None,None,None))],
                                   Some(EmptyType(rp)),false,Some(Code(rp," $1::$2 ")),None,None)])],
               (the_typename^" list"))
           | PlusOp(_) ->
              let nm = (new_pref^"_nlist") in
              (nm,[Production(rp,nm,Pattern(rp,[s],Some(EmptyType(rp)),false,Some(Code(rp," ($1,[]) ")),None,None),
                                   [Pattern(rp,[s;
-                                  SimpleSubpattern(rp,IdentAtom(rp,nm),Options(rp,None,None,None,false,None,None))],
+                                  SimpleSubpattern(rp,IdentAtom(rp,nm),Options(rp,None,None,None,None,None,None))],
                                   Some(EmptyType(rp)),false,Some(Code(rp," let (h,l) = $2 in ($1,h::l) ")),None,None)])],
               ("("^the_typename^" * "^the_typename^" list)"))
           | QuestionOp(_) -> ((new_pref^"_opt"),[],"")
@@ -97,8 +93,7 @@ and flatten_pattern prefix p =
           let use_type = (match typo with
           | None -> Some(Type(rp3,tp))
           | _ -> typo) in
-          ((SimpleSubpattern(rp,IdentAtom(rp2,nm),Options(rp3,None,o1,o2,o3,use_type,o5)))::sl2, e@l, n-1, false)
-       | CodeSubpattern(_,_) -> (s::sl2, l, n, true)
+          ((SimpleSubpattern(rp,IdentAtom(rp2,nm),Options(rp3,None,o1,o2,use_type,o5,o6)))::sl2, e@l, n-1, false)
        | _ ->
           let (s2,e) = flatten_subpattern new_pref s in (s2::sl2,e@l,n-1,false)
     ) sl ([],[],len,true) in
@@ -109,7 +104,6 @@ and flatten_subpattern prefix s =
   match s with
   | SimpleSubpattern(p,a,o)    -> let (a2,nl) = flatten_atom prefix a in (SimpleSubpattern(p,a2,o),nl)
   | RecursiveSubpattern(p,a1,a2,o) -> (s,[])
-  | CodeSubpattern(_,_) -> (s,[])
 and flatten_atom prefix a = 
   match a with
   | ChoiceAtom(p,spx,splx) ->
@@ -159,7 +153,7 @@ and get_terminals_pattern (pa : pattern) (s : string)
       (match x with
       | None -> ()
       | _ -> SubpatternHashtbl.replace h
-                (SimpleSubpattern(NoPos,IdentAtom(NoPos,name),Options(NoPos,None,None,None,false,None,None)))
+                (SimpleSubpattern(NoPos,IdentAtom(NoPos,name),Options(NoPos,None,None,None,None,None,None)))
                 ((name^"_0"),x,None,ps)); (* TODO - does this work? *)
       let b = ((List.length spl) = 1) in
       let _ = List.fold_left (fun n sp ->
@@ -175,31 +169,30 @@ and get_terminals_subpattern (sp : subpattern) (s : string)
       | Some(_) -> die_error ps "cannot set options for non-terminal" (* TODO - this should never happen (done in parser) *)
       | _ -> ());
       n+1
-   | SimpleSubpattern(_,_,Options(ps,_,prec,a,_,Some(Type(_,t)),_)) ->
+   | SimpleSubpattern(_,_,Options(ps,_,prec,a,Some(Type(_,t)),_,_)) ->
       let x = (get_assoc_str a prec) in
       SubpatternHashtbl.replace h sp (s,x,Some(t),ps);
       n+1
-   | SimpleSubpattern(_,_,Options(ps,_,prec,a,_,Some(EmptyType(_)),_)) ->
+   | SimpleSubpattern(_,_,Options(ps,_,prec,a,Some(EmptyType(_)),_,_)) ->
       let x = (get_assoc_str a prec) in
       SubpatternHashtbl.replace h sp (s,x,None,ps);
       n+1
-   | SimpleSubpattern(_,_,Options(ps,_,prec,a,_,None,_)) ->
+   | SimpleSubpattern(_,_,Options(ps,_,prec,a,None,_,_)) ->
       let x = (get_assoc_str a prec) in
       SubpatternHashtbl.replace h sp (s,x,get_subpattern_default_type sp,ps);
       n+1
-   | RecursiveSubpattern(_,_,_,Options(ps,_,prec,a,_,Some(Type(_,t)),_)) ->
+   | RecursiveSubpattern(_,_,_,Options(ps,_,prec,a,Some(Type(_,t)),_,_)) ->
       let x = (get_assoc_str a prec) in
       SubpatternHashtbl.replace h sp (s,x,Some(t),ps);
       n+1
-   | RecursiveSubpattern(_,_,_,Options(ps,_,prec,a,_,Some(EmptyType(_)),_)) ->
+   | RecursiveSubpattern(_,_,_,Options(ps,_,prec,a,Some(EmptyType(_)),_,_)) ->
       let x = (get_assoc_str a prec) in
       SubpatternHashtbl.replace h sp (s,x,None,ps);
       n+1
-   | RecursiveSubpattern(_,_,_,Options(ps,_,prec,a,_,None,_)) ->
+   | RecursiveSubpattern(_,_,_,Options(ps,_,prec,a,None,_,_)) ->
       let x = (get_assoc_str a prec) in
       SubpatternHashtbl.replace h sp (s,x,get_subpattern_default_type sp,ps);
       n+1
-   | CodeSubpattern(_,_) -> n
 ;;
 
 let generate_makefile_vars file =
@@ -326,7 +319,7 @@ and generate_ast_pattern_code file prefix name n flag p s flag2 =
 and generate_ast_subpattern_code (file : out_channel) (prefix : string) (flag : bool) (s : subpattern) : bool =
   let f = (if flag then " * " else "") in
   match s with
-  | SimpleSubpattern(ps,a,Options(_,o,_,_,_,None,_)) ->
+  | SimpleSubpattern(ps,a,Options(_,o,_,_,None,_,_)) ->
     output_string file f;
     (* TODO - i dont think this will always be a string *)
     if (is_subpattern_flat s) then (
@@ -335,15 +328,15 @@ and generate_ast_subpattern_code (file : out_channel) (prefix : string) (flag : 
        | None -> false (* NOTE: there is at least one subpattern that is non-empty, so printing the " * " is okay *)
        | Some(s) ->  output_string file s; true);
     ) else (generate_ast_atom_code file prefix a o; true)
-  | SimpleSubpattern(_,a,Options(_,o,_,_,_,Some(Type(_,t)),_)) ->
+  | SimpleSubpattern(_,a,Options(_,o,_,_,Some(Type(_,t)),_,_)) ->
     output_string file f;
     output_string file (str_remove_from_front t (prefix^"ast."));
     true
-  | RecursiveSubpattern(_,a1,a2,Options(_,o,_,_,_,None,_)) ->
+  | RecursiveSubpattern(_,a1,a2,Options(_,o,_,_,None,_,_)) ->
     output_string file f;
     (* TODO - will this will always be a string? *)
     output_string file "string"; true
-  | RecursiveSubpattern(_,a1,a2,Options(_,o,_,_,_,Some(Type(_,t)),_)) ->
+  | RecursiveSubpattern(_,a1,a2,Options(_,o,_,_,Some(Type(_,t)),_,_)) ->
     output_string file f;
     output_string file (str_remove_from_front t (prefix^"ast."));
     true
@@ -471,7 +464,6 @@ let generate_parser_code file prefix g (h : ((string*((string*int) option)*strin
                   let str = (try let (x,_,_,_) = SubpatternHashtbl.find h s in (" "^x) with _ -> 
                      match s with
                      | SimpleSubpattern(_,IdentAtom(_,name),_) -> (" "^(get_production_type name))
-                     | CodeSubpattern(_,_) -> ""
                      | _ -> "XXX" (* TODO - this should never happen - do error? *)
                   ) in
                   output_string file (str);
@@ -515,8 +507,8 @@ let rec generate_lexer_code file prefix g (h : (string*((string*int) option)*str
    let tb = "token lexbuf" in
    let rules = List.fold_left (fun rules (name,s,_,ty,p) ->
       let (cd,aft2,tok,rules2) = (match s with
-      | SimpleSubpattern(_,_,Options(_,_,_,_,_,_,cd)) -> (cd,None,tb,"")
-      | RecursiveSubpattern(p,a,b,Options(_,_,_,_,_,_,cd)) ->
+      | SimpleSubpattern(_,_,Options(_,_,_,_,_,cd,_)) -> (cd,None,tb,"")
+      | RecursiveSubpattern(p,a,b,Options(_,_,_,_,_,cd,_)) ->
          let temp = (match cd with
             | Some(Code(_,_) as c) -> if (is_code_empty c) then tb else "s"
             | None -> "s"
@@ -529,7 +521,6 @@ let rec generate_lexer_code file prefix g (h : (string*((string*int) option)*str
             "| _ as c { if c='\\n' then do_newline lexbuf;\n"^
             "           "^rule_name^" n (Printf.sprintf \"%s%c\" s c) lexbuf }\n")
          )
-      | CodeSubpattern(_,_) -> (None,None,"","") (* TODO - this should never happen *)
       ) in
       let (bef,aft) = (match (ty,cd) with (* TODO - bef not used *)
       (* TODO XXX - should <> cause the "token lexbuf" to be generated? *)
@@ -596,7 +587,6 @@ and generate_lexer_subpattern_code file s : bool =
       | _ -> ());
       r
    | RecursiveSubpattern(_,a1,a2,_) -> output_string file ("\""^a1^"\""); true  (* TODO - the rest goes in the semantic rule *)
-   | CodeSubpattern(_,_) -> false
 
 and generate_lexer_charset_code file c =
    match c with

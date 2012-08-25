@@ -7,7 +7,7 @@
    let add_ints a b = a + b;;
 }
 
-Program   ->   "mod"<> Integer<{int}> "begin"< >@ ({ let p = $1 in print_string p })
+Program   ->   "mod"<> @{} Integer<{int}> "begin"< > @{ let p = $1 in print_string p }
                Statement* <{int list}> "end"<> eof
 	       { Program(NoPos,$2,List.map (fun i -> i mod $2) $4) } ;
 
