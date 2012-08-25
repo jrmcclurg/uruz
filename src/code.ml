@@ -490,6 +490,7 @@ let generate_parser_code file prefix g (h : ((string*((string*int) option)*strin
 
 (* generate lexer.mll *)
 let rec generate_lexer_code file prefix g (h : (string*((string*int) option)*string option*pos) SubpatternHashtbl.t) =
+   let this_var = "s" in (* TODO XXX - this should probably be a top-level setting *)
    output_warning_msg file "(*\n" " *" " *" " *)";
    output_string file "\n\n";
    output_string file "{\n";
@@ -510,11 +511,11 @@ let rec generate_lexer_code file prefix g (h : (string*((string*int) option)*str
       | SimpleSubpattern(_,_,Options(_,_,_,_,_,cd,_)) -> (cd,None,tb,"")
       | RecursiveSubpattern(p,a,b,Options(_,_,_,_,_,cd,_)) ->
          let temp = (match cd with
-            | Some(Code(_,_) as c) -> if (is_code_empty c) then tb else "s"
-            | None -> "s"
+            | Some(Code(_,_) as c) -> if (is_code_empty c) then tb else this_var
+            | None -> this_var
          ) in
          let rule_name = ("entry_"^(String.lowercase name)) in
-         (cd,Some("let s = "^rule_name^" 0 \"\" lexbuf in"),"s",
+         (cd,Some("let "^this_var^" = "^rule_name^" 0 \"\" lexbuf in"),this_var,
             ("\nand "^rule_name^" n s = parse\n"^
             "| \""^a^"\" { "^rule_name^" (n+1) (s^\""^a^"\") lexbuf }\n"^
             "| \""^b^"\" { if (n=0) then "^temp^" else "^rule_name^" (n-1) (s^\""^b^"\") lexbuf }\n"^
@@ -525,18 +526,19 @@ let rec generate_lexer_code file prefix g (h : (string*((string*int) option)*str
       let (bef,aft) = (match (ty,cd) with (* TODO - bef not used *)
       (* TODO XXX - should <> cause the "token lexbuf" to be generated? *)
       | (None,None) -> ("",name)
-      | (None,Some(Code(_,s) as c)) -> ("",if (is_code_empty c) then tok else name)
-      | (Some(s),None) -> ("",(name^"(s)"))
-      | (Some(_),Some(Code(_,s) as c)) ->
-         ("",if (is_code_empty c) then tok else ("let t = "^s^" in ignore t; "^name^"(t)"))) in
+      | (None,Some(Code(_,s) as c)) -> ("",if (is_code_empty c) then tok else ("let t = "^s^" in ignore t; "^tok))
+      | (Some(s),None) -> ("",("(* xxx *)"^name^"("^this_var^")"))
+      | (Some(s2),Some(Code(_,s) as c)) ->
+         ("",if (is_code_empty c) then tok else ("let t = "^s^" in ignore t; "^name^"(t)"
+         ))) in
       (match s with
       | SimpleSubpattern(_,IdentAtom(_,_),_) -> ()
       | _ ->
          output_string file "| ";
          let _ = generate_lexer_subpattern_code file s in
          (match aft2 with
-         | None -> output_string file (" as s { ignore s; "^aft^" }\n")
-         | Some(a) -> output_string file (" { "^a^" ignore s; "^aft^" }\n"))
+         | None -> output_string file (" as "^this_var^" { ignore "^this_var^"; "^aft^" }\n")
+         | Some(a) -> output_string file (" { "^a^" ignore "^this_var^"; "^aft^" }\n"))
       );
       (rules^rules2)
    ) "" hl2 in

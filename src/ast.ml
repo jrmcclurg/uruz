@@ -720,9 +720,7 @@ let is_production_empty (p : production) : bool =
 let is_code_empty (c : code) : bool =
    match c with
    | Code(p,s) ->
-   let sp = "[\r\n\t ]+" in
-   let t = Str.global_replace (Str.regexp sp) "" s in
-   if t = "" then true else false 
+   is_string_empty s
 ;;
 
 (** {b Functions for handling charsets} *)

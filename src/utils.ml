@@ -183,3 +183,13 @@ let string_of_string (s:string) : string =
    let s3 = Str.global_replace (Str.regexp_string "\\]") "]" s2 in
    Scanf.sscanf s3 "%S" (fun x -> x)
 ;;
+
+let is_string_empty (s : string) : bool =
+   print_string ("is_empty("^s^")=");
+   let sp = "[\r\n\t ]+" in
+   let t = Str.global_replace (Str.regexp sp) "" s in
+   let result = (if t = "" then true else false) in
+   print_string (if result then "yes" else "no");
+   print_string "\n";
+   result
+;;

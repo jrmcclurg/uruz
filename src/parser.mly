@@ -6,7 +6,7 @@
    type opt = OprOption of op
             | PrecOption of int
             | AssocOption of assoc
-            | TypeOption of (typ * code option)
+            | TypeOption of (typ option * code option)
             | PrintOption of code
    ;;
 
@@ -152,16 +152,19 @@ opts:
    opt_list {
       let p = get_current_pos () in
       let l = $1 in
-      let (opr,pri,assoc,ty,cd,cp) =
-      List.fold_left (fun (opr,pri,assoc,ty,cd,cp) o ->
-         match (o,opr,pri,assoc,ty,cd,cp) with
-         | (OprOption(op),None,_,_,_,_,_) -> (Some(op),pri,assoc,ty,cd,cp)
-         | (PrecOption(i),_,None,_,_,_,_) -> (opr,Some(i),assoc,ty,cd,cp)
-         | (AssocOption(a),_,_,None,_,_,_) -> (opr,pri,Some(a),ty,cd,cp)
-         | (TypeOption((ty,cd)),_,_,_,None,_,_) -> (opr,pri,assoc,Some(ty),cd,cp)
-         | (PrintOption(c),_,_,_,_,_,None) -> (opr,pri,assoc,ty,cd,Some(c))
+      let (opr,pri,assoc,ty_cd,cp) =
+      List.fold_left (fun (opr,pri,assoc,ty_cd,cp) o ->
+         match (o,opr,pri,assoc,ty_cd,cp) with
+         | (OprOption(op),None,_,_,_,_) -> (Some(op),pri,assoc,ty_cd,cp)
+         | (PrecOption(i),_,None,_,_,_) -> (opr,Some(i),assoc,ty_cd,cp)
+         | (AssocOption(a),_,_,None,_,_) -> (opr,pri,Some(a),ty_cd,cp)
+         | (TypeOption((ty,cd)),_,_,_,None,_) -> (opr,pri,assoc,Some((ty,cd)),cp)
+         | (PrintOption(c),_,_,_,_,None) -> (opr,pri,assoc,ty_cd,Some(c))
          | _ -> parse_error "multiple modifiers of same type in options list"
-      ) (None,None,None,None,None,None) l in
+      ) (None,None,None,None,None) l in
+      let (ty,cd) = (match ty_cd with
+      | Some((t,c)) -> (t,c)
+      | _ -> (None,None)) in
       Options(p,opr,pri,assoc,ty,cd,cp)
    }
 ;
@@ -197,13 +200,14 @@ op_assoc:
 ;
 
 op_type:
-   | LANGLE code_block RANGLE       { match $2 with
-                                      | None -> (EmptyType(get_current_pos ()),None)
-                                      | Some(Code(_,s)) -> (parse_type (get_current_pos ()) s, None)
+   | LANGLE CODE RANGLE       { let (p,s) = $2 in
+                                      (Some(parse_type (get_pos p) s), None)
                                     }
-   | LANGLE code_block COLON code_block RANGLE {
+   | LANGLE CODE COLON code_block RANGLE {
+      let (p,s) = $2 in
+      let c = Some(Code(get_pos p,s)) in
       match $4 with
-      | None -> (EmptyType(get_current_pos ()),$2)
-      | Some(Code(p,s)) -> ((parse_type p s),$2)
+      | None -> (None,c)
+      | Some(Code(p,s)) -> (Some(parse_type p s),c)
    }
 ;
