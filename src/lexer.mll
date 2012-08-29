@@ -30,7 +30,9 @@ rule token = parse
 | '*' { STAR }
 | '+' { PLUS }
 | '?' { QUESTION }
-| '@' { SUPPPRINT }
+| '@' { AMP }
+| '=' { EQUAL }
+| '$' { DOLLAR }
 | '_' { WILDCARD }
 | '\\' { DIFF }
 | '<' { LANGLE }

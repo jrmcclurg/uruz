@@ -164,6 +164,11 @@ let rec string_explode (s:string) : char list =
       []
 ;;
 
+let rec string_combine (cl : char list) : string =
+   match cl with
+   | [] -> ""
+   | c::more -> (String.make 1 c)^(string_combine more)
+
 let three_hd (cl: char list) : char list * char list = 
    match cl with
    | a::b::c::l -> (a::b::c::[],l)
@@ -193,3 +198,37 @@ let is_string_empty (s : string) : bool =
    print_string "\n";
    result
 ;;
+
+(* list comprehension *)
+let rec list_comp (start : int) (fin : int) : int list =
+   if (start > fin) then []
+   else if (start = fin) then [start]
+   else (start::(list_comp (start+1) fin))
+;;
+
+let rec str_list (f : 'a -> string) (l : 'a list) : string =
+   str_list_helper f l true
+
+and str_list_helper (f : 'a -> string) (l : 'a list) (first : bool) : string =
+   match l with
+   | [] -> ""
+   | a::more -> ((f a)^(if (not first) then " " else "")^(str_list_helper f more false))
+;;
+
+(* strips (recursive) OCaml comments from a string *)
+let rec strip_ocaml_comments (s : string) : string =
+   string_combine (strip_ocaml_comments_helper (string_explode s) [] 0)
+   
+and strip_ocaml_comments_helper (cl : char list) (unknown : char list) (level : int) : char list =
+   match cl with
+   | c1::c2::more ->
+      if ((c1 = '(') && (c2 = '*')) then strip_ocaml_comments_helper more (unknown @ [c1;c2]) (level+1)
+      else if ((c1 = '*') && (c2 = ')')) then strip_ocaml_comments_helper more (if (level=1) then [] else unknown@[c1;c2]) (level-1)
+      else if (level > 0) then strip_ocaml_comments_helper (c2::more) (unknown@[c1]) level
+      else c1::(strip_ocaml_comments_helper (c2::more) unknown level)
+   | [c] -> c::unknown
+   | [] -> unknown
+;;
+
+(*let rec strip_outer_parens (s : string) : string =
+   string_combine (strip_outer_parens_helper (string_explode s) 0)*)
