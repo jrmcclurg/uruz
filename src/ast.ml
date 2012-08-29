@@ -33,7 +33,7 @@ and production = Production of pos * string * pattern * pattern list (**
                    successive patterns *)
 
 (** AST node for a pattern *)
-and pattern = Pattern of pos * subpattern list * typ option * bool * code option * int option * assoc option (**
+and pattern = Pattern of pos * subpattern list * typ option * bool * code * int option * assoc option (**
                 Pattern having given
                 position,
                 subpatterns,
@@ -197,7 +197,7 @@ and reloc_production (p : production) =
 and reloc_pattern (p : pattern) = 
    match p with
    | Pattern(p,sl,t,b,c,i,asc) ->
-      Pattern(NoPos,List.map (fun s -> reloc_subpattern s) sl,reloc_typ_opt t,b,reloc_code_opt c,i,reloc_assoc_opt asc)
+      Pattern(NoPos,List.map (fun s -> reloc_subpattern s) sl,reloc_typ_opt t,b,reloc_code c,i,reloc_assoc_opt asc)
 
 and reloc_subpattern (s : subpattern) =
    match s with
@@ -379,10 +379,7 @@ and print_pattern (n:int) (pa:pattern) : unit =
       | Some(lab) -> print_indent (n+1) "Some(\n"; print_typ (n+2) lab;
                      print_string "\n"; print_indent (n+1) ")" );
       print_string "\n";
-      (match s with
-      | None -> print_indent (n+1) "None"
-      | Some(s) -> print_indent (n+1) "Some(\n";
-                   print_code (n+2) s; print_string "\n"; print_indent (n+1) ")" );
+      print_code (n+1) s;
       print_string ",\n";
       print_indent (n+1) (if eof then "true" else "false");
       print_string ",\n";
@@ -687,16 +684,6 @@ and is_subpatterns_flat (sp : subpatterns) : bool =
          else if (is_subpattern_flat s) then true
          else false
       ) true (s::sl)
-;;
-
-let is_production_empty (p : production) : bool = 
-   match p with
-   | Production(_,_,pa,pal) -> 
-      List.fold_left (fun res pa ->
-         match pa with
-         | Pattern(_,_,_,_,Some(Code(_,_)),_,_) -> false
-         | _ -> res
-      ) true (pa::pal)
 ;;
 
 let is_code_empty (c : code) : bool =

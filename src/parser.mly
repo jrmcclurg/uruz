@@ -63,7 +63,11 @@ pattern_bar_list:
 
 pattern:
    subpattern_list eof_op label code_block {
-      let (l,(pr,assoc)) = $3 in Pattern(get_current_pos (),$1,l,$2,$4,pr,assoc)
+      let p = get_current_pos () in
+      let c = (match $4 with
+      | Some(cd) -> cd
+      | _ -> Code(p,"")) in
+      let (l,(pr,assoc)) = $3 in Pattern(get_current_pos (),$1,l,$2,c,pr,assoc)
    }
 ;
 
@@ -202,17 +206,4 @@ op_assoc:
    | LEFT  { LeftAssoc(get_current_pos ()) }
    | RIGHT { RightAssoc(get_current_pos ()) }
    | UNARY { UnaryAssoc(get_current_pos ()) }
-;
-
-op_type:
-   | LANGLE CODE RANGLE       { let (p,s) = $2 in
-                                      (Some(parse_type (get_pos p) s), None)
-                                    }
-   | LANGLE CODE COLON code_block RANGLE {
-      let (p,s) = $2 in
-      let c = Some(Code(get_pos p,s)) in
-      match $4 with
-      | None -> (None,c)
-      | Some(Code(p,s)) -> (Some(parse_type p s),c)
-   }
 ;
