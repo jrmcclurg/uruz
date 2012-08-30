@@ -636,7 +636,18 @@ let parse_type (p : pos) (s : string) : typ =
 
 let rec get_subpattern_default_type (sp : subpattern) : string =
    match sp with
-   | SimpleSubpattern(_,a,_) -> get_atom_default_type a
+   (* TODO XXX - i think this needs to take the operators into acount!!! *)
+   | SimpleSubpattern(_,a,Options(_,None,_,_,_,_,_,_)) -> get_atom_default_type a
+   | SimpleSubpattern(_,(IdentAtom(_,_) as a),Options(_,Some(StarOp(_)),_,_,_,_,_,_)) ->
+      (get_atom_default_type a)^" list"
+   | SimpleSubpattern(_,(IdentAtom(_,_) as a),Options(_,Some(PlusOp(_)),_,_,_,_,_,_)) ->
+      let t = (get_atom_default_type a) in
+      "("^t^" * "^t^" list)"
+   | SimpleSubpattern(_,(IdentAtom(_,_) as a),Options(_,Some(QuestionOp(_)),_,_,_,_,_,_)) ->
+      (get_atom_default_type a)^" option"
+   | SimpleSubpattern(_,_,Options(_,Some(StarOp(_)),_,_,_,_,_,_)) -> "string"
+   | SimpleSubpattern(_,_,Options(_,Some(PlusOp(_)),_,_,_,_,_,_)) -> "string"
+   | SimpleSubpattern(_,_,Options(_,Some(QuestionOp(_)),_,_,_,_,_,_)) -> "string"
    | RecursiveSubpattern(_,_,_,_) -> "string"
 
 and get_atom_default_type (a : atom) : string=

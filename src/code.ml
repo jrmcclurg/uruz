@@ -338,10 +338,10 @@ and generate_ast_pattern_code file prefix name (prev : int) n flag p s flag2 : (
           )in
        let result5 =
           ((if (not flag) then
-          ((if flag2 then "\nand" else "let\nrec")^" eq_"^t^" ("^this_var^"0 : "^t^
-          ") ("^this_var^"1 : "^t^") : bool =\n   match ("^
-          this_var^"0,"^this_var^"1) with\n") else "")^
-          "   | ("^nm^"(_"^params^"),"^nm^"(_"^params2^")) -> false (*&&*)"^stry
+          ((if flag2 then "\nand" else "let\nrec")^" eq_"^t^" ("^this_var^" : "^t^
+          ") ("^this_var2^" : "^t^") : bool =\n   match ("^
+          this_var^","^this_var2^") with\n") else "")^
+          "   | ("^nm^"(_"^params^"),"^nm^"(_"^params2^")) -> true"^stry
           )in
        (true,n+1,prefix_str^result,prefix_str^result2,result3,result4,prefix_str^result5)
     ) else (
@@ -353,7 +353,7 @@ and generate_ast_subpattern_code (file : out_channel) (prefix : string) (flag : 
   let v2 = this_var2^i in
   let f = (if flag then " * " else "") in
   match s with
-  | SimpleSubpattern(ps,a,Options(_,o,_,_,None,_,_,_)) ->
+  | SimpleSubpattern(ps,a,Options(_,o,_,_,None,_,_,eqco)) ->
     (* TODO - i dont think this will always be a string *)
     let (flg,str,eq_code) = (if (is_subpattern_flat s) then (
        let t = (get_subpattern_default_type s) in
@@ -361,14 +361,20 @@ and generate_ast_subpattern_code (file : out_channel) (prefix : string) (flag : 
     ) else (
        let (str,eq_code) = (generate_ast_atom_code file prefix a o k) in (true,str,eq_code)
     )) in
-    (flg,(f^str),"(* TODO *)", "(* TODO - stuff here with "^str^" ==== "^eq_code^" *)")
-  | SimpleSubpattern(_,a,Options(_,o,_,_,Some(Type(_,t)),_,_,_)) ->
+    let eq_code2 = (match eqco with
+    | Some(Code(_,s)) -> if (is_string_empty s) then "" else ("&& ("^s^" "^v1^" "^v2^")")
+    | _ -> "&& "^eq_code) in
+    (flg,(f^str),"(* TODO *)", eq_code2)
+  | SimpleSubpattern(_,a,Options(_,o,_,_,Some(Type(_,t)),_,_,eqco)) ->
     let t2 = (str_remove_from_front t (prefix^"ast.")) in
-    (true, (f^t2), "(* TODO *)", "(* TODO - stuff here with "^t2^" *)") (* TODO - remove_from_front works? *)
+    let eq_code = (match eqco with
+    | None -> "&& (eq_base "^v1^" "^v2^")"
+    | Some(Code(_,s)) -> if (is_string_empty s) then "" else "&& ("^s^" "^v1^" "^v2^")") in
+    (true, (f^t2), "(* TODO *)", ""^eq_code^"") (* TODO - remove_from_front works? *)
   | RecursiveSubpattern(_,a1,a2,Options(_,o,_,_,None,_,_,_)) ->
-    (* TODO - will this will always be a string? *)
+    (* TODO - fix the stuff here *)
     let t2 = "string" in
-    (true, (f^t2), "(* TODO *)", "(* TODO - stuff here with "^t2^" *)")
+    (true, (f^t2), "(* TODO *)", "(* TODO 3 - stuff here with "^t2^" *)")
   | RecursiveSubpattern(_,a1,a2,Options(_,o,_,_,Some(Type(_,t)),_,_,_)) ->
     let t2 = (str_remove_from_front t (prefix^"ast.")) in
     let str = (f^t2) in
@@ -393,11 +399,12 @@ and generate_ast_atom_code file prefix (a : atom) (o : op option) (k : int) : (s
   | ChoiceAtom(_,Subpatterns(_,sub,subs),al) -> (* this should never nontrivially happen because of flattening *)
     (get_atom_default_type a, "eq_base")
     (* ("("^
-    (let (_,str,strx,stry) = List.fold_left (fun (flag,str,strx,stry) s -> (* TODO XXX - what about strx/y here???!!! *)
+    (let (_,str,strx,stry) = List.fold_left (fun (flag,str,strx,stry) s -> (* TODO - what about strx/y here???!!! *)
       let (flag2,str2,str3,str4) = generate_ast_subpattern_code file prefix flag s in
       (flag2,str^str2,strx^str3,stry^str4)
     ) (false,"","","") (sub::subs) in str)^")") *)
   ) in 
+  (* TODO XXX - i think some of this may be unnecessary because the flattening gets rid of all the star/plus/etc ops *)
   (match o with
   | Some(StarOp(_)) -> (f^" list", "(eq_list "^eq_code^" "^v1^" "^v2^")")
   | Some(PlusOp(_)) -> ("("^f^" * "^f^" list)", "(eq_pair "^eq_code^" (eq_list "^eq_code^") "^v1^" "^v2^")")
@@ -747,6 +754,8 @@ let generate_utils_code file g =
   output_string file "          if (c=\"\\n\") then (do_newline lb; 1+(count_newlines cs lb))\n";
   output_string file "                      else (count_newlines cs lb)\n";
   output_string file ";;\n";
+  output_string file "\n";
+  output_string file "let eq_base (a : 'a) (b : 'a) = (a = b) ;;";
   (match footer with
   | None -> ()
   | Some(Code(_,s)) -> output_string file ("\n"^s));
