@@ -11,7 +11,7 @@
    ;;
 }
 
-Program   ->   "mod" <:{} @{}> Integer <:{int}> "begin" <:{} @{ let p = s in print_string p }>
+Program   ->   "mod" <:{} @{}> Integer <:{int}> "begin" <:{} @{String.uppercase s}>
                Statement* <:{int list}> "end" <:{}> eof
 	       { Program(NoPos,$2,List.map (fun i -> i mod $2) $4) } ;
 
@@ -28,7 +28,7 @@ MultiComm  -> "/*" .. "*/" <{}:{}> : ;  /* throw away recursive multiline commen
 TestThing -> "one" ;
 TestThing2 -> "two" * ;
 TestThing3 -> TestThing4 + ;
-TestThing4 -> "four" ? <={test_cmp}>;
+TestThing4 -> "four" ? <={test_cmp s t}>;
 
 Blanks -> ((([\r\n\t ]))) <{}:{}> : ;
 

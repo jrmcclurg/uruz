@@ -260,8 +260,18 @@ let generate_makefile_code file prefix =
 ;;
 
 (* generate ast.ml *)
-let get_eq_code (v1 : string) (v2 : string) (ty : string) (base : bool) (s : subpattern) : string =
-  "(* TODO *)"
+let get_str_code (v1o : string option) (ty : string) (s : subpattern) : string =
+   match v1o with
+   | None -> "(* NONE => "^ty^" *) "^(
+      match s with
+      | SimpleSubpattern(_,a,Options(_,_,_,_,_,_,Some(Code(_,s)),_)) ->
+         if (is_string_empty s) then "" else "^(let s = \"TODO\" in ignore s; "^s^")" (* TODO *)
+      | RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,Some(Code(_,s)),_)) ->
+         if (is_string_empty s) then "" else "^(let s = \"TODO\" in ignore s; "^s^")" (* TODO *)
+      | SimpleSubpattern(_,a,Options(_,_,_,_,_,_,None,_)) -> if (is_atom_flat a) then "^\"FLAT_TODO\"" else ""
+      | RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,None,_)) -> ""
+   )
+   | Some(v1) -> "(* TODO "^v1^" => "^ty^" *)" (* TODO *)
 ;;
 
 let rec generate_ast_code file prefix g =
@@ -324,7 +334,7 @@ and generate_ast_pattern_code file prefix name (prev : int) n flag p s flag2 : (
           ((if (not flag) then
           ((if flag2 then "\nand" else "let\nrec")^" str_"^t^" ("^this_var^" : "^t^") : string =\n   match "^
           this_var^" with\n") else "")^
-          "   | "^nm^"(p"^params^") -> \"TODO\""^strx
+          "   | "^nm^"(p"^params^") -> \"\""^strx
           )in
        let result3 =
           ((if (not flag) then
@@ -352,6 +362,7 @@ and generate_ast_subpattern_code (file : out_channel) (prefix : string) (flag : 
   let v1 = this_var^i in
   let v2 = this_var2^i in
   let f = (if flag then " * " else "") in
+  let the_code = (fun s -> ("&& (let s = "^v1^" in let t = "^v2^" in ignore s; ignore t; "^s^")")) in
   match s with
   | SimpleSubpattern(ps,a,Options(_,o,_,_,None,_,_,eqco)) ->
     let (flg,str,eq_code) = (if (is_subpattern_flat s) then (
@@ -361,30 +372,31 @@ and generate_ast_subpattern_code (file : out_channel) (prefix : string) (flag : 
        let (str,eq_code) = (generate_ast_atom_code file prefix a o k) in (true,str,eq_code)
     )) in
     let eq_code2 = (match eqco with
-    | Some(Code(_,s)) -> if (is_string_empty s) then "" else ("&& ("^s^" "^v1^" "^v2^")")
+    | Some(Code(_,s)) -> if (is_string_empty s) then "" else the_code s
     | _ -> "&& "^eq_code) in
-    (flg,(f^str),"(* TODO *)", eq_code2)
+    (flg,(f^str),get_str_code (Some(v1)) str s, eq_code2)
   | SimpleSubpattern(_,a,Options(_,o,_,_,Some(Type(_,t)),_,_,eqco)) ->
     let t2 = (str_remove_from_front t (prefix^"ast.")) in
     let eq_code = (match eqco with
     | None -> "&& (eq_base "^v1^" "^v2^")"
-    | Some(Code(_,s)) -> if (is_string_empty s) then "" else "&& ("^s^" "^v1^" "^v2^")") in
-    (true, (f^t2), "(* TODO *)", ""^eq_code^"") (* TODO - remove_from_front works? *)
+    | Some(Code(_,s)) -> if (is_string_empty s) then "" else the_code s) in
+    (true, (f^t2), get_str_code (Some(v1)) t2 s, ""^eq_code^"") (* TODO - remove_from_front works? *)
   | RecursiveSubpattern(_,a1,a2,Options(_,o,_,_,None,_,_,eqco)) ->
     (* TODO - fix the stuff here *)
     let t2 = "string" in
     let eq_code = (match eqco with
     | None -> "&& (eq_base "^v1^" "^v2^")"
-    | Some(Code(_,s)) -> if (is_string_empty s) then "" else "&& ("^s^" "^v1^" "^v2^")") in
-    (true, (f^t2), "(* TODO *)", eq_code)
+    | Some(Code(_,s)) -> if (is_string_empty s) then "" else the_code s) in
+    (true, (f^t2), get_str_code (Some(v1)) t2 s, eq_code)
   | RecursiveSubpattern(_,a1,a2,Options(_,o,_,_,Some(Type(_,t)),_,_,eqco)) ->
     let t2 = (str_remove_from_front t (prefix^"ast.")) in
     let eq_code = (match eqco with
     | None -> "&& (eq_base "^v1^" "^v2^")"
-    | Some(Code(_,s)) -> if (is_string_empty s) then "" else "&& ("^s^" "^v1^" "^v2^")") in
-    (true,(f^t2),"(* TODO *)", eq_code)
+    | Some(Code(_,s)) -> if (is_string_empty s) then "" else the_code s) in
+    (true,(f^t2),get_str_code (Some(v1)) t2 s, eq_code)
   | _ -> 
-     (flag,"", "(* NOPE *)", "")
+     let t = (get_subpattern_default_type s) in
+     (flag,"", get_str_code None t s, "")
 (* returns (is_ast_type,code) *)
 and generate_ast_atom_code file prefix (a : atom) (o : op option) (k : int) : (string * string) =
   let i = (string_of_int k) in
