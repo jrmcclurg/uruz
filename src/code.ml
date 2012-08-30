@@ -261,15 +261,26 @@ let generate_makefile_code file prefix =
 
 (* generate ast.ml *)
 let get_str_fun (ty : string) : string option = 
-   match ty with
-   | "bool" -> Some("string_of_bool") (* TODO ? *)
-   | "char" -> Some("String.make 1")
-   | "int" -> Some("string_of_int")
-   | "float" -> Some("string_of_float")
-   | "int32" -> Some("Int32.to_string")
-   | "int64" -> Some("Int64.to_string")
-   (* TODO XXX - add the other ones!!! *)
-   | _ -> None
+   let t = Str.split (Str.regexp "[\r\n\t ]+") ty in
+   let len = List.length t in
+   if (len > 0) then (
+      let first = 
+      (match (List.hd t) with
+      | "bool" -> Some("string_of_bool") (* TODO ? *)
+      | "char" -> Some("String.make 1")
+      | "int" -> Some("string_of_int")
+      | "float" -> Some("string_of_float")
+      | "int32" -> Some("Int32.to_string")
+      | "int64" -> Some("Int64.to_string")
+      (* TODO XXX - add the other ones!!! and ones ending in "list" etc *)
+      | _ -> None) in
+      if (len=1) then first
+      else if (len=2) then (  (* && ((List.nth t 1)="list")) then Some("str_list ") *)
+         match (first,List.nth t 1) with
+         | (Some(s),"list") -> Some("str_list ("^s^")")
+         | _ -> None
+      ) else None
+   ) else None
 ;;
 
 let rec get_atom_str_helper (a : atom) (append : bool) : string option =
@@ -746,6 +757,7 @@ and generate_lexer_chars_code file c =
 
 (* TODO - handle the eof.  Also, what is the bool in Options? *)
 
+(* generate main.ml *)
 let generate_main_code file prefix g =
    output_warning_msg file "(*\n" " *" " *" " *)" ;
    output_string file "\n\n";
@@ -861,7 +873,16 @@ let generate_utils_code file g =
   output_string file "                      else (count_newlines cs lb)\n";
   output_string file ";;\n";
   output_string file "\n";
-  output_string file "let eq_base (a : 'a) (b : 'a) = (a = b) ;;";
+  output_string file "let eq_base (a : 'a) (b : 'a) = (a = b) ;;\n";
+  output_string file "\n";
+  output_string file "let rec str_list (f : 'a -> string) (l : 'a list) : string =\n";
+  output_string file "   str_list_helper f l true\n";
+  output_string file "\n";
+  output_string file "and str_list_helper (f : 'a -> string) (l : 'a list) (first : bool) : string =\n";
+  output_string file "   match l with\n";
+  output_string file "   | [] -> \"\"\n";
+  output_string file "   | a::more -> ((if (not first) then \" \" else \"\")^(f a)^(str_list_helper f more false))\n";
+  output_string file ";;\n";
   (match footer with
   | None -> ()
   | Some(Code(_,s)) -> output_string file ("\n"^s));

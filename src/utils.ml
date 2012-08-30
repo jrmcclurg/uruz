@@ -212,7 +212,7 @@ let rec str_list (f : 'a -> string) (l : 'a list) : string =
 and str_list_helper (f : 'a -> string) (l : 'a list) (first : bool) : string =
    match l with
    | [] -> ""
-   | a::more -> ((f a)^(if (not first) then " " else "")^(str_list_helper f more false))
+   | a::more -> ((if (not first) then " " else "")^(f a)^(str_list_helper f more false))
 ;;
 
 (* strips (recursive) OCaml comments from a string *)
