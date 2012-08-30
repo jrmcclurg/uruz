@@ -354,7 +354,6 @@ and generate_ast_subpattern_code (file : out_channel) (prefix : string) (flag : 
   let f = (if flag then " * " else "") in
   match s with
   | SimpleSubpattern(ps,a,Options(_,o,_,_,None,_,_,eqco)) ->
-    (* TODO - i dont think this will always be a string *)
     let (flg,str,eq_code) = (if (is_subpattern_flat s) then (
        let t = (get_subpattern_default_type s) in
        (true,t,"(eq_base "^v1^" "^v2^")")
@@ -371,14 +370,19 @@ and generate_ast_subpattern_code (file : out_channel) (prefix : string) (flag : 
     | None -> "&& (eq_base "^v1^" "^v2^")"
     | Some(Code(_,s)) -> if (is_string_empty s) then "" else "&& ("^s^" "^v1^" "^v2^")") in
     (true, (f^t2), "(* TODO *)", ""^eq_code^"") (* TODO - remove_from_front works? *)
-  | RecursiveSubpattern(_,a1,a2,Options(_,o,_,_,None,_,_,_)) ->
+  | RecursiveSubpattern(_,a1,a2,Options(_,o,_,_,None,_,_,eqco)) ->
     (* TODO - fix the stuff here *)
     let t2 = "string" in
-    (true, (f^t2), "(* TODO *)", "(* TODO 3 - stuff here with "^t2^" *)")
-  | RecursiveSubpattern(_,a1,a2,Options(_,o,_,_,Some(Type(_,t)),_,_,_)) ->
+    let eq_code = (match eqco with
+    | None -> "&& (eq_base "^v1^" "^v2^")"
+    | Some(Code(_,s)) -> if (is_string_empty s) then "" else "&& ("^s^" "^v1^" "^v2^")") in
+    (true, (f^t2), "(* TODO *)", eq_code)
+  | RecursiveSubpattern(_,a1,a2,Options(_,o,_,_,Some(Type(_,t)),_,_,eqco)) ->
     let t2 = (str_remove_from_front t (prefix^"ast.")) in
-    let str = (f^t2) in
-    (true,str,"(* TODO *)", "(* TODO - stuff here with "^t2^" *)")
+    let eq_code = (match eqco with
+    | None -> "&& (eq_base "^v1^" "^v2^")"
+    | Some(Code(_,s)) -> if (is_string_empty s) then "" else "&& ("^s^" "^v1^" "^v2^")") in
+    (true,(f^t2),"(* TODO *)", eq_code)
   | _ -> 
      (flag,"", "(* NOPE *)", "")
 (* returns (is_ast_type,code) *)
@@ -482,7 +486,7 @@ let generate_parser_code file prefix g (h : ((string*((string*int) option)*strin
    output_string file "%start main /* the entry point */\n";
    output_string file ("%type <"^prefix^"ast."^(get_production_type name)^"> main\n");
    output_string file "%%\n";
-   let _ = List.fold_left (fun n ((Production(p2,name,pa,pal)) as pr) ->
+   let _ = List.fold_left (fun n ((Production(p2,name,pa,pal)) (*as pr*)) ->
       (* made sure (via parser) that the first production is non-empty *)
       (*if (not (is_production_empty pr)) then begin*)
          let name2 = if n = 1 then "main" else (output_string file "\n"; (get_production_type name)) in
