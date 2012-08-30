@@ -262,9 +262,80 @@ let generate_makefile_code file prefix =
 (* generate ast.ml *)
 let get_str_fun (ty : string) : string option = 
    match ty with
-   | "bool" -> Some("(if s then \"true\" else \"false\")") (* TODO ? *)
+   | "bool" -> Some("string_of_bool") (* TODO ? *)
+   | "char" -> Some("String.make 1")
    | "int" -> Some("string_of_int")
+   | "float" -> Some("string_of_float")
+   | "int32" -> Some("Int32.to_string")
+   | "int64" -> Some("Int64.to_string")
+   (* TODO XXX - add the other ones!!! *)
    | _ -> None
+;;
+
+let rec get_atom_str_helper (a : atom) (append : bool) : string option =
+   match a with
+   | IdentAtom(_,_) -> None
+   | StringAtom(_,s) -> Some(s)
+   | CharsetsAtom(_,cs) -> get_charsets_str_helper cs
+   | ChoiceAtom(_,s,sl) ->
+      List.fold_left (fun r s ->
+         match r with
+         | Some(_) -> r
+         | _ -> get_subpatterns_str_helper s
+      ) None (s::sl)
+   (*if (is_atom_flat a) then (Some((if append then "^" else "")^"\"FLAT_TODO\"")) else None*)
+and get_charsets_str_helper (cs : charsets) : string option =
+   match cs with
+   | SimpleCharsets(_,c) -> get_charset_str_helper c (ListCharset(NoPos,[],false))
+   | DiffCharsets(_,c,not_c) -> get_charset_str_helper c not_c
+and get_charset_str_helper (c : charset) (not_c : charset) : string option =
+   match (c,not_c) with
+   | (WildcardCharset(_),WildcardCharset(_)) -> None
+   | (WildcardCharset(_),SingletonCharset(_,c)) -> charop_to_strop (get_unused_char [c])
+   | (WildcardCharset(_),ListCharset(_,chl,inv)) ->
+      let cl = get_char_list chl in
+      if inv then (get_first_strop cl) else charop_to_strop (get_unused_char cl)
+   | (SingletonCharset(_,c),WildcardCharset(_)) -> None
+   | (SingletonCharset(_,c1),SingletonCharset(_,c2)) -> if (c1=c2) then None else Some(String.make 1 c1)
+   | (SingletonCharset(_,c),ListCharset(_,chl,inv)) ->
+      let res = Some(String.make 1 c) in
+      let cl = get_char_list chl in
+      (if (char_list_contains cl c) then (if inv then res else None) else (if inv then None else res))
+   | (ListCharset(_,chl,inv),WildcardCharset(_)) -> None
+   | (ListCharset(_,chl,inv),SingletonCharset(_,c2)) -> 
+      let cl = get_char_list chl in
+      let test = (match cl with
+      | [] -> false
+      | ct::more -> ct=c2) in
+      if inv then charop_to_strop (get_unused_char (cl@[c2])) else (if test then
+      (if (List.length cl > 1) then Some(String.make 1 (List.nth cl 1)) else None) else get_first_strop cl)
+   | (ListCharset(_,chl,inv),ListCharset(_,chl2,inv2)) -> 
+      let cl = get_char_list chl in
+      let cl2 = get_char_list chl2 in
+      if inv then (if inv2 then charop_to_strop (get_diff_char cl2 cl) else 
+      charop_to_strop (get_unused_char (cl@cl2)))
+      else (if inv2 then charop_to_strop (get_intersect_char cl cl2) else
+      charop_to_strop (get_diff_char cl cl2))
+
+and get_subpatterns_str_helper (sp : subpatterns) : string option =
+   match sp with
+   | Subpatterns(_,s,sl) ->
+      List.fold_left (fun r s ->
+         match r with
+         | None -> None
+         | _ -> get_subpattern_str_helper s
+      ) (Some("")) (s::sl)
+and get_subpattern_str_helper (s : subpattern) : string option =
+   match s with
+   | SimpleSubpattern(_,a,_) -> get_atom_str_helper a false
+   | RecursiveSubpattern(_,s1,s2,_) -> Some(s1^" "^s2)
+;;
+
+let get_atom_str (a : atom) (append : bool) : string =
+   let so = get_atom_str_helper a append in
+   match so with
+   | None -> ""
+   | Some(s) -> (if append then "^" else "")^"\""^s^"\""
 ;;
 
 let get_str_code (v1o : string option) (ty : string) (s : subpattern) : string =
@@ -273,10 +344,10 @@ let get_str_code (v1o : string option) (ty : string) (s : subpattern) : string =
    | None -> "(* NONE => "^ty^" *) "^(
       match s with
       | SimpleSubpattern(_,a,Options(_,_,_,_,_,_,Some(Code(_,s)),_)) ->
-         if (is_string_empty s) then "" else "^(let s = "^(if (is_atom_flat a) then "\"FLAT_TODO\"" else "")^" in ignore s; "^s^")" (* TODO *)
+         if (is_string_empty s) then "" else "^(let s = "^(get_atom_str a false)^" in ignore s; "^s^")"
       | RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,Some(Code(_,s)),_)) ->
          if (is_string_empty s) then "" else "^(let s = \""^s1^" "^s2^"\" in ignore s; "^s^")"
-      | SimpleSubpattern(_,a,Options(_,_,_,_,_,_,None,_)) -> if (is_atom_flat a) then "^\"FLAT_TODO\"" else "" (* TODO *)
+      | SimpleSubpattern(_,a,Options(_,_,_,_,_,_,None,_)) -> get_atom_str a true
       | RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,None,_)) -> "^\""^s1^" "^s2^"\""
    )
    | Some(v1) -> "(* TODO "^v1^" => "^ty^" *)"^(
@@ -287,7 +358,7 @@ let get_str_code (v1o : string option) (ty : string) (s : subpattern) : string =
       | (RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,Some(Code(_,s)),_)),_) ->
          if (is_string_empty s) then "" else "^(let s = "^v1^" in ignore s; "^s^")"
       | (SimpleSubpattern(_,a,Options(_,_,_,_,_,_,None,_)),Some(fn)) -> "^("^fn^" "^v1^")"
-      | (SimpleSubpattern(_,a,Options(_,_,_,_,_,_,None,_)),None) -> if (is_atom_flat a) then "^\"FLAT_TODO\"" else "" (* TODO *)
+      | (SimpleSubpattern(_,a,Options(_,_,_,_,_,_,None,_)),None) -> get_atom_str a true
       | (RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,None,_)),Some(fn)) -> "^("^fn^" "^v1^")"
       | (RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,None,_)),None) -> "^\""^s1^" "^s2^"\""
    )

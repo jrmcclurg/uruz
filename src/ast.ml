@@ -708,7 +708,9 @@ let is_code_empty (c : code) : bool =
 let rec compile_char_list (cl: char list) : chars list = 
    let (hd,tl) = three_hd cl in
    match hd with
-   | a::'-'::c::[] -> (RangeChars(NoPos,a,c))::(compile_char_list tl)
+   | a::'-'::c::[] ->
+      if (a > c) then parse_error "invalid range"; (* TODO - error *)
+      (RangeChars(NoPos,a,c))::(compile_char_list tl)
    | a::b::c::[]   -> (SingletonChars(NoPos,a))::(compile_char_list (b::c::tl))
    | a::b::[]      -> (SingletonChars(NoPos,a))::(compile_char_list (b::tl))
    | a::[]         -> (SingletonChars(NoPos,a))::(compile_char_list (tl))
@@ -723,4 +725,13 @@ let compile_charset (s:string) : chars list * bool =
    match l with
    | '^'::cs -> (compile_char_list cs, true)
    | _       -> (compile_char_list l , false)
+;;
+
+let get_char_list (cl : chars list) : char list = 
+   List.fold_left (fun r c ->
+      r@
+      (match c with
+      | SingletonChars(_,c) -> [c]
+      | RangeChars(_,c1,c2) -> get_chars c1 c2)
+   ) [] cl
 ;;
