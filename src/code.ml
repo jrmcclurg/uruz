@@ -260,18 +260,37 @@ let generate_makefile_code file prefix =
 ;;
 
 (* generate ast.ml *)
+let get_str_fun (ty : string) : string option = 
+   match ty with
+   | "bool" -> Some("(if s then \"true\" else \"false\")") (* TODO ? *)
+   | "int" -> Some("string_of_int")
+   | _ -> None
+;;
+
 let get_str_code (v1o : string option) (ty : string) (s : subpattern) : string =
+   (* TODO - what about operators? *)
    match v1o with
    | None -> "(* NONE => "^ty^" *) "^(
       match s with
       | SimpleSubpattern(_,a,Options(_,_,_,_,_,_,Some(Code(_,s)),_)) ->
-         if (is_string_empty s) then "" else "^(let s = \"TODO\" in ignore s; "^s^")" (* TODO *)
+         if (is_string_empty s) then "" else "^(let s = "^(if (is_atom_flat a) then "\"FLAT_TODO\"" else "")^" in ignore s; "^s^")" (* TODO *)
       | RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,Some(Code(_,s)),_)) ->
-         if (is_string_empty s) then "" else "^(let s = \"TODO\" in ignore s; "^s^")" (* TODO *)
-      | SimpleSubpattern(_,a,Options(_,_,_,_,_,_,None,_)) -> if (is_atom_flat a) then "^\"FLAT_TODO\"" else ""
-      | RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,None,_)) -> ""
+         if (is_string_empty s) then "" else "^(let s = \""^s1^" "^s2^"\" in ignore s; "^s^")"
+      | SimpleSubpattern(_,a,Options(_,_,_,_,_,_,None,_)) -> if (is_atom_flat a) then "^\"FLAT_TODO\"" else "" (* TODO *)
+      | RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,None,_)) -> "^\""^s1^" "^s2^"\""
    )
-   | Some(v1) -> "(* TODO "^v1^" => "^ty^" *)" (* TODO *)
+   | Some(v1) -> "(* TODO "^v1^" => "^ty^" *)"^(
+      let tf = get_str_fun ty in
+      match (s,tf) with
+      | (SimpleSubpattern(_,a,Options(_,_,_,_,_,_,Some(Code(_,s)),_)),_) ->
+         if (is_string_empty s) then "" else "^(let s = "^v1^" in ignore s; "^s^")"
+      | (RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,Some(Code(_,s)),_)),_) ->
+         if (is_string_empty s) then "" else "^(let s = "^v1^" in ignore s; "^s^")"
+      | (SimpleSubpattern(_,a,Options(_,_,_,_,_,_,None,_)),Some(fn)) -> "^("^fn^" "^v1^")"
+      | (SimpleSubpattern(_,a,Options(_,_,_,_,_,_,None,_)),None) -> if (is_atom_flat a) then "^\"FLAT_TODO\"" else "" (* TODO *)
+      | (RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,None,_)),Some(fn)) -> "^("^fn^" "^v1^")"
+      | (RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,None,_)),None) -> "^\""^s1^" "^s2^"\""
+   )
 ;;
 
 let rec generate_ast_code file prefix g =

@@ -23,7 +23,7 @@ Expr      -> Integer <:{int}>                                  : IntExpr  { $1 }
 Integer -> ('0' | [1-9] [0-9]*) <{int_of_string s}:{int}> { $1 } ;
 
 SingleComm -> ("//" [^\n]*) <{my_test s}:{}> : ;  /* throw away single-line comments */
-MultiComm  -> "/*" .. "*/" <{}:{}> : ;  /* throw away recursive multiline comments */
+MultiComm  -> "/*" .. "*/" <{}:{}@{"COMMENT"}> : CommentTest ;  /* throw away recursive multiline comments */
 
 TestThing -> "one" ;
 TestThing2 -> "two" * ;
