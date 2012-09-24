@@ -6,8 +6,10 @@
    type opt = OprOption of op
             | PrecOption of int
             | AssocOption of assoc
-            | SuppPrintOption of bool
-            | TypeOption of (typ * code option)
+            | CodeOption of code
+            | TypeOption of typ
+            | PrintOption of code
+            | EqOption of code
    ;;
 
 %}
@@ -25,7 +27,7 @@
 %token EOF
 %token COLON SEMI LBRACK RBRACK
 %token LEFT RIGHT UNARY
-%token ARROW BAR DQUOT QUOT STAR PLUS QUESTION SUPPPRINT WILDCARD DIFF ENDFILE
+%token ARROW BAR DQUOT QUOT STAR PLUS QUESTION AMP EQUAL DOLLAR WILDCARD DIFF ENDFILE
 %left PLUS MINUS /* lowest precedence */
 %left TIMES DIV /* medium precedence */
 %nonassoc UMINUS /* highest precedence */
@@ -43,7 +45,7 @@ main:
 
 code_block:
           { None }             /* TODO - delete NoPos */
-   | CODE { let (p,s) = $1 in Some(Code(get_pos p,s)) }
+   | CODE { let (p,s) = $1 in Some(Code(get_pos p,strip_ocaml_comments s)) }
 
 prod_list:
                           { [] }
@@ -61,7 +63,11 @@ pattern_bar_list:
 
 pattern:
    subpattern_list eof_op label code_block {
-      let (l,(pr,assoc)) = $3 in Pattern(get_current_pos (),$1,l,$2,$4,pr,assoc)
+      let p = get_current_pos () in
+      let c = (match $4 with
+      | Some(cd) -> cd
+      | _ -> Code(p,"")) in
+      let (l,(pr,assoc)) = $3 in Pattern(get_current_pos (),$1,l,$2,c,pr,assoc)
    }
 ;
 
@@ -102,22 +108,20 @@ pattern_opt:
 ;
 
 subpattern_list:
-                                { [] }
-   | subpattern subpattern_list { $1::$2 }
+                                              { [] }
+   | subpattern subpattern_list               { $1::$2 }
 ;
 
 subpattern:
-     atom opts             { let msg = "only flat expressions may have precedence/associativity modifiers" in
+     atom opts { (* TODO - does this error work? *)
+                             let msg = "only flat expressions may have precedence/associativity modifiers" in
                              if (not (is_atom_flat $1)) then (
                              match $2 with
-                             | Options(ps,_,Some(i),_,_,_,_) -> die_error ps msg
-                             | Options(ps,_,_,Some(a),_,_,_) -> die_error ps msg
+                             | Options(ps,_,Some(i),_,_,_,_,_) -> die_error ps msg
+                             | Options(ps,_,_,Some(a),_,_,_,_) -> die_error ps msg
                              | _ -> ());
                              SimpleSubpattern(get_current_pos (),$1,$2) }
-   | quot RECUR quot opts  { RecursiveSubpattern(get_current_pos (),$1,$3,$4) }
-   | LPAREN CODE RPAREN    { let (p,s) = $2 in
-                             let p2 = get_pos p in
-                             CodeSubpattern(p2,Code(p2,s)) }
+   | quot RECUR quot opts { RecursiveSubpattern(get_current_pos (),$1,$3,$4) }
 ;
 
 quot:
@@ -139,14 +143,7 @@ subpatterns_bar_list:
 ;
 
 subpatterns:
-     subpattern subpattern_list {
-        let ok = List.fold_left (fun res s ->
-           if res then res
-           else (not (is_subpattern_empty s))
-        ) false ($1::$2) in
-        if (not ok) then parse_error "empty subpattern list";
-        Subpatterns(get_current_pos (),$1, $2) 
-     }
+   | subpattern subpattern_list { Subpatterns(get_current_pos (),$1,$2) }
 
 charsets:
      charset              { SimpleCharsets(get_current_pos (),$1) } 
@@ -159,23 +156,23 @@ charset:
                 ListCharset(get_current_pos (),l,b) }
 
 opts:
-   opt_list {
+   | op_opr {
+      Options(get_current_pos (),$1,None,None,None,None,None,None) }
+   | op_opr LANGLE opt_list RANGLE {
       let p = get_current_pos () in
-      let l = $1 in
-      let (opr,pri,assoc,supp_print,ty,cd) =
-      List.fold_left (fun (opr,pri,assoc,supp_print,ty,cd) o ->
-         match (o,opr,pri,assoc,supp_print,ty,cd) with
-         | (OprOption(op),None,_,_,_,_,_) -> (Some(op),pri,assoc,supp_print,ty,cd)
-         | (PrecOption(i),_,None,_,_,_,_) -> (opr,Some(i),assoc,supp_print,ty,cd)
-         | (AssocOption(a),_,_,None,_,_,_) -> (opr,pri,Some(a),supp_print,ty,cd)
-         | (SuppPrintOption(b),_,_,_,None,_,_) -> (opr,pri,assoc,Some(b),ty,cd)
-         | (TypeOption((ty,cd)),_,_,_,_,None,_) -> (opr,pri,assoc,supp_print,Some(ty),cd)
+      let l = $3 in
+      let (pri,assoc,ty,cd,cp,eq) =
+      List.fold_left (fun (pri,assoc,ty,cd,cp,eq) o ->
+         match (o,pri,assoc,ty,cd,cp,eq) with
+         | (PrecOption(i),None,_,_,_,_,_) -> (Some(i),assoc,ty,cd,cp,eq)
+         | (AssocOption(a),_,None,_,_,_,_) -> (pri,Some(a),ty,cd,cp,eq)
+         | (TypeOption(ty),_,_,None,_,_,_) -> (pri,assoc,Some(ty),cd,cp,eq)
+         | (CodeOption(cd),_,_,_,None,_,_) -> (pri,assoc,ty,Some(cd),cp,eq)
+         | (PrintOption(c),_,_,_,_,None,_) -> (pri,assoc,ty,cd,Some(c),eq)
+         | (EqOption(c),_,_,_,_,_,None) -> (pri,assoc,ty,cd,cp,Some(c))
          | _ -> parse_error "multiple modifiers of same type in options list"
       ) (None,None,None,None,None,None) l in
-      let sp = (match supp_print with
-      | None -> false
-      | _ -> true) in
-      Options(p,opr,pri,assoc,sp,ty,cd)
+      Options(p,$1,pri,assoc,ty,cd,cp,eq)
    }
 ;
 
@@ -185,18 +182,20 @@ opt_list:
 ;
 
 opt:
-   | op_opr        { OprOption($1) }
-   | op_prec       { PrecOption($1) }
-   | op_assoc      { AssocOption($1) }
-   | op_supp_print { SuppPrintOption($1) }
-   | op_type       { TypeOption($1) }
+   | op_prec        { PrecOption($1) }
+   | op_assoc       { AssocOption($1) }
+   | CODE           { let (p,s) = $1 in CodeOption(Code(get_pos p,strip_ocaml_comments s)) }
+   | COLON CODE     { let (p,s) = $2 in TypeOption(parse_type (get_pos p) (strip_ocaml_comments s)) }
+   | AMP CODE       { let (p,s) = $2 in PrintOption(Code(get_pos p,(strip_ocaml_comments s))) }
+   | EQUAL CODE     { let (p,s) = $2 in EqOption(Code(get_pos p,(strip_ocaml_comments s))) }
    
 ;
 
 op_opr:
-   | STAR     { StarOp(get_current_pos ()) }
-   | PLUS     { PlusOp(get_current_pos ()) }
-   | QUESTION { QuestionOp(get_current_pos ()) }
+   |          { None }
+   | STAR     { Some(StarOp(get_current_pos ())) }
+   | PLUS     { Some(PlusOp(get_current_pos ())) }
+   | QUESTION { Some(QuestionOp(get_current_pos ())) }
 ;
 
 op_prec:
@@ -207,20 +206,4 @@ op_assoc:
    | LEFT  { LeftAssoc(get_current_pos ()) }
    | RIGHT { RightAssoc(get_current_pos ()) }
    | UNARY { UnaryAssoc(get_current_pos ()) }
-;
-
-op_supp_print:
-   | SUPPPRINT { true }
-;
-
-op_type:
-   | LANGLE code_block RANGLE       { match $2 with
-                                      | None -> (EmptyType(get_current_pos ()),None)
-                                      | Some(Code(_,s)) -> (parse_type (get_current_pos ()) s, None)
-                                    }
-   | LANGLE code_block COLON code_block RANGLE {
-      match $4 with
-      | None -> (EmptyType(get_current_pos ()),$2)
-      | Some(Code(p,s)) -> ((parse_type p s),$2)
-   }
 ;

@@ -12,6 +12,6 @@ let result = get_ast i in
 print_newline(); *)
 if !gen_skeleton then generate_skeleton ();
 generate_code (*!filename*) result;
-print_string "\nDone";
+print_string ("\nDone");
 print_newline();
 exit 0
