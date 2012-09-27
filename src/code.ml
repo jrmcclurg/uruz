@@ -873,7 +873,9 @@ let generate_utils_code file g =
   output_string file "                      else (count_newlines cs lb)\n";
   output_string file ";;\n";
   output_string file "\n";
-  output_string file "let eq_base (a : 'a) (b : 'a) = (a = b) ;;\n";
+  output_string file "let eq_base (a : 'a) (b : 'a) : bool = (a = b) ;;\n";
+  output_string file "let eq_pair (f1 : 'a -> 'a -> bool) (f2 : 'b -> 'b -> bool) ((p1a,p1b) : 'a * 'b) ((p2a,p2b) : 'a * 'b) : bool = ((f1 p1a p2a) && (f2 p1b p2b)) ;;\n";
+  output_string file "let eq_list (f : 'a -> 'a -> bool) (l1 : 'a list) (l2 : 'a list) : bool = try List.fold_left2 (fun res l1i l2i -> res && (f l1i l2i)) true l1 l2 with _ -> false;;\n";
   output_string file "\n";
   output_string file "let rec str_list (f : 'a -> string) (l : 'a list) : string =\n";
   output_string file "   str_list_helper f l true\n";
