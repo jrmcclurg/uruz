@@ -26,7 +26,8 @@ SingleComm -> ("//" [^\n]*) <{my_test s}:()> : ;  /* throw away single-line comm
 MultiComm  -> "/*" .. "*/" <{}:()@{"COMMENT"}> : CommentTest ;  /* throw away recursive multiline comments */
 
 TestThingss -> TestThing2 ? ;
-TestThing2 -> ("two" <:int> | "three" <:bool>) * ;
+TestThing1 -> "one" <{1}:int> "two" <{false}:bool> ;
+TestThing2 -> ("two" <{222}:int> | "three" <{3.14}:float>) * ;
 TestThing3 -> (TestThing4 | TestThing2) + ;
 TestThing4 -> "four" ? <={test_cmp s t}>;
 TestThing5 -> [abcdef;]\'a' <:()> ;

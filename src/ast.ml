@@ -752,14 +752,22 @@ and get_atom_default_type (a : atom) : typ =
 (** {b Functions for checking structure of AST nodes} *)
 
 let rec is_subpattern_flat (s : subpattern) : bool =
+   is_subpattern_flat_helper s true
+
+and is_subpattern_flat_helper (s : subpattern) (first : bool) : bool =
    let result = 
    (match s with
-   | SimpleSubpattern(_,a1,_) -> is_atom_flat a1
+   | SimpleSubpattern(_,a1,Options(_,_,_,_,None,_,_,_)) -> is_atom_flat_helper a1 first
+   | SimpleSubpattern(_,a1,Options(_,_,_,_,Some(UnitType(_)),_,_,_)) -> is_atom_flat_helper a1 first
+   | SimpleSubpattern(_,a1,Options(_,_,_,_,Some(_),_,_,_)) -> if first then is_atom_flat_helper a1 first else false
    | RecursiveSubpattern(_,a1,a2,_) -> false (*(is_atom_flat a1) && (is_atom_flat a2)*)
    ) in
    result
 
 and is_atom_flat (a : atom) : bool =
+   is_atom_flat_helper a true
+
+and is_atom_flat_helper (a : atom) (first : bool) : bool =
    match a with
    | IdentAtom(_,s) -> false
    | StringAtom(_,s) -> true
@@ -767,16 +775,19 @@ and is_atom_flat (a : atom) : bool =
    | ChoiceAtom(_,sp,spl) ->
       List.fold_left (fun result sp ->
          if (not result) then false
-         else if (is_subpatterns_flat sp) then true
+         else if (is_subpatterns_flat_helper sp false) then true
          else false
       ) true (sp::spl)
 
 and is_subpatterns_flat (sp : subpatterns) : bool =
+   is_subpatterns_flat_helper sp true
+
+and is_subpatterns_flat_helper (sp : subpatterns) (first : bool) : bool =
    match sp with
    | Subpatterns(_,s,sl) ->
       List.fold_left (fun result s ->
          if (not result) then false
-         else if (is_subpattern_flat s) then true
+         else if (is_subpattern_flat_helper s first) then true
          else false
       ) true (s::sl)
 ;;
