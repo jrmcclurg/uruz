@@ -359,20 +359,24 @@ let get_str_code (v1o : string option) (ty : string) (s : subpattern) : string =
    match v1o with
    | None -> "(* NONE => "^ty^" *) "^(
       match s with
-      | SimpleSubpattern(_,a,Options(_,_,_,_,_,_,Some(Code(_,s) as cd),_)) ->
-         if (is_code_empty cd) then "" else "^(let s = "^(get_atom_str a false)^" in ignore s; "^s^")"
-      | RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,Some(Code(_,s) as cd),_)) ->
-         if (is_code_empty cd) then "" else "^(let s = \""^s1^" "^s2^"\" in ignore s; "^s^")"
+      | SimpleSubpattern(_,a,Options(_,_,_,_,_,_,Some(EmptyCode(_)),_)) -> ""
+      | SimpleSubpattern(_,a,Options(_,_,_,_,_,_,Some(Code(_,s)),_)) ->
+         "^(let s = "^(get_atom_str a false)^" in ignore s; "^s^")"
+      | RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,Some(EmptyCode(_)),_)) -> ""
+      | RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,Some(Code(_,s)),_)) ->
+         "^(let s = \""^s1^" "^s2^"\" in ignore s; "^s^")"
       | SimpleSubpattern(_,a,Options(_,_,_,_,_,_,None,_)) -> get_atom_str a true
       | RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,None,_)) -> "^\""^s1^" "^s2^"\""
    )
    | Some(v1) -> "(* TODO "^v1^" => "^ty^" *)"^(
       let tf = get_str_fun ty in
       match (s,tf) with
-      | (SimpleSubpattern(_,a,Options(_,_,_,_,_,_,Some(Code(_,s) as cd),_)),_) ->
-         if (is_code_empty cd) then "" else "^(let s = "^v1^" in ignore s; "^s^")"
-      | (RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,Some(Code(_,s) as cd),_)),_) ->
-         if (is_code_empty cd) then "" else "^(let s = "^v1^" in ignore s; "^s^")"
+      | (SimpleSubpattern(_,a,Options(_,_,_,_,_,_,Some(EmptyCode(_)),_)),_) -> ""
+      | (SimpleSubpattern(_,a,Options(_,_,_,_,_,_,Some(Code(_,s)),_)),_) ->
+         "^(let s = "^v1^" in ignore s; "^s^")"
+      | (RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,Some(EmptyCode(_)),_)),_) -> ""
+      | (RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,Some(Code(_,s)),_)),_) ->
+         "^(let s = "^v1^" in ignore s; "^s^")"
       | (SimpleSubpattern(_,a,Options(_,_,_,_,_,_,None,_)),Some(fn)) -> "^("^fn^" "^v1^")"
       | (SimpleSubpattern(_,a,Options(_,_,_,_,_,_,None,_)),None) -> get_atom_str a true
       | (RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,None,_)),Some(fn)) -> "^("^fn^" "^v1^")"
@@ -478,7 +482,8 @@ and generate_ast_subpattern_code (file : out_channel) (prefix : string) (flag : 
        let ((str : string),eq_code) = (generate_ast_atom_code file prefix a o k) in (true,(str:string),eq_code)
     )) in
     let eq_code2 = (match eqco with
-    | Some(Code(_,s) as cd) -> if (is_code_empty cd) then "" else the_code s
+    | Some(EmptyCode(_)) -> ""
+    | Some(Code(_,s)) -> the_code s
     | _ -> "&& "^eq_code) in
     (flg,(f^str),get_str_code (Some(v1)) str s, eq_code2)
   | SimpleSubpattern(_,_,Options(_,_,_,_,Some(UnitType(_)),_,_,_)) -> 
@@ -488,14 +493,16 @@ and generate_ast_subpattern_code (file : out_channel) (prefix : string) (flag : 
     let t2 = (typ_to_stripped_string t (prefix^"ast")) in
     let eq_code = (match eqco with
     | None -> "&& (eq_base "^v1^" "^v2^")"
-    | Some(Code(_,s) as cd) -> if (is_code_empty cd) then "" else the_code s) in
+    | Some(EmptyCode(_)) -> ""
+    | Some(Code(_,s)) -> the_code s) in
     (true, (f^t2), get_str_code (Some(v1)) t2 s, ""^eq_code^"") (* TODO - remove_from_front works? *)
   | RecursiveSubpattern(_,a1,a2,Options(_,o,_,_,None,_,_,eqco)) ->
     (* TODO - fix the stuff here *)
     let t2 = "string" in
     let eq_code = (match eqco with
     | None -> "&& (eq_base "^v1^" "^v2^")"
-    | Some(Code(_,s) as cd) -> if (is_code_empty cd) then "" else the_code s) in
+    | Some(EmptyCode(_)) -> ""
+    | Some(Code(_,s)) -> the_code s) in
     (true, (f^t2), get_str_code (Some(v1)) t2 s, eq_code)
   | RecursiveSubpattern(_,_,_,Options(_,_,_,_,Some(UnitType(_)),_,_,_)) -> 
      let t = typ_to_string (get_subpattern_default_type s) in
@@ -504,7 +511,8 @@ and generate_ast_subpattern_code (file : out_channel) (prefix : string) (flag : 
     let t2 = (typ_to_stripped_string t (prefix^"ast")) in
     let eq_code = (match eqco with
     | None -> "&& (eq_base "^v1^" "^v2^")"
-    | Some(Code(_,s) as cd) -> if (is_code_empty cd) then "" else the_code s) in
+    | Some(EmptyCode(_)) -> ""
+    | Some(Code(_,s)) -> the_code s) in
     (true,(f^t2),get_str_code (Some(v1)) t2 s, eq_code)
 (* returns (is_ast_type,code) *)
 and generate_ast_atom_code file prefix (a : atom) (o : op option) (k : int) : (string * string) =
@@ -630,6 +638,7 @@ let generate_parser_code file prefix g (h : ((string*((string*int) option)*typ o
             (* TODO - add precedence *)
             output_string file " {";
             (match cd with
+            | EmptyCode(_) -> ()
             | Code(_,s) -> output_string file s);
             output_string file "}\n";
             k+1
@@ -665,7 +674,8 @@ let rec generate_lexer_code file prefix g (h : (string*((string*int) option)*typ
       | SimpleSubpattern(_,_,Options(_,_,_,_,_,cd,_,_)) -> (cd,None,tb,"")
       | RecursiveSubpattern(p,a,b,Options(_,_,_,_,_,cd,_,_)) ->
          let temp = (match cd with
-            | Some(Code(_,_) as c) -> if (is_code_empty c) then tb else this_var
+            | Some(EmptyCode(_)) -> tb
+            | Some(Code(_,_)) -> this_var
             | None -> this_var
          ) in
          let rule_name = ("entry_"^(String.lowercase name)) in
@@ -680,11 +690,14 @@ let rec generate_lexer_code file prefix g (h : (string*((string*int) option)*typ
       let (bef,aft) = (match (ty,cd) with (* TODO - bef not used *)
       (* TODO XXX - should <> cause the "token lexbuf" to be generated? *)
       | (None,None) -> ("",name)
-      | (None,Some(Code(_,s) as c)) -> ("",if (is_code_empty c) then tok else ("let "^this_var2^" = "^s^" in ignore "^this_var2^"; "^tok))
+      | (None,Some(EmptyCode(_))) -> ("",tok)
+      | (None,Some(Code(_,s))) -> ("","let "^this_var2^" = "^s^" in ignore "^this_var2^"; "^tok)
       | (Some(s),None) -> ("",(name^"("^this_var^")"))
-      | (Some(s2),Some(Code(_,s) as c)) ->
-         ("",if (is_code_empty c) then tok else ("let "^this_var2^" = "^s^" in ignore "^this_var2^"; "^name^"(t)"
-         ))) in
+      | (Some(s2),Some(EmptyCode(_))) ->
+         ("",tok)
+      | (Some(s2),Some(Code(_,s))) ->
+         ("","let "^this_var2^" = "^s^" in ignore "^this_var2^"; "^name^"(t)")
+      ) in
       (match s with
       | SimpleSubpattern(_,IdentAtom(_,_),_) -> ()
       | _ ->
@@ -790,6 +803,7 @@ let generate_utils_code file g =
   output_string file "\n";
   (match header with
   | None -> ()
+  | Some(EmptyCode(_)) -> ()
   | Some(Code(_,s)) -> output_string file (s^"\n"));
   let p = (get_production_type_name "Pos") in
   output_string file "(* data type for file positions *)\n";
@@ -898,6 +912,7 @@ let generate_utils_code file g =
   output_string file ";;\n";
   (match footer with
   | None -> ()
+  | Some(EmptyCode(_)) -> ()
   | Some(Code(_,s)) -> output_string file ("\n"^s));
 ;;
 

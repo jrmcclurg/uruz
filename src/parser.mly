@@ -12,6 +12,11 @@
             | EqOption of code
    ;;
 
+   let handle_code ((p,s) : (Lexing.position * string)) : code =
+      let p2 = get_pos p in
+      (if (is_string_empty (strip_ocaml_comments s)) then EmptyCode(p2) else Code(p2, s))
+   ;;
+
 %}
 %token <int> INT
 %token <string> IDENT TYPENAME
@@ -38,6 +43,7 @@ main:
    code_block production prod_list code_block EOF {
       let p = (match $1 with
       | None -> get_pos (rhs_start_pos 2)
+      | Some(EmptyCode(p)) -> p
       | Some(Code(p,_)) -> p) in
          Grammar(p,$1,$4,$2,$3)
    }
@@ -45,7 +51,7 @@ main:
 
 code_block:
           { None }             /* TODO - delete NoPos */
-   | CODE { let (p,s) = $1 in Some(Code(get_pos p, s)) }
+   | CODE { Some(handle_code $1) }
 
 prod_list:
                           { [] }
@@ -66,7 +72,7 @@ pattern:
       let p = get_current_pos () in
       let c = (match $4 with
       | Some(cd) -> cd
-      | _ -> Code(p,"")) in
+      | _ -> EmptyCode(p)) in
       let (l,(pr,assoc)) = $3 in Pattern(get_current_pos (),$1,l,$2,c,pr,assoc)
    }
 ;
@@ -186,10 +192,10 @@ opt_list:
 opt:
    | op_prec        { PrecOption($1) }
    | op_assoc       { AssocOption($1) }
-   | CODE           { let (p,s) = $1 in CodeOption(Code(get_pos p, s)) }
+   | CODE           { CodeOption(handle_code $1) }
    | COLON typ      { TypeOption($2) }
-   | AMP CODE       { let (p,s) = $2 in PrintOption(Code(get_pos p, s)) }
-   | EQUAL CODE     { let (p,s) = $2 in EqOption(Code(get_pos p, s)) }
+   | AMP CODE       { PrintOption(handle_code $2) }
+   | EQUAL CODE     { EqOption(handle_code $2) }
 ;
 
 type_name:
@@ -205,11 +211,6 @@ typ:
    | LPAREN typ typ_star_list RPAREN            { TupleType(get_current_pos (), $2::$3) }
    | LPAREN typ RPAREN                          { $2 }
 ;
-
-typ_dot_list:
-   |                           { [] }
-   | DOT TYPENAME typ_dot_list { $2::$3 }
-; 
 
 typ_star_list:
    | STAR typ               { [] }

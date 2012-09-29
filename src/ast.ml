@@ -180,7 +180,10 @@ and name = EmptyName of pos (**
            value *)
 
 (** AST node for code *)
-and code = Code of pos * string (**
+and code = EmptyCode of pos (**
+           Empty code having given
+           position *)
+         | Code of pos * string (**
             Code block having given
             position, 
             OCaml code *)
@@ -201,6 +204,7 @@ let rec reloc_grammar (g : grammar) =
     @param c the code to normalize *)
 and reloc_code (c : code) =
    match c with
+   | EmptyCode(p) -> EmptyCode(NoPos)
    | Code(p,s) -> Code(NoPos,s)
 
 and reloc_code_opt (c : code option) =
@@ -331,6 +335,11 @@ let rec print_grammar (n:int) (g:grammar) : unit =
 
 and print_code (n:int) (c:code) : unit =
    match c with
+   | EmptyCode(p) ->
+      print_indent n "EmptyCode(\n";
+      print_pos (n+1) p;
+      print_string "\n";
+      print_indent n ")";
    | Code(p,st) ->
       print_indent n "Code(\n";
       print_pos (n+1) p;
@@ -772,11 +781,11 @@ and is_subpatterns_flat (sp : subpatterns) : bool =
       ) true (s::sl)
 ;;
 
-let is_code_empty (c : code) : bool =
+(*let is_code_empty (c : code) : bool =
    match c with
    | Code(p,s) ->
    is_string_empty (strip_ocaml_comments s)
-;;
+;;*)
 
 (** {b Functions for handling charsets} *)
 
