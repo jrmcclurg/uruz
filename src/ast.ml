@@ -156,16 +156,16 @@ and assoc = LeftAssoc of pos (**
 and typ = UnitType of pos (**
            Unit type having given
            position *)
-        | IdentType of pos * string list (**
+        | IdentType of pos * (string * string list) (**
            Type having given
            position,
            fully-qualified name (non-empty) *)
-        | ConstrType of pos * typ list * string list (**
+        | ConstrType of pos * (typ * typ list) * (string * string list) (**
            Type having given
            position,
            types (non-empty),
            fully-qualified name (non-empty) *)
-        | TupleType of pos * typ list (**
+        | TupleType of pos * (typ * typ list) (**
            Tuple type having given
            position,
            types (non-empty) *)
@@ -659,42 +659,56 @@ and print_name (n:int) (nm:name) : unit = () (* TODO XXX - print *)
 
 (** {b Functions for handling type info} *)
 
-let full_name_to_stripped_string (sl : string list) (prefix : string) : string =
+let rec strip_full_name ((s,sl) : (string * string list)) (target : string) : (string * string list) =
+   if (target = s) then (List.hd sl, List.tl sl) else (s,sl)
+;;
+
+let full_name_to_stripped_string ((s1,sl) : (string * string list)) (target : string) : string =
    let (res,_) = (List.fold_left (fun (res,flag) s ->
-      let rem = ((not flag) && (s = prefix)) in
+      let rem = ((not flag) && (s = target)) in
       (res^(if flag then "." else "")^(if rem then "" else s), (not rem))
-   ) ("",false) sl) in
+   ) ("",false) (s1::sl)) in
    res
 ;;
 
-let full_name_to_string (sl : string list) : string =
-   full_name_to_stripped_string sl ""
+let full_name_to_string (s : (string * string list)) : string =
+   full_name_to_stripped_string s ""
 ;;
 
 
 let typ_is_char (t : typ) : bool = (* TODO XXX - does this work? *)
    match t with
-   | IdentType(_, s::[]) -> (s = "char")
+   | IdentType(_, (s,[])) -> (s = "char")
    | _ -> false
 ;;
 
-let rec typ_to_stripped_string (t : typ) (prefix : string) : string =
+let rec strip_typ (t : typ) (target : string) : typ =
+   match t with
+   | UnitType(p) -> t
+   | IdentType(p,sl) -> IdentType(p, strip_full_name sl target)
+   | ConstrType(p,(t1,tl),sl) ->
+      ConstrType(p,(strip_typ t1 target, List.map (fun t -> strip_typ t target) tl),strip_full_name sl target)
+   | TupleType(p,(t1,tl)) ->
+      TupleType(p,(strip_typ t1 target, List.map (fun t -> strip_typ t target) tl))
+;;
+
+let rec typ_to_stripped_string (t : typ) (target : string) : string =
    match t with
    | UnitType(_) -> "()"
-   | IdentType(_,sl) -> full_name_to_stripped_string sl prefix
-   | ConstrType(_,tl,sl) -> (* TODO XXX - maybe put parens around the whole expression! *)
-      let (bef,aft) = if ((List.length tl) = 1) then ("","") else ("(",")") in
+   | IdentType(_,sl) -> full_name_to_stripped_string sl target
+   | ConstrType(_,(t1,tl),sl) -> (* TODO XXX - maybe put parens around the whole expression! *)
+      let (bef,aft) = if ((List.length tl) = 0) then ("","") else ("(",")") in
       (bef^
       (fst (List.fold_left (fun (res,flag) t ->
-         (res^(if flag then ", " else "")^(typ_to_stripped_string t prefix), true)
-      ) ("",false) tl))^aft^" "^
+         (res^(if flag then ", " else "")^(typ_to_stripped_string t target), true)
+      ) ("",false) (t1::tl)))^aft^" "^
       (full_name_to_string sl))
-   | TupleType(_,tl) ->
-      let (bef,aft) = if ((List.length tl) = 1) then ("","") else ("(",")") in
+   | TupleType(_,(t1,tl)) ->
+      let (bef,aft) = if ((List.length tl) = 0) then ("","") else ("(",")") in
       (bef^
       (fst (List.fold_left (fun (res,flag) t ->
-         (res^(if flag then " * " else "")^(typ_to_stripped_string t prefix), true)
-      ) ("",false) tl))^aft)
+         (res^(if flag then " * " else "")^(typ_to_stripped_string t target), true)
+      ) ("",false) (t1::tl)))^aft)
 ;;
 
 let typ_to_string (t : typ) : string =
@@ -723,22 +737,22 @@ let rec get_subpattern_default_type (sp : subpattern) : typ =
    (* TODO XXX - i think this needs to take the operators into acount!!! *)
    | SimpleSubpattern(_,a,Options(_,None,_,_,_,_,_,_)) -> get_atom_default_type a
    | SimpleSubpattern(p,(IdentAtom(_,_) as a),Options(_,Some(StarOp(_)),_,_,_,_,_,_)) ->
-      ConstrType(p, [(get_atom_default_type a)], ["list"])
+      ConstrType(p, ((get_atom_default_type a),[]), ("list",[]))
    | SimpleSubpattern(p,(IdentAtom(_,_) as a),Options(_,Some(PlusOp(_)),_,_,_,_,_,_)) ->
       let t = (get_atom_default_type a) in
-      TupleType(p, [t;ConstrType(p,[t],["list"])])
+      TupleType(p, (t,[ConstrType(p,(t,[]),("list",[]))]))
    | SimpleSubpattern(p,(IdentAtom(_,_) as a),Options(_,Some(QuestionOp(_)),_,_,_,_,_,_)) ->
-      ConstrType(p, [(get_atom_default_type a)], ["option"])
-   | SimpleSubpattern(p,_,Options(_,Some(StarOp(_)),_,_,_,_,_,_)) -> IdentType(p, ["string"])
-   | SimpleSubpattern(p,_,Options(_,Some(PlusOp(_)),_,_,_,_,_,_)) -> IdentType(p, ["string"])
-   | SimpleSubpattern(p,_,Options(_,Some(QuestionOp(_)),_,_,_,_,_,_)) -> IdentType(p, ["string"])
-   | RecursiveSubpattern(p,_,_,_) -> IdentType(p, ["string"])
+      ConstrType(p, ((get_atom_default_type a),[]), ("option",[]))
+   | SimpleSubpattern(p,_,Options(_,Some(StarOp(_)),_,_,_,_,_,_)) -> IdentType(p, ("string",[]))
+   | SimpleSubpattern(p,_,Options(_,Some(PlusOp(_)),_,_,_,_,_,_)) -> IdentType(p, ("string",[]))
+   | SimpleSubpattern(p,_,Options(_,Some(QuestionOp(_)),_,_,_,_,_,_)) -> IdentType(p, ("string",[]))
+   | RecursiveSubpattern(p,_,_,_) -> IdentType(p, ("string",[]))
 
 and get_atom_default_type (a : atom) : typ =
    match a with
-   | IdentAtom(p,s) -> IdentType(p, [get_production_type_name s])
-   | StringAtom(p,s) -> IdentType(p, [(if (String.length s) = 1 then "char" else "string")])
-   | CharsetsAtom(p,_) -> IdentType(p, ["char"])
+   | IdentAtom(p,s) -> IdentType(p, (get_production_type_name s,[]))
+   | StringAtom(p,s) -> IdentType(p, ((if (String.length s) = 1 then "char" else "string"),[]))
+   | CharsetsAtom(p,_) -> IdentType(p, ("char",[]))
    | ChoiceAtom(p,sp,spl) ->
       let all_chars = List.fold_left (fun all_chars (Subpatterns(_,sp,spl)) ->
          let all_chars2 = (if (not all_chars) then all_chars
@@ -746,7 +760,7 @@ and get_atom_default_type (a : atom) : typ =
          else false) in
          all_chars2
       ) true (sp::spl) in
-      IdentType(p, [(if all_chars then "char" else "string")])
+      IdentType(p, ((if all_chars then "char" else "string"),[]))
 ;;
 
 (** {b Functions for checking structure of AST nodes} *)

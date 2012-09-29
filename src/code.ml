@@ -83,20 +83,20 @@ and flatten_pattern prefix p =
                                   [Pattern(rp,[s;
                                   SimpleSubpattern(rp,IdentAtom(rp,nm),Options(rp,None,None,None,None,None,None,None))],
                                   Some(EmptyName(rp)),false,Code(rp," $1::$2 "),None,None)])],
-              ConstrType(rp3, [IdentType(rp3,[the_typename])], ["list"]))
+              ConstrType(rp3, (IdentType(rp3,(the_typename,[])),[]), ("list",[])))
           | PlusOp(_) ->
              let nm = (new_pref^"_pair") in
              (nm,[Production(rp,nm,Pattern(rp,[s],Some(EmptyName(rp)),false,(Code(rp," ($1,[]) ")),None,None),
                                   [Pattern(rp,[s;
                                   SimpleSubpattern(rp,IdentAtom(rp,nm),Options(rp,None,None,None,None,None,None,None))],
                                   Some(EmptyName(rp)),false,(Code(rp," let (h,l) = $2 in ($1,h::l) ")),None,None)])],
-              TupleType(rp3, [IdentType(rp3,[the_typename]);ConstrType(rp3,[IdentType(rp3,[the_typename])],["list"])]))
+              TupleType(rp3, (IdentType(rp3,(the_typename,[])),[ConstrType(rp3,(IdentType(rp3,(the_typename,[])),[]),("list",[]))])))
           | QuestionOp(_) ->
              let nm = (new_pref^"_opt") in
              (nm,[Production(rp,nm,Pattern(rp,[],Some(EmptyName(rp)),false,Code(rp," None "),None,None),
                                   [Pattern(rp,[s],
                                   Some(EmptyName(rp)),false,Code(rp," Some($1) "),None,None)])],
-              ConstrType(rp3, [IdentType(rp3,[the_typename])], ["option"]))
+              ConstrType(rp3, (IdentType(rp3,(the_typename,[])),[]), ("option",[])))
           ) in
           let use_type = (match typo with
           | None -> Some(tp)
@@ -265,12 +265,44 @@ let generate_makefile_code file prefix =
 ;;
 
 (* generate ast.ml *)
-let get_str_fun (ty : string) : string option = 
-   let t = Str.split (Str.regexp "[\r\n\t ]+") ty in
+let rec get_str_fun (ty : typ) (prefix : string) : string option = 
+   print_string (">>> trying to get type for '"^(typ_to_string ty)^"'\n");
+   let res = (match ty with
+   | UnitType(_) -> None
+   | IdentType(_, (s,s1::[])) ->
+      if (s = (prefix^"ast")) then Some("str_"^s1) else None
+   | IdentType(_, (s,[])) ->
+      (match s with
+      | "bool" -> Some("string_of_bool")
+      | "char" -> Some("String.make 1")
+      | "int" -> Some("string_of_int")
+      | "float" -> Some("string_of_float")
+      | "int32" -> Some("Int32.to_string")
+      | "int64" -> Some("Int64.to_string")
+      (* TODO XXX - add the other ones!!! *)
+      | _ -> None)
+   | ConstrType(_, (t,[]), ("list",[])) ->
+      let so = get_str_fun t prefix in
+      (match so with
+      | None -> None
+      | Some(s) -> Some("str_list ("^s^")"))
+   | TupleType(_, (t,t2::[])) ->
+      let so1 = get_str_fun t prefix in
+      let so2 = get_str_fun t2 prefix in
+      (match (so1,so2) with
+      | (Some(s1),Some(s2)) -> Some("str_pair ("^s1^") ("^s2^")")
+      | _ -> None)
+   | _ -> None) in (* other str_ functions are not provided (user will need to explicitly provide them) *)
+   (match res with
+   | Some(s) -> print_string (">>> got type: "^s^"\n")
+   | None -> ());
+   res
+
+(*let get_str_fun (ty : typ) : string option = 
    let len = List.length t in
    if (len > 0) then (
       let first = 
-      (match (List.hd t) with
+      (match (List.hd ty) with
       | "bool" -> Some("string_of_bool") (* TODO ? *)
       | "char" -> Some("String.make 1")
       | "int" -> Some("string_of_int")
@@ -286,7 +318,7 @@ let get_str_fun (ty : string) : string option =
          | _ -> None
       ) else None
    ) else None
-;;
+;;*)
 
 let rec get_atom_str_helper (a : atom) (append : bool) : string option =
    match a with
@@ -354,10 +386,11 @@ let get_atom_str (a : atom) (append : bool) : string =
    | Some(s) -> (if append then "^" else "")^"\""^s^"\""
 ;;
 
-let get_str_code (v1o : string option) (ty : string) (s : subpattern) : string =
+(* Gets the code for the str_ functions *)
+let get_str_code (v1o : string option) (ty : typ) (s : subpattern) (prefix : string) : string =
    (* TODO - what about operators? *)
    match v1o with
-   | None -> "(* NONE => "^ty^" *) "^(
+   | None -> "(* NONE => "^(typ_to_string ty)^" *) "^(
       match s with
       | SimpleSubpattern(_,a,Options(_,_,_,_,_,_,Some(EmptyCode(_)),_)) -> ""
       | SimpleSubpattern(_,a,Options(_,_,_,_,_,_,Some(Code(_,s)),_)) ->
@@ -368,8 +401,8 @@ let get_str_code (v1o : string option) (ty : string) (s : subpattern) : string =
       | SimpleSubpattern(_,a,Options(_,_,_,_,_,_,None,_)) -> get_atom_str a true
       | RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,None,_)) -> "^\""^s1^" "^s2^"\""
    )
-   | Some(v1) -> "(* TODO "^v1^" => "^ty^" *)"^(
-      let tf = get_str_fun ty in
+   | Some(v1) -> "(* TODO "^v1^" => "^(typ_to_string ty)^" *)"^(
+      let tf = get_str_fun ty prefix in
       match (s,tf) with
       | (SimpleSubpattern(_,a,Options(_,_,_,_,_,_,Some(EmptyCode(_)),_)),_) -> ""
       | (SimpleSubpattern(_,a,Options(_,_,_,_,_,_,Some(Code(_,s)),_)),_) ->
@@ -476,61 +509,61 @@ and generate_ast_subpattern_code (file : out_channel) (prefix : string) (flag : 
   match s with
   | SimpleSubpattern(ps,a,Options(_,o,_,_,None,_,_,eqco)) ->
     let (flg,str,eq_code) = (if (is_subpattern_flat s) then (
-       let t = typ_to_string (get_subpattern_default_type s) in
-       (true,t,"(eq_base "^v1^" "^v2^")")
+       let t = (get_subpattern_default_type s) in
+       (true,t,"(eq_xxx "^v1^" "^v2^")") (* TODO XXX - this eq_base should be generated via a function, based on type t *)
     ) else (
-       let ((str : string),eq_code) = (generate_ast_atom_code file prefix a o k) in (true,(str:string),eq_code)
+       let (str,eq_code) = (generate_ast_atom_code file prefix a o k) in (true,str,eq_code)
     )) in
     let eq_code2 = (match eqco with
     | Some(EmptyCode(_)) -> ""
     | Some(Code(_,s)) -> the_code s
     | _ -> "&& "^eq_code) in
-    (flg,(f^str),get_str_code (Some(v1)) str s, eq_code2)
+    (flg,(f^(typ_to_string str)),get_str_code (Some(v1)) str s prefix, eq_code2)
   | SimpleSubpattern(_,_,Options(_,_,_,_,Some(UnitType(_)),_,_,_)) -> 
-     let t = typ_to_string (get_subpattern_default_type s) in
-     (flag,"", get_str_code None t s, "")
+     let t = (get_subpattern_default_type s) in
+     (flag,"", get_str_code None t s prefix, "")
   | SimpleSubpattern(_,a,Options(_,o,_,_,Some(t),_,_,eqco)) -> (* MATCHING: t should not be a unit type!!!! *)
-    let t2 = (typ_to_stripped_string t (prefix^"ast")) in
+    let t2 = t in
+    let eq_code = (match eqco with
+    | None -> "&& (eq_xxx "^v1^" "^v2^")" (* TODO XXX *)
+    | Some(EmptyCode(_)) -> ""
+    | Some(Code(_,s)) -> the_code s) in
+    (true, (f^(typ_to_stripped_string t2 (prefix^"ast"))), get_str_code (Some(v1)) t2 s prefix, ""^eq_code^"") (* TODO - remove_from_front works? *)
+  | RecursiveSubpattern(p,a1,a2,Options(_,o,_,_,None,_,_,eqco)) ->
+    let t2 = IdentType(p,("string",[])) in
     let eq_code = (match eqco with
     | None -> "&& (eq_base "^v1^" "^v2^")"
     | Some(EmptyCode(_)) -> ""
     | Some(Code(_,s)) -> the_code s) in
-    (true, (f^t2), get_str_code (Some(v1)) t2 s, ""^eq_code^"") (* TODO - remove_from_front works? *)
-  | RecursiveSubpattern(_,a1,a2,Options(_,o,_,_,None,_,_,eqco)) ->
-    (* TODO - fix the stuff here *)
-    let t2 = "string" in
-    let eq_code = (match eqco with
-    | None -> "&& (eq_base "^v1^" "^v2^")"
-    | Some(EmptyCode(_)) -> ""
-    | Some(Code(_,s)) -> the_code s) in
-    (true, (f^t2), get_str_code (Some(v1)) t2 s, eq_code)
+    (true, (f^(typ_to_string t2)), get_str_code (Some(v1)) t2 s prefix, eq_code)
   | RecursiveSubpattern(_,_,_,Options(_,_,_,_,Some(UnitType(_)),_,_,_)) -> 
-     let t = typ_to_string (get_subpattern_default_type s) in
-     (flag,"", get_str_code None t s, "")
+     let t = (get_subpattern_default_type s) in
+     (flag,"", get_str_code None t s prefix, "")
   | RecursiveSubpattern(_,a1,a2,Options(_,o,_,_,Some(t),_,_,eqco)) ->
-    let t2 = (typ_to_stripped_string t (prefix^"ast")) in
+    let t2 = t in
     let eq_code = (match eqco with
-    | None -> "&& (eq_base "^v1^" "^v2^")"
+    | None -> "&& (eq_xxx "^v1^" "^v2^")" (* TODO XXX *)
     | Some(EmptyCode(_)) -> ""
     | Some(Code(_,s)) -> the_code s) in
-    (true,(f^t2),get_str_code (Some(v1)) t2 s, eq_code)
+    (true,(f^(typ_to_stripped_string t2 (prefix^"ast"))),get_str_code (Some(v1)) t2 s prefix, eq_code)
 (* returns (is_ast_type,code) *)
-and generate_ast_atom_code file prefix (a : atom) (o : op option) (k : int) : (string * string) =
+and generate_ast_atom_code file prefix (a : atom) (o : op option) (k : int) : (typ * string) =
   let i = (string_of_int k) in
   let v1 = this_var^i in
   let v2 = this_var2^i in
   let (f,eq_code) = (match a with
-  | IdentAtom(_,s) ->
-     let t = get_production_type_name s in
-     (t, "eq_"^t)
+  | IdentAtom(p,s) ->
+     let name = get_production_type_name s in
+     let t = IdentType(p, (name,[])) in
+     (t, "eq_"^name)
   | StringAtom(ps,st) ->
     (* TODO - will this always be a string? *)
-    (typ_to_string (get_atom_default_type a), "eq_base")
+    ((get_atom_default_type a), "eq_base")
   | CharsetsAtom(ps,_) ->
     (* TODO - will this always be a string? *)
-    (typ_to_string (get_atom_default_type a), "eq_base")
+    ((get_atom_default_type a), "eq_base")
   | ChoiceAtom(_,Subpatterns(_,sub,subs),al) -> (* this should never nontrivially happen because of flattening *)
-    (typ_to_string (get_atom_default_type a), "eq_base")
+    ((get_atom_default_type a), "eq_base")
     (* ("("^
     (let (_,str,strx,stry) = List.fold_left (fun (flag,str,strx,stry) s -> (* TODO - what about strx/y here???!!! *)
       let (flag2,str2,str3,str4) = generate_ast_subpattern_code file prefix flag s in
@@ -539,9 +572,9 @@ and generate_ast_atom_code file prefix (a : atom) (o : op option) (k : int) : (s
   ) in 
   (* TODO XXX - i think some of this may be unnecessary because the flattening gets rid of all the star/plus/etc ops *)
   (match o with
-  | Some(StarOp(_)) -> (f^" list", "(eq_list "^eq_code^" "^v1^" "^v2^")")
-  | Some(PlusOp(_)) -> ("("^f^" * "^f^" list)", "(eq_pair "^eq_code^" (eq_list "^eq_code^") "^v1^" "^v2^")")
-  | Some(QuestionOp(_)) -> (f^" option", "(eq_option "^eq_code^" "^v1^" "^v2^")")
+  | Some(StarOp(p)) -> (ConstrType(p,(f,[]),("list",[])), "(eq_list "^eq_code^" "^v1^" "^v2^")")
+  | Some(PlusOp(p)) -> (TupleType(p,(f,[ConstrType(p,(f,[]),("list",[]))])), "(eq_pair "^eq_code^" (eq_list "^eq_code^") "^v1^" "^v2^")")
+  | Some(QuestionOp(p)) -> (ConstrType(p,(f,[]),("option",[])), "(eq_option "^eq_code^" "^v1^" "^v2^")")
   | _ -> (f, "("^eq_code^" "^v1^" "^v2^")") )
 ;;
 
@@ -663,7 +696,6 @@ let rec generate_lexer_code file prefix g (h : (string*((string*int) option)*typ
    output_string file "}\n\n";
    output_string file ("(* The type \"token\" is defined in "^prefix^"parser.mli *)\n");
    output_string file "rule token = parse\n";
-   (* TODO XXX - sort and all that - I THINK THE ORDER NEEDS TO CORRESPOND TO FILE ORDER *)
    let hl = SubpatternHashtbl.fold (fun s (name,assoc_prec,ty,p) res ->
       (name,s,assoc_prec,ty,p)::res
    ) h [] in

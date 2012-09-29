@@ -199,18 +199,16 @@ opt:
 ;
 
 type_name:
-   | TYPENAME               { [$1] }
-   | TYPENAME DOT type_name { $1::$3 }
+   | TYPENAME               { ($1,[]) }
+   | TYPENAME DOT type_name { let (a,l) = $3 in ($1, a::l) }
 ;
 
 typ:
    | LPAREN RPAREN                              { UnitType(get_current_pos ()) }
    | type_name                                  { IdentType(get_current_pos (), $1) }
-   | LPAREN typ type_name RPAREN                { ConstrType(get_current_pos (), [$2], $3) }
-   | LPAREN typ typ_comma_list RPAREN type_name { ConstrType(get_current_pos (), $2::$3, $5) }
-   | LPAREN typ typ_star_list RPAREN            { let t = TupleType(get_current_pos (), $2::$3) in
-              print_string (">>> XXX TupleType <<< "^(typ_to_string t)^"\n"); 
-              t }
+   | LPAREN typ type_name RPAREN                { ConstrType(get_current_pos (), ($2,[]), $3) }
+   | LPAREN typ typ_comma_list RPAREN type_name { ConstrType(get_current_pos (), ($2,$3), $5) }
+   | LPAREN typ typ_star_list RPAREN            { TupleType(get_current_pos (), ($2,$3)) }
    | LPAREN typ RPAREN                          { $2 }
 ;
 
