@@ -14,7 +14,7 @@
 
 %}
 %token <int> INT
-%token <string> IDENT
+%token <string> IDENT TYPENAME
 %token <Lexing.position*string> CODE
 %token <string> STRINGQUOT TYPENAME
 %token <string> CHARSET
@@ -25,7 +25,7 @@
 %token EOL
 %token RECUR
 %token EOF
-%token COLON SEMI LBRACK RBRACK
+%token COLON SEMI COMMA DOT LBRACK RBRACK
 %token LEFT RIGHT UNARY
 %token ARROW BAR DQUOT QUOT STAR PLUS QUESTION AMP EQUAL DOLLAR WILDCARD DIFF ENDFILE
 %left PLUS MINUS /* lowest precedence */
@@ -78,8 +78,8 @@ eof_op:
 
 label:
                  { (None,(None,None)) }
-   | COLON IDENT pattern_opts { (Some(Type(get_current_pos (), $2)),$3) }
-   | COLON       pattern_opts { (Some(EmptyType(get_current_pos ())),$2) }
+   | COLON IDENT pattern_opts { (Some(Name(get_current_pos (), $2)),$3) }
+   | COLON       pattern_opts { (Some(EmptyName(get_current_pos ())),$2) }
 ;
 
 pattern_opts:
@@ -156,6 +156,8 @@ charset:
                 ListCharset(get_current_pos (),l,b) }
 
 opts:
+   /*(*| LANGLE opt_list RANGLE op_opr {
+      Options(get_current_pos (),$4,None,None,None,None,None,None) }*)*/
    | op_opr {
       Options(get_current_pos (),$1,None,None,None,None,None,None) }
    | op_opr LANGLE opt_list RANGLE {
@@ -185,11 +187,39 @@ opt:
    | op_prec        { PrecOption($1) }
    | op_assoc       { AssocOption($1) }
    | CODE           { let (p,s) = $1 in CodeOption(Code(get_pos p,strip_ocaml_comments s)) }
-   | COLON CODE     { let (p,s) = $2 in TypeOption(parse_type (get_pos p) (strip_ocaml_comments s)) }
+   | COLON typ      { TypeOption($2) }
    | AMP CODE       { let (p,s) = $2 in PrintOption(Code(get_pos p,(strip_ocaml_comments s))) }
    | EQUAL CODE     { let (p,s) = $2 in EqOption(Code(get_pos p,(strip_ocaml_comments s))) }
-   
 ;
+
+type_name:
+   | TYPENAME               { [$1] }
+   | TYPENAME DOT type_name { $1::$3 }
+;
+
+typ:
+   | LPAREN RPAREN                              { UnitType(get_current_pos ()) }
+   | type_name                                  { IdentType(get_current_pos (), $1) }
+   | LPAREN typ type_name RPAREN                { ConstrType(get_current_pos (), [$2], $3) }
+   | LPAREN typ typ_comma_list RPAREN type_name { ConstrType(get_current_pos (), $2::$3, $5) }
+   | LPAREN typ typ_star_list RPAREN            { TupleType(get_current_pos (), $2::$3) }
+   | LPAREN typ RPAREN                          { $2 }
+;
+
+typ_dot_list:
+   |                           { [] }
+   | DOT TYPENAME typ_dot_list { $2::$3 }
+; 
+
+typ_star_list:
+   | STAR typ               { [] }
+   | STAR typ typ_star_list { $2::$3 }
+; 
+
+typ_comma_list:
+   | COMMA typ                { [] }
+   | COMMA typ typ_comma_list { $2::$3 }
+; 
 
 op_opr:
    |          { None }

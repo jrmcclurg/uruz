@@ -33,11 +33,11 @@ and production = Production of pos * string * pattern * pattern list (**
                    successive patterns *)
 
 (** AST node for a pattern *)
-and pattern = Pattern of pos * subpattern list * typ option * bool * code * int option * assoc option (**
+and pattern = Pattern of pos * subpattern list * name option * bool * code * int option * assoc option (**
                 Pattern having given
                 position,
                 subpatterns,
-                type,
+                name,
                 EOF flag,
                 OCaml code,
                 precedence,
@@ -153,13 +153,31 @@ and assoc = LeftAssoc of pos (**
              position *)
 
 (** AST node for type *)
-and typ = EmptyType of pos (**
-           Empty type having given
+and typ = UnitType of pos (**
+           Unit type having given
            position *)
-        | Type of pos * string (**
+        | IdentType of pos * string list (**
            Type having given
            position,
-           name *)
+           fully-qualified name (non-empty) *)
+        | ConstrType of pos * typ list * string list (**
+           Type having given
+           position,
+           types (non-empty),
+           fully-qualified name (non-empty) *)
+        | TupleType of pos * typ list (**
+           Tuple type having given
+           position,
+           types (non-empty) *)
+
+(** AST node for name *)
+and name = EmptyName of pos (**
+           Empty name having given
+           position *)
+         | Name of pos * string (**
+           Name having given
+           position,
+           value *)
 
 (** AST node for code *)
 and code = Code of pos * string (**
@@ -197,7 +215,7 @@ and reloc_production (p : production) =
 and reloc_pattern (p : pattern) = 
    match p with
    | Pattern(p,sl,t,b,c,i,asc) ->
-      Pattern(NoPos,List.map (fun s -> reloc_subpattern s) sl,reloc_typ_opt t,b,reloc_code c,i,reloc_assoc_opt asc)
+      Pattern(NoPos,List.map (fun s -> reloc_subpattern s) sl,reloc_name_opt t,b,reloc_code c,i,reloc_assoc_opt asc)
 
 and reloc_subpattern (s : subpattern) =
    match s with
@@ -259,13 +277,25 @@ and reloc_assoc_opt (a : assoc option) =
 
 and reloc_typ (t : typ) =
    match t with
-   | EmptyType(p) -> EmptyType(NoPos)
-   | Type(p,s) -> Type(NoPos,s)
+   | UnitType(p) -> UnitType(NoPos)
+   | IdentType(p,s) -> IdentType(NoPos,s)
+   | ConstrType(p,t,s) -> ConstrType(NoPos,t,s)
+   | TupleType(p,t) -> TupleType(NoPos,t)
 
 and reloc_typ_opt (t : typ option) =
    match t with
    | None -> None
    | Some(t) -> Some(reloc_typ t)
+
+and reloc_name (t : name) =
+   match t with
+   | EmptyName(p) -> EmptyName(NoPos)
+   | Name(p,s) -> Name(NoPos,s)
+
+and reloc_name_opt (t : name option) =
+   match t with
+   | None -> None
+   | Some(t) -> Some(reloc_name t)
 ;;
 
 (* TODO XXX - add functions such as get_grammar_pos and is_grammar_eq *)
@@ -376,7 +406,7 @@ and print_pattern (n:int) (pa:pattern) : unit =
       print_indent (n+1) "],\n";
       (match label with
       | None -> print_indent (n+1) "None"
-      | Some(lab) -> print_indent (n+1) "Some(\n"; print_typ (n+2) lab;
+      | Some(lab) -> print_indent (n+1) "Some(\n"; print_name (n+2) lab;
                      print_string "\n"; print_indent (n+1) ")" );
       print_string "\n";
       print_code (n+1) s;
@@ -548,10 +578,10 @@ and print_opts (n:int) (o1:opts) : unit =
       print_string ",\n";
       print_assoc (n+1) a;
       print_string ",\n";
-      (match typo with
+      (*(match typo with
       | None -> print_indent (n+1) "None"
       | Some(typ) -> print_indent (n+1) "Some(\n"; print_typ (n+2) typ;
-                     print_string "\n"; print_indent (n+1) ")");
+                     print_string "\n"; print_indent (n+1) ")");*) (* TODO - print the type *)
       print_string ",\n";
       (match co with
       | None -> print_indent (n+1) "None"
@@ -604,65 +634,110 @@ and print_assoc (n:int) (a:assoc option) : unit =
 
 and print_typ (n:int) (ty:typ) : unit =
    match ty with
-   | EmptyType(p) -> print_indent n "EmptyType("; print_pos 0 p; print_string ")"
-   | Type(p,s) ->
-      print_indent n "Type(\n";
+   | UnitType(p) -> print_indent n "UnitType("; print_pos 0 p; print_string ")"
+   | IdentType(p,s) -> () (* TODO XXX - print *)
+      (*print_indent n "IdentType(\n";
       print_pos (n+1) p;
       print_string ",\n";
       print_str (n+1) s;
       print_string "\n";
-      print_indent n ")";
+      print_indent n ")";*)
+   | ConstrType(p,t,s) -> () (* TODO XXX - print *)
+   | TupleType(p,t) -> () (* TODO XXX - print *)
+
+and print_name (n:int) (nm:name) : unit = () (* TODO XXX - print *)
 ;;
 
 (** {b Functions for handling type info} *)
 
-let get_production_type s =
+let full_name_to_stripped_string (sl : string list) (prefix : string) : string =
+   let (res,_) = (List.fold_left (fun (res,flag) s ->
+      let rem = ((not flag) && (s = prefix)) in
+      (res^(if flag then "." else "")^(if rem then "" else s), (not rem))
+   ) ("",false) sl) in
+   res
+;;
+
+let full_name_to_string (sl : string list) : string =
+   full_name_to_stripped_string sl ""
+;;
+
+
+let typ_is_char (t : typ) : bool = (* TODO XXX - does this work? *)
+   match t with
+   | IdentType(_, s::[]) -> (s = "char")
+   | _ -> false
+;;
+
+let rec typ_to_stripped_string (t : typ) (prefix : string) : string =
+   match t with
+   | UnitType(_) -> "()"
+   | IdentType(_,sl) -> full_name_to_stripped_string sl prefix
+   | ConstrType(_,tl,sl) -> (* TODO XXX - maybe put parens around the whole expression! *)
+      let (bef,aft) = if ((List.length tl) = 1) then ("","") else ("(",")") in
+      (bef^
+      (fst (List.fold_left (fun (res,flag) t ->
+         (res^(if flag then ", " else "")^(typ_to_stripped_string t prefix), true)
+      ) ("",false) tl))^aft^" "^
+      (full_name_to_string sl))
+   | TupleType(_,tl) ->
+      let (bef,aft) = if ((List.length tl) = 1) then ("","") else ("(",")") in
+      (bef^
+      (fst (List.fold_left (fun (res,flag) t ->
+         (res^(if flag then " * " else "")^(typ_to_stripped_string t prefix), true)
+      ) ("",false) tl))^aft)
+;;
+
+let typ_to_string (t : typ) : string =
+   typ_to_stripped_string t ""
+;;
+
+let get_production_type_name (s : string) : string =
    if (is_capitalized s) then ((to_type_case s)^"_t")
-   else s 
+   else s
 ;;
 
-let output_production_type file s =
-   output_string file (get_production_type s)
+let output_production_type_name file s =
+   output_string file (get_production_type_name s)
 ;;
 
-let parse_type (p : pos) (s : string) : typ = 
+(*let parse_type (p : pos) (s : string) : typ = 
    let sp = "[\r\n\t ]+" in
    let t = Str.global_replace (Str.regexp sp) " " s in
    let t2 = Str.global_replace (Str.regexp ("^"^sp)) "" t in
    let t3 = Str.global_replace (Str.regexp (sp^"$")) "" t2 in
    if t3 = "" then EmptyType(p) else Type(p,t3)
-;;
+;;*)
 
-
-let rec get_subpattern_default_type (sp : subpattern) : string =
+let rec get_subpattern_default_type (sp : subpattern) : typ =
    match sp with
    (* TODO XXX - i think this needs to take the operators into acount!!! *)
    | SimpleSubpattern(_,a,Options(_,None,_,_,_,_,_,_)) -> get_atom_default_type a
-   | SimpleSubpattern(_,(IdentAtom(_,_) as a),Options(_,Some(StarOp(_)),_,_,_,_,_,_)) ->
-      (get_atom_default_type a)^" list"
-   | SimpleSubpattern(_,(IdentAtom(_,_) as a),Options(_,Some(PlusOp(_)),_,_,_,_,_,_)) ->
+   | SimpleSubpattern(p,(IdentAtom(_,_) as a),Options(_,Some(StarOp(_)),_,_,_,_,_,_)) ->
+      ConstrType(p, [(get_atom_default_type a)], ["list"])
+   | SimpleSubpattern(p,(IdentAtom(_,_) as a),Options(_,Some(PlusOp(_)),_,_,_,_,_,_)) ->
       let t = (get_atom_default_type a) in
-      "("^t^" * "^t^" list)"
-   | SimpleSubpattern(_,(IdentAtom(_,_) as a),Options(_,Some(QuestionOp(_)),_,_,_,_,_,_)) ->
-      (get_atom_default_type a)^" option"
-   | SimpleSubpattern(_,_,Options(_,Some(StarOp(_)),_,_,_,_,_,_)) -> "string"
-   | SimpleSubpattern(_,_,Options(_,Some(PlusOp(_)),_,_,_,_,_,_)) -> "string"
-   | SimpleSubpattern(_,_,Options(_,Some(QuestionOp(_)),_,_,_,_,_,_)) -> "string"
-   | RecursiveSubpattern(_,_,_,_) -> "string"
+      TupleType(p, [t;ConstrType(p,[t],["list"])])
+   | SimpleSubpattern(p,(IdentAtom(_,_) as a),Options(_,Some(QuestionOp(_)),_,_,_,_,_,_)) ->
+      ConstrType(p, [(get_atom_default_type a)], ["option"])
+   | SimpleSubpattern(p,_,Options(_,Some(StarOp(_)),_,_,_,_,_,_)) -> IdentType(p, ["string"])
+   | SimpleSubpattern(p,_,Options(_,Some(PlusOp(_)),_,_,_,_,_,_)) -> IdentType(p, ["string"])
+   | SimpleSubpattern(p,_,Options(_,Some(QuestionOp(_)),_,_,_,_,_,_)) -> IdentType(p, ["string"])
+   | RecursiveSubpattern(p,_,_,_) -> IdentType(p, ["string"])
 
-and get_atom_default_type (a : atom) : string=
+and get_atom_default_type (a : atom) : typ =
    match a with
-   | IdentAtom(_,s) -> get_production_type s
-   | StringAtom(_,s) -> (if (String.length s) = 1 then "char" else "string")
-   | CharsetsAtom(_,_) -> "char"
-   | ChoiceAtom(_,sp,spl) ->
+   | IdentAtom(p,s) -> IdentType(p, [get_production_type_name s])
+   | StringAtom(p,s) -> IdentType(p, [(if (String.length s) = 1 then "char" else "string")])
+   | CharsetsAtom(p,_) -> IdentType(p, ["char"])
+   | ChoiceAtom(p,sp,spl) ->
       let all_chars = List.fold_left (fun all_chars (Subpatterns(_,sp,spl)) ->
          let all_chars2 = (if (not all_chars) then all_chars
-         else if (List.length spl) = 0 then ((get_subpattern_default_type sp) = "char")
+         else if (List.length spl) = 0 then (typ_is_char (get_subpattern_default_type sp))
          else false) in
          all_chars2
       ) true (sp::spl) in
-      (if all_chars then "char" else "string")
+      IdentType(p, [(if all_chars then "char" else "string")])
 ;;
 
 (** {b Functions for checking structure of AST nodes} *)

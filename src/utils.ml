@@ -126,9 +126,10 @@ let str_starts_with (s : string) (prefix : string) : (bool * string) =
 ;;
 
 let str_remove_from_front (s : string) (prefix : string) : string =
-   let (t,rest) = str_starts_with s prefix in
+   (*let (t,rest) = str_starts_with s prefix in
    let result = (if t then rest else s) in
-   result
+   result*)
+   s
 ;;
 
 let parse_command_line () : in_channel =

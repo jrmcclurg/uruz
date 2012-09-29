@@ -75,26 +75,31 @@ and flatten_pattern prefix p =
           else ((SimpleSubpattern(rp,IdentAtom(rp,new_pref),Options(rp,None,None,None,None,None,None,None)))::sl2,
           [Production(rp,new_pref,Pattern(rp,[s],None,false,Code(rp,""),None,None),[])]@l, n-1, false)
        | SimpleSubpattern(rp,IdentAtom(rp2,name),Options(rp3,Some(o),o1,o2,typo,o5,o6,o7)) ->
-          let the_typename = (get_production_type name) in
+          let the_typename = (get_production_type_name name) in
           let (nm,e,tp) = (match o with
           | StarOp(_) ->
              let nm = (new_pref^"_list") in
-             (nm,[Production(rp,nm,Pattern(rp,[],Some(EmptyType(rp)),false,Code(rp," [] "),None,None),
+             (nm,[Production(rp,nm,Pattern(rp,[],Some(EmptyName(rp)),false,Code(rp," [] "),None,None),
                                   [Pattern(rp,[s;
                                   SimpleSubpattern(rp,IdentAtom(rp,nm),Options(rp,None,None,None,None,None,None,None))],
-                                  Some(EmptyType(rp)),false,Code(rp," $1::$2 "),None,None)])],
-              (the_typename^" list"))
+                                  Some(EmptyName(rp)),false,Code(rp," $1::$2 "),None,None)])],
+              ConstrType(rp3, [IdentType(rp3,[the_typename])], ["list"]))
           | PlusOp(_) ->
-             let nm = (new_pref^"_nlist") in
-             (nm,[Production(rp,nm,Pattern(rp,[s],Some(EmptyType(rp)),false,(Code(rp," ($1,[]) ")),None,None),
+             let nm = (new_pref^"_pair") in
+             (nm,[Production(rp,nm,Pattern(rp,[s],Some(EmptyName(rp)),false,(Code(rp," ($1,[]) ")),None,None),
                                   [Pattern(rp,[s;
                                   SimpleSubpattern(rp,IdentAtom(rp,nm),Options(rp,None,None,None,None,None,None,None))],
-                                  Some(EmptyType(rp)),false,(Code(rp," let (h,l) = $2 in ($1,h::l) ")),None,None)])],
-              ("("^the_typename^" * "^the_typename^" list)"))
-          | QuestionOp(_) -> ((new_pref^"_opt"),[],"")
+                                  Some(EmptyName(rp)),false,(Code(rp," let (h,l) = $2 in ($1,h::l) ")),None,None)])],
+              TupleType(rp3, [IdentType(rp3,[the_typename]);ConstrType(rp3,[IdentType(rp3,[the_typename])],["list"])]))
+          | QuestionOp(_) ->
+             let nm = (new_pref^"_opt") in
+             (nm,[Production(rp,nm,Pattern(rp,[],Some(EmptyName(rp)),false,Code(rp," None "),None,None),
+                                  [Pattern(rp,[s],
+                                  Some(EmptyName(rp)),false,Code(rp," Some($1) "),None,None)])],
+              ConstrType(rp3, [IdentType(rp3,[the_typename])], ["option"]))
           ) in
           let use_type = (match typo with
-          | None -> Some(Type(rp3,tp))
+          | None -> Some(tp)
           | _ -> typo) in
           ((SimpleSubpattern(rp,IdentAtom(rp2,nm),Options(rp3,None,o1,o2,use_type,o5,o6,o7)))::sl2, e@l, n-1, false)
        | _ ->
@@ -128,7 +133,7 @@ and flatten_subpatterns prefix sp =
 ;;
 
 let rec get_terminals_grammar (g : grammar)
-                              (h : (string*((string*int) option)*string option*pos) SubpatternHashtbl.t) : unit =
+                              (h : (string*((string*int) option)*typ option*pos) SubpatternHashtbl.t) : unit =
    match g with
    | Grammar(_,_,_,pr,prl) ->
       List.iter (fun pr ->
@@ -136,7 +141,7 @@ let rec get_terminals_grammar (g : grammar)
       ) (pr::prl)
 
 and get_terminals_production (pr : production)
-                             (h : (string*((string*int) option)*string option*pos) SubpatternHashtbl.t) : unit =
+                             (h : (string*((string*int) option)*typ option*pos) SubpatternHashtbl.t) : unit =
    match pr with
    | Production(_,name,pa,pal) ->
       let b = ((List.length pal) = 0) in
@@ -146,11 +151,11 @@ and get_terminals_production (pr : production)
       ) 1 (pa::pal) in ()
 
 and get_terminals_pattern (pa : pattern) (s : string)
-                          (h : (string*((string*int) option)*string option*pos) SubpatternHashtbl.t) : unit =
+                          (h : (string*((string*int) option)*typ option*pos) SubpatternHashtbl.t) : unit =
    match pa with
    | Pattern(ps,spl,t,_,_,i,asc) -> 
       let name = (to_token_case (match t with
-      | Some(Type(_,s)) -> s
+      | Some(Name(_,s)) -> s
       | _ -> s)) in
       let x = get_assoc_str asc i in
       (match x with
@@ -164,7 +169,7 @@ and get_terminals_pattern (pa : pattern) (s : string)
       ) 1 spl in ()
 
 and get_terminals_subpattern (sp : subpattern) (s : string)
-                             (h : (string*((string*int) option)*string option*pos) SubpatternHashtbl.t) (n : int) : int =
+                             (h : (string*((string*int) option)*typ option*pos) SubpatternHashtbl.t) (n : int) : int =
    match sp with
    | SimpleSubpattern(_,IdentAtom(_,_),Options(ps,_,prec,a,_,_,_,_)) ->
       let x = (get_assoc_str a prec) in
@@ -172,29 +177,29 @@ and get_terminals_subpattern (sp : subpattern) (s : string)
       | Some(_) -> die_error ps "cannot set options for non-terminal" (* TODO - this should never happen (done in parser) *)
       | _ -> ());
       n+1
-   | SimpleSubpattern(_,_,Options(ps,_,prec,a,Some(Type(_,t)),_,_,_)) ->
-      let x = (get_assoc_str a prec) in
-      SubpatternHashtbl.replace h sp (s,x,Some(t),ps);
-      n+1
-   | SimpleSubpattern(_,_,Options(ps,_,prec,a,Some(EmptyType(_)),_,_,_)) ->
+   | SimpleSubpattern(_,_,Options(ps,_,prec,a,Some(UnitType(_)),_,_,_)) ->
       let x = (get_assoc_str a prec) in
       SubpatternHashtbl.replace h sp (s,x,None,ps);
+      n+1
+   | SimpleSubpattern(_,_,Options(ps,_,prec,a,Some(t),_,_,_)) ->
+      let x = (get_assoc_str a prec) in
+      SubpatternHashtbl.replace h sp (s,x,Some(t),ps);
       n+1
    | SimpleSubpattern(_,_,Options(ps,_,prec,a,None,_,_,_)) ->
       let x = (get_assoc_str a prec) in
-      SubpatternHashtbl.replace h sp (s,x,Some(get_subpattern_default_type sp),ps);
+      SubpatternHashtbl.replace h sp (s,x,(Some(get_subpattern_default_type sp) : typ option),ps);
       n+1
-   | RecursiveSubpattern(_,_,_,Options(ps,_,prec,a,Some(Type(_,t)),_,_,_)) ->
-      let x = (get_assoc_str a prec) in
-      SubpatternHashtbl.replace h sp (s,x,Some(t),ps);
-      n+1
-   | RecursiveSubpattern(_,_,_,Options(ps,_,prec,a,Some(EmptyType(_)),_,_,_)) ->
+   | RecursiveSubpattern(_,_,_,Options(ps,_,prec,a,Some(UnitType(_)),_,_,_)) ->
       let x = (get_assoc_str a prec) in
       SubpatternHashtbl.replace h sp (s,x,None,ps);
       n+1
+   | RecursiveSubpattern(_,_,_,Options(ps,_,prec,a,Some(t),_,_,_)) ->
+      let x = (get_assoc_str a prec) in
+      SubpatternHashtbl.replace h sp (s,x,Some(t),ps);
+      n+1
    | RecursiveSubpattern(_,_,_,Options(ps,_,prec,a,None,_,_,_)) ->
       let x = (get_assoc_str a prec) in
-      SubpatternHashtbl.replace h sp (s,x,Some(get_subpattern_default_type sp),ps);
+      SubpatternHashtbl.replace h sp (s,x,(Some(get_subpattern_default_type sp) : typ option),ps);
       n+1
 ;;
 
@@ -409,19 +414,19 @@ and generate_ast_pattern_code file prefix name (prev : int) n flag p s flag2 : (
   match p with Pattern(_,slx,labelo,eof,c,_,_) ->
     let (ignore,label) = (match labelo with
     | None -> (false,None)
-    | Some(Type(_,l)) -> (false,Some(l))
+    | Some(Name(_,l)) -> (false,Some(l))
     | _ -> (true,None)) in
     if (not ignore) then (
        let nm = (match label with
        | None -> (name^(if n > 0 then ("_"^(string_of_int n)) else ""))
        | Some(label) -> label ) in
-       let t = (get_production_type s) in
+       let t = (get_production_type_name s) in
        let (_,str,strx,stry,_,params,params2) = List.fold_left (fun (flag,str,strx,stry,k,params,params2) s -> 
           let tp = (", "^this_var^(string_of_int k)) in
           let tp2 = (", "^this_var2^(string_of_int k)) in
           let (new_param,new_param2,new_k) = (match s with
-          | SimpleSubpattern(_,_,Options(_,_,_,_,Some(EmptyType(_)),_,_,_)) -> ("","",k)
-          | RecursiveSubpattern(_,_,_,Options(_,_,_,_,Some(EmptyType(_)),_,_,_)) -> ("","",k)
+          | SimpleSubpattern(_,_,Options(_,_,_,_,Some(UnitType(_)),_,_,_)) -> ("","",k)
+          | RecursiveSubpattern(_,_,_,Options(_,_,_,_,Some(UnitType(_)),_,_,_)) -> ("","",k)
           | _ -> (tp,tp2,k+1)) in
           let (flag2,str2,str3,str4) = generate_ast_subpattern_code file prefix flag k s in
           (flag2,str^str2,strx^"\n      "^str3,(if (str4="") then stry else (stry^"\n      "^str4)),new_k,params^new_param,params2^new_param2)
@@ -430,7 +435,7 @@ and generate_ast_pattern_code file prefix name (prev : int) n flag p s flag2 : (
        ((if (not flag) then ((if flag2 then "\n and" else "type")^" "^t^" =\n") else "")^
        "   | "^
        nm^
-       " of "^(get_production_type "Pos")^str) in
+       " of "^(get_production_type_name "Pos")^str) in
        let result2 =
           ((if (not flag) then
           ((if flag2 then "\nand" else "let\nrec")^" str_"^t^" ("^this_var^" : "^t^") : string =\n   match "^
@@ -467,17 +472,20 @@ and generate_ast_subpattern_code (file : out_channel) (prefix : string) (flag : 
   match s with
   | SimpleSubpattern(ps,a,Options(_,o,_,_,None,_,_,eqco)) ->
     let (flg,str,eq_code) = (if (is_subpattern_flat s) then (
-       let t = (get_subpattern_default_type s) in
+       let t = typ_to_string (get_subpattern_default_type s) in
        (true,t,"(eq_base "^v1^" "^v2^")")
     ) else (
-       let (str,eq_code) = (generate_ast_atom_code file prefix a o k) in (true,str,eq_code)
+       let ((str : string),eq_code) = (generate_ast_atom_code file prefix a o k) in (true,(str:string),eq_code)
     )) in
     let eq_code2 = (match eqco with
     | Some(Code(_,s)) -> if (is_string_empty s) then "" else the_code s
     | _ -> "&& "^eq_code) in
     (flg,(f^str),get_str_code (Some(v1)) str s, eq_code2)
-  | SimpleSubpattern(_,a,Options(_,o,_,_,Some(Type(_,t)),_,_,eqco)) ->
-    let t2 = (str_remove_from_front t (prefix^"ast.")) in
+  | SimpleSubpattern(_,_,Options(_,_,_,_,Some(UnitType(_)),_,_,_)) -> 
+     let t = typ_to_string (get_subpattern_default_type s) in
+     (flag,"", get_str_code None t s, "")
+  | SimpleSubpattern(_,a,Options(_,o,_,_,Some(t),_,_,eqco)) -> (* MATCHING: t should not be a unit type!!!! *)
+    let t2 = (typ_to_stripped_string t (prefix^"ast")) in
     let eq_code = (match eqco with
     | None -> "&& (eq_base "^v1^" "^v2^")"
     | Some(Code(_,s)) -> if (is_string_empty s) then "" else the_code s) in
@@ -489,15 +497,15 @@ and generate_ast_subpattern_code (file : out_channel) (prefix : string) (flag : 
     | None -> "&& (eq_base "^v1^" "^v2^")"
     | Some(Code(_,s)) -> if (is_string_empty s) then "" else the_code s) in
     (true, (f^t2), get_str_code (Some(v1)) t2 s, eq_code)
-  | RecursiveSubpattern(_,a1,a2,Options(_,o,_,_,Some(Type(_,t)),_,_,eqco)) ->
-    let t2 = (str_remove_from_front t (prefix^"ast.")) in
+  | RecursiveSubpattern(_,_,_,Options(_,_,_,_,Some(UnitType(_)),_,_,_)) -> 
+     let t = typ_to_string (get_subpattern_default_type s) in
+     (flag,"", get_str_code None t s, "")
+  | RecursiveSubpattern(_,a1,a2,Options(_,o,_,_,Some(t),_,_,eqco)) ->
+    let t2 = (typ_to_stripped_string t (prefix^"ast")) in
     let eq_code = (match eqco with
     | None -> "&& (eq_base "^v1^" "^v2^")"
     | Some(Code(_,s)) -> if (is_string_empty s) then "" else the_code s) in
     (true,(f^t2),get_str_code (Some(v1)) t2 s, eq_code)
-  | _ -> 
-     let t = (get_subpattern_default_type s) in
-     (flag,"", get_str_code None t s, "")
 (* returns (is_ast_type,code) *)
 and generate_ast_atom_code file prefix (a : atom) (o : op option) (k : int) : (string * string) =
   let i = (string_of_int k) in
@@ -505,16 +513,16 @@ and generate_ast_atom_code file prefix (a : atom) (o : op option) (k : int) : (s
   let v2 = this_var2^i in
   let (f,eq_code) = (match a with
   | IdentAtom(_,s) ->
-     let t = get_production_type s in
+     let t = get_production_type_name s in
      (t, "eq_"^t)
   | StringAtom(ps,st) ->
     (* TODO - will this always be a string? *)
-    (get_atom_default_type a, "eq_base")
+    (typ_to_string (get_atom_default_type a), "eq_base")
   | CharsetsAtom(ps,_) ->
     (* TODO - will this always be a string? *)
-    (get_atom_default_type a, "eq_base")
+    (typ_to_string (get_atom_default_type a), "eq_base")
   | ChoiceAtom(_,Subpatterns(_,sub,subs),al) -> (* this should never nontrivially happen because of flattening *)
-    (get_atom_default_type a, "eq_base")
+    (typ_to_string (get_atom_default_type a), "eq_base")
     (* ("("^
     (let (_,str,strx,stry) = List.fold_left (fun (flag,str,strx,stry) s -> (* TODO - what about strx/y here???!!! *)
       let (flag2,str2,str3,str4) = generate_ast_subpattern_code file prefix flag s in
@@ -530,7 +538,7 @@ and generate_ast_atom_code file prefix (a : atom) (o : op option) (k : int) : (s
 ;;
 
 (* generate parser.mly *)
-let generate_parser_code file prefix g (h : ((string*((string*int) option)*string option*pos) SubpatternHashtbl.t)) =
+let generate_parser_code file prefix g (h : ((string*((string*int) option)*typ option*pos) SubpatternHashtbl.t)) =
    let toks = ((Hashtbl.create 100) : (string option,string list) Hashtbl.t) in (* type,token_names *)
    let assocs = ((Hashtbl.create 100) : (int,(string*string list)) Hashtbl.t) in (* prec,assoc,token_names *)
    match g with
@@ -541,7 +549,10 @@ let generate_parser_code file prefix g (h : ((string*((string*int) option)*strin
    output_string file ("   open "^prefix^"ast;;\n");
    output_string file ("   open "^prefix^"utils;;\n");
    output_string file "%}\n\n";
-   SubpatternHashtbl.iter (fun k (s,assoc_str,ty,ps) -> 
+   SubpatternHashtbl.iter (fun k (s,assoc_str,typo,ps) -> 
+      let ty = (match typo with
+      | None -> None
+      | Some(t) -> Some(typ_to_string t)) in
       let a = (try Hashtbl.find toks ty with _ -> []) in
       Hashtbl.replace toks ty (s::a);
       (match assoc_str with
@@ -597,19 +608,19 @@ let generate_parser_code file prefix g (h : ((string*((string*int) option)*strin
    ) tab2;*)
    output_string file "\n";
    output_string file "%start main /* the entry point */\n";
-   output_string file ("%type <"^prefix^"ast."^(get_production_type name)^"> main\n");
+   output_string file ("%type <"^prefix^"ast."^(get_production_type_name name)^"> main\n");
    output_string file "%%\n";
    let _ = List.fold_left (fun n ((Production(p2,name,pa,pal)) (*as pr*)) ->
       (* made sure (via parser) that the first production is non-empty *)
       (*if (not (is_production_empty pr)) then begin*)
-         let name2 = if n = 1 then "main" else (output_string file "\n"; (get_production_type name)) in
+         let name2 = if n = 1 then "main" else (output_string file "\n"; (get_production_type_name name)) in
          output_string file (name2^":\n");
          let _ = List.fold_left (fun k (Pattern(_,sl,_,ef,cd,i,asc)) ->
             output_string file "   |";
             let _ = List.fold_left (fun j s ->
                let str = (try let (x,_,_,_) = SubpatternHashtbl.find h s in (" "^x) with _ -> 
                   match s with
-                  | SimpleSubpattern(_,IdentAtom(_,name),_) -> (" "^(get_production_type name))
+                  | SimpleSubpattern(_,IdentAtom(_,name),_) -> (" "^(get_production_type_name name))
                   | _ -> "XXX" (* TODO - this should never happen - do error? *)
                ) in
                output_string file (str);
@@ -633,7 +644,7 @@ let generate_parser_code file prefix g (h : ((string*((string*int) option)*strin
 ;;
 
 (* generate lexer.mll *)
-let rec generate_lexer_code file prefix g (h : (string*((string*int) option)*string option*pos) SubpatternHashtbl.t) =
+let rec generate_lexer_code file prefix g (h : (string*((string*int) option)*typ option*pos) SubpatternHashtbl.t) =
    output_warning_msg file "(*\n" " *" " *" " *)";
    output_string file "\n\n";
    output_string file "{\n";
@@ -780,7 +791,7 @@ let generate_utils_code file g =
   (match header with
   | None -> ()
   | Some(Code(_,s)) -> output_string file (s^"\n"));
-  let p = (get_production_type "Pos") in
+  let p = (get_production_type_name "Pos") in
   output_string file "(* data type for file positions *)\n";
   output_string file ("type "^p^" = NoPos | Pos of string*int*int;; (* file,line,col *)\n");
   output_string file "\n";
@@ -1036,7 +1047,7 @@ let generate_code (*filename*) g2 =
     close_out file_utils;
     print_string "done.\n";
     let h = ((SubpatternHashtbl.create 100) :
-       (string*((string*int) option)*string option*pos) SubpatternHashtbl.t) in (* TODO - size? *)
+       (string*((string*int) option)*typ option*pos) SubpatternHashtbl.t) in (* TODO - size? *)
     get_terminals_grammar g h;
     let file_parser = create_file (dir^prefix^"parser.mly") in
     (* write the parser.mly contents *)
