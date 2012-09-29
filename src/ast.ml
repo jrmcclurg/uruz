@@ -775,7 +775,7 @@ and is_subpatterns_flat (sp : subpatterns) : bool =
 let is_code_empty (c : code) : bool =
    match c with
    | Code(p,s) ->
-   is_string_empty s
+   is_string_empty (strip_ocaml_comments s)
 ;;
 
 (** {b Functions for handling charsets} *)

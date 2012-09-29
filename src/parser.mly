@@ -45,7 +45,7 @@ main:
 
 code_block:
           { None }             /* TODO - delete NoPos */
-   | CODE { let (p,s) = $1 in Some(Code(get_pos p,strip_ocaml_comments s)) }
+   | CODE { let (p,s) = $1 in Some(Code(get_pos p, s)) }
 
 prod_list:
                           { [] }
@@ -186,10 +186,10 @@ opt_list:
 opt:
    | op_prec        { PrecOption($1) }
    | op_assoc       { AssocOption($1) }
-   | CODE           { let (p,s) = $1 in CodeOption(Code(get_pos p,strip_ocaml_comments s)) }
+   | CODE           { let (p,s) = $1 in CodeOption(Code(get_pos p, s)) }
    | COLON typ      { TypeOption($2) }
-   | AMP CODE       { let (p,s) = $2 in PrintOption(Code(get_pos p,(strip_ocaml_comments s))) }
-   | EQUAL CODE     { let (p,s) = $2 in EqOption(Code(get_pos p,(strip_ocaml_comments s))) }
+   | AMP CODE       { let (p,s) = $2 in PrintOption(Code(get_pos p, s)) }
+   | EQUAL CODE     { let (p,s) = $2 in EqOption(Code(get_pos p, s)) }
 ;
 
 type_name:
