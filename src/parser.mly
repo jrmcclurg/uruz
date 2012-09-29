@@ -208,17 +208,19 @@ typ:
    | type_name                                  { IdentType(get_current_pos (), $1) }
    | LPAREN typ type_name RPAREN                { ConstrType(get_current_pos (), [$2], $3) }
    | LPAREN typ typ_comma_list RPAREN type_name { ConstrType(get_current_pos (), $2::$3, $5) }
-   | LPAREN typ typ_star_list RPAREN            { TupleType(get_current_pos (), $2::$3) }
+   | LPAREN typ typ_star_list RPAREN            { let t = TupleType(get_current_pos (), $2::$3) in
+              print_string (">>> XXX TupleType <<< "^(typ_to_string t)^"\n"); 
+              t }
    | LPAREN typ RPAREN                          { $2 }
 ;
 
 typ_star_list:
-   | STAR typ               { [] }
+   | STAR typ               { [$2] }
    | STAR typ typ_star_list { $2::$3 }
 ; 
 
 typ_comma_list:
-   | COMMA typ                { [] }
+   | COMMA typ                { [$2] }
    | COMMA typ typ_comma_list { $2::$3 }
 ; 
 

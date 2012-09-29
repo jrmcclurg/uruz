@@ -1,5 +1,2 @@
-1. Be careful of stripping comments/spaces out of OCaml code - you might be stripping from inside a string!
-   Probably just get rid of this functionality.
-2. Is the remove_from_front the right way to do it regarding types?
 3. The flattening needs to generate the correct eq_ and str_ code for each expanded thing
 4. Maybe add support for detecting AST types and using the appropriate eq_ and str_ functions
