@@ -510,7 +510,7 @@ and generate_ast_subpattern_code (file : out_channel) (prefix : string) (flag : 
   | SimpleSubpattern(ps,a,Options(_,o,_,_,None,_,_,eqco)) ->
     let (flg,str,eq_code) = (if (is_subpattern_flat s) then (
        let t = (get_subpattern_default_type s) in
-       (true,t,"(eq_xxx "^v1^" "^v2^")") (* TODO XXX - this eq_base should be generated via a function, based on type t *)
+       (true,t,"(eq_base "^v1^" "^v2^")") (* TODO XXX - this eq_base should be generated via a function, based on type t *)
     ) else (
        let (str,eq_code) = (generate_ast_atom_code file prefix a o k) in (true,str,eq_code)
     )) in
@@ -525,7 +525,7 @@ and generate_ast_subpattern_code (file : out_channel) (prefix : string) (flag : 
   | SimpleSubpattern(_,a,Options(_,o,_,_,Some(t),_,_,eqco)) -> (* MATCHING: t should not be a unit type!!!! *)
     let t2 = t in
     let eq_code = (match eqco with
-    | None -> "&& (eq_xxx "^v1^" "^v2^")" (* TODO XXX *)
+    | None -> "&& (eq_base "^v1^" "^v2^")" (* TODO XXX *)
     | Some(EmptyCode(_)) -> ""
     | Some(Code(_,s)) -> the_code s) in
     (true, (f^(typ_to_stripped_string t2 (prefix^"ast"))), get_str_code (Some(v1)) t2 s prefix, ""^eq_code^"") (* TODO - remove_from_front works? *)
@@ -542,7 +542,7 @@ and generate_ast_subpattern_code (file : out_channel) (prefix : string) (flag : 
   | RecursiveSubpattern(_,a1,a2,Options(_,o,_,_,Some(t),_,_,eqco)) ->
     let t2 = t in
     let eq_code = (match eqco with
-    | None -> "&& (eq_xxx "^v1^" "^v2^")" (* TODO XXX *)
+    | None -> "&& (eq_base "^v1^" "^v2^")" (* TODO XXX *)
     | Some(EmptyCode(_)) -> ""
     | Some(Code(_,s)) -> the_code s) in
     (true,(f^(typ_to_stripped_string t2 (prefix^"ast"))),get_str_code (Some(v1)) t2 s prefix, eq_code)
