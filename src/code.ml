@@ -265,37 +265,48 @@ let generate_makefile_code file prefix =
 ;;
 
 (* generate ast.ml *)
-let rec get_str_fun (ty : typ) (prefix : string) : string option = 
+(* returns str_code * eq_code *)
+let rec get_str_fun (ty : typ) (prefix : string) : (string option * string option) = 
    print_string (">>> trying to get type for '"^(typ_to_string ty)^"'\n");
    let res = (match ty with
-   | UnitType(_) -> None
+   | UnitType(_) -> (None,None)
    | IdentType(_, (s,s1::[])) ->
-      if (s = (prefix^"ast")) then Some("str_"^s1) else None
+      if (s = (prefix^"ast")) then (Some("str_"^s1),Some("eq_"^s1)) else (None,None) (* TODO XXX - vvvv also do the check here for "s1" *)
    | IdentType(_, (s,[])) ->
+      let e = Some("eq_base") in
       (match s with
-      | "bool" -> Some("string_of_bool")
-      | "char" -> Some("String.make 1")
-      | "int" -> Some("string_of_int")
-      | "float" -> Some("string_of_float")
-      | "int32" -> Some("Int32.to_string")
-      | "int64" -> Some("Int64.to_string")
+      | "bool" -> (Some("string_of_bool"),e)
+      | "char" -> (Some("String.make 1"),e)
+      | "string" -> (Some(""),e)
+      | "int" -> (Some("string_of_int"),e)
+      | "float" -> (Some("string_of_float"),e)
+      | "int32" -> (Some("Int32.to_string"),e)
+      | "int64" -> (Some("Int64.to_string"),e)
       (* TODO XXX - add the other ones!!! *)
-      | _ -> None)
-   | ConstrType(_, (t,[]), ("list",[])) ->
-      let so = get_str_fun t prefix in
-      (match so with
+      | _ -> (Some("str_"^s),Some("eq_"^s))) (* TODO XXX - check if "s" is a generated type! *)
+   | ConstrType(_, (t,[]), (suffix,[])) -> (* TODO XXX - check if "suffix" is "list" or "option" *)
+      let (so,eq) = get_str_fun t prefix in
+      let rso = (match so with
       | None -> None
-      | Some(s) -> Some("str_list ("^s^")"))
+      | Some(s) -> Some("str_"^suffix^" ("^s^")")) in
+      let req = (match eq with
+      | None -> None
+      | Some(s) -> Some("eq_"^suffix^" ("^s^")")) in
+      (rso,req)
    | TupleType(_, (t,t2::[])) ->
-      let so1 = get_str_fun t prefix in
-      let so2 = get_str_fun t2 prefix in
-      (match (so1,so2) with
+      let (so1,eq1) = get_str_fun t prefix in
+      let (so2,eq2) = get_str_fun t2 prefix in
+      let rso = (match (so1,so2) with
       | (Some(s1),Some(s2)) -> Some("str_pair ("^s1^") ("^s2^")")
-      | _ -> None)
-   | _ -> None) in (* other str_ functions are not provided (user will need to explicitly provide them) *)
+      | _ -> None) in
+      let req = (match (eq1,eq2) with
+      | (Some(s1),Some(s2)) -> Some("eq_pair ("^s1^") ("^s2^")")
+      | _ -> None) in
+      (rso,req)
+   | _ -> (None,None)) in (* other str_ functions are not provided (user will need to explicitly provide them) *)
    (match res with
-   | Some(s) -> print_string (">>> got type: "^s^"\n")
-   | None -> ());
+   | (Some(s),_) -> print_string (">>> got type: "^s^"\n")
+   | (None,_) -> ());
    res
 
 (*let get_str_fun (ty : typ) : string option = 
@@ -387,10 +398,10 @@ let get_atom_str (a : atom) (append : bool) : string =
 ;;
 
 (* Gets the code for the str_ functions *)
-let get_str_code (v1o : string option) (ty : typ) (s : subpattern) (prefix : string) : string =
+let get_str_code (v1o : string option) (ty : typ) (s : subpattern) (prefix : string) : (string * string) =
    (* TODO - what about operators? *)
    match v1o with
-   | None -> "(* NONE => "^(typ_to_string ty)^" *) "^(
+   | None -> ("(* NONE => "^(typ_to_string ty)^" *) "^(
       match s with
       | SimpleSubpattern(_,a,Options(_,_,_,_,_,_,Some(EmptyCode(_)),_)) -> ""
       | SimpleSubpattern(_,a,Options(_,_,_,_,_,_,Some(Code(_,s)),_)) ->
@@ -399,10 +410,11 @@ let get_str_code (v1o : string option) (ty : typ) (s : subpattern) (prefix : str
       | RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,Some(Code(_,s)),_)) ->
          "^(let s = \""^s1^" "^s2^"\" in ignore s; "^s^")"
       | SimpleSubpattern(_,a,Options(_,_,_,_,_,_,None,_)) -> get_atom_str a true
-      | RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,None,_)) -> "^\""^s1^" "^s2^"\""
-   )
-   | Some(v1) -> "(* TODO "^v1^" => "^(typ_to_string ty)^" *)"^(
-      let tf = get_str_fun ty prefix in
+      | RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,None,_)) -> "^\""^s1^" "^s2^"\""),
+      "")
+   | Some(v1) ->
+      let (tf,eqo) = get_str_fun ty prefix in
+      ("(* TODO "^v1^" => "^(typ_to_string ty)^" *)"^(
       match (s,tf) with
       | (SimpleSubpattern(_,a,Options(_,_,_,_,_,_,Some(EmptyCode(_)),_)),_) -> ""
       | (SimpleSubpattern(_,a,Options(_,_,_,_,_,_,Some(Code(_,s)),_)),_) ->
@@ -413,8 +425,10 @@ let get_str_code (v1o : string option) (ty : typ) (s : subpattern) (prefix : str
       | (SimpleSubpattern(_,a,Options(_,_,_,_,_,_,None,_)),Some(fn)) -> "^("^fn^" "^v1^")"
       | (SimpleSubpattern(_,a,Options(_,_,_,_,_,_,None,_)),None) -> get_atom_str a true
       | (RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,None,_)),Some(fn)) -> "^("^fn^" "^v1^")"
-      | (RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,None,_)),None) -> "^\""^s1^" "^s2^"\""
-   )
+      | (RecursiveSubpattern(_,s1,s2,Options(_,_,_,_,_,_,None,_)),None) -> "^\""^s1^" "^s2^"\""),
+      (match eqo with
+      | None -> ""
+      | Some(eq) -> eq))
 ;;
 
 let rec generate_ast_code file prefix g =
@@ -508,44 +522,49 @@ and generate_ast_subpattern_code (file : out_channel) (prefix : string) (flag : 
   let the_code = (fun s -> ("&& (let s = "^v1^" in let t = "^v2^" in ignore s; ignore t; "^s^")")) in
   match s with
   | SimpleSubpattern(ps,a,Options(_,o,_,_,None,_,_,eqco)) ->
-    let (flg,str,eq_code) = (if (is_subpattern_flat s) then (
+    let (t,xxx,eq_code) = (if (is_subpattern_flat s) then (
        let t = (get_subpattern_default_type s) in
-       (true,t,"(eq_base "^v1^" "^v2^")") (* TODO XXX - this eq_base should be generated via a function, based on type t *)
+       let (str,eq) = get_str_code (Some(v1)) t s prefix in
+       (t,str,"("^eq^" "^v1^" "^v2^")") (* TODO XXX - this eq_base should be generated via a function, based on type t *)
     ) else (
-       let (str,eq_code) = (generate_ast_atom_code file prefix a o k) in (true,str,eq_code)
+       let (t,eq_code) = (generate_ast_atom_code file prefix a o k) in
+       let (str,eq) = get_str_code (Some(v1)) t s prefix in
+       (t,str,eq_code)
     )) in
     let eq_code2 = (match eqco with
     | Some(EmptyCode(_)) -> ""
     | Some(Code(_,s)) -> the_code s
     | _ -> "&& "^eq_code) in
-    (flg,(f^(typ_to_string str)),get_str_code (Some(v1)) str s prefix, eq_code2)
+    (true,(f^(typ_to_string t)), xxx, eq_code2)
   | SimpleSubpattern(_,_,Options(_,_,_,_,Some(UnitType(_)),_,_,_)) -> 
      let t = (get_subpattern_default_type s) in
-     (flag,"", get_str_code None t s prefix, "")
+     (flag,"", fst (get_str_code None t s prefix), "")
   | SimpleSubpattern(_,a,Options(_,o,_,_,Some(t),_,_,eqco)) -> (* MATCHING: t should not be a unit type!!!! *)
     let t2 = t in
+    let (xxx,eq) = get_str_code (Some(v1)) t2 s prefix in
     let eq_code = (match eqco with
-    | None -> "&& (eq_base "^v1^" "^v2^")" (* TODO XXX *)
+    | None -> "&& ("^eq^" "^v1^" "^v2^")" (* TODO XXX *)
     | Some(EmptyCode(_)) -> ""
     | Some(Code(_,s)) -> the_code s) in
-    (true, (f^(typ_to_stripped_string t2 (prefix^"ast"))), get_str_code (Some(v1)) t2 s prefix, ""^eq_code^"") (* TODO - remove_from_front works? *)
+    (true, (f^(typ_to_stripped_string t2 (prefix^"ast"))), xxx, ""^eq_code^"") (* TODO - remove_from_front works? *)
   | RecursiveSubpattern(p,a1,a2,Options(_,o,_,_,None,_,_,eqco)) ->
     let t2 = IdentType(p,("string",[])) in
     let eq_code = (match eqco with
     | None -> "&& (eq_base "^v1^" "^v2^")"
     | Some(EmptyCode(_)) -> ""
     | Some(Code(_,s)) -> the_code s) in
-    (true, (f^(typ_to_string t2)), get_str_code (Some(v1)) t2 s prefix, eq_code)
+    (true, (f^(typ_to_string t2)), fst (get_str_code (Some(v1)) t2 s prefix), eq_code)
   | RecursiveSubpattern(_,_,_,Options(_,_,_,_,Some(UnitType(_)),_,_,_)) -> 
      let t = (get_subpattern_default_type s) in
-     (flag,"", get_str_code None t s prefix, "")
+     (flag,"", fst (get_str_code None t s prefix), "")
   | RecursiveSubpattern(_,a1,a2,Options(_,o,_,_,Some(t),_,_,eqco)) ->
     let t2 = t in
+    let (xxx,eq) = get_str_code (Some(v1)) t2 s prefix in
     let eq_code = (match eqco with
-    | None -> "&& (eq_base "^v1^" "^v2^")" (* TODO XXX *)
+    | None -> "&& ("^eq^" "^v1^" "^v2^")" (* TODO XXX *)
     | Some(EmptyCode(_)) -> ""
     | Some(Code(_,s)) -> the_code s) in
-    (true,(f^(typ_to_stripped_string t2 (prefix^"ast"))),get_str_code (Some(v1)) t2 s prefix, eq_code)
+    (true,(f^(typ_to_stripped_string t2 (prefix^"ast"))), xxx, eq_code)
 (* returns (is_ast_type,code) *)
 and generate_ast_atom_code file prefix (a : atom) (o : op option) (k : int) : (typ * string) =
   let i = (string_of_int k) in
@@ -931,8 +950,25 @@ let generate_utils_code file g =
   output_string file ";;\n";
   output_string file "\n";
   output_string file "let eq_base (a : 'a) (b : 'a) : bool = (a = b) ;;\n";
+  output_string file "let rec eq_option (f : 'a -> 'a -> bool) (a : 'a option) (b : 'a option) : bool =\n";
+  output_string file "   match (a,b) with\n";
+  output_string file "   | (None,None) -> true\n";
+  output_string file "   | (Some(a),Some(b)) -> (f a b)\n";
+  output_string file "   | _ -> false\n";
+  output_string file ";;\n";
   output_string file "let eq_pair (f1 : 'a -> 'a -> bool) (f2 : 'b -> 'b -> bool) ((p1a,p1b) : 'a * 'b) ((p2a,p2b) : 'a * 'b) : bool = ((f1 p1a p2a) && (f2 p1b p2b)) ;;\n";
   output_string file "let eq_list (f : 'a -> 'a -> bool) (l1 : 'a list) (l2 : 'a list) : bool = try List.fold_left2 (fun res l1i l2i -> res && (f l1i l2i)) true l1 l2 with _ -> false;;\n";
+  output_string file "\n";
+  output_string file "let rec str_option (f : 'a -> string) (o : 'a option) : string =\n";
+  output_string file "   match o with\n";
+  output_string file "   | None -> \"\"\n";
+  output_string file "   | Some(a) -> (f a)\n";
+  output_string file ";;\n";
+  output_string file "\n";
+  output_string file "let rec str_pair (f : 'a -> string) (g : 'b -> string) ((a,b) : ('a * 'b)) : string =\n";
+  output_string file "   (f a);\n";
+  output_string file "   (g b)\n";
+  output_string file ";;\n";
   output_string file "\n";
   output_string file "let rec str_list (f : 'a -> string) (l : 'a list) : string =\n";
   output_string file "   str_list_helper f l true\n";
