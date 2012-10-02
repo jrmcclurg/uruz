@@ -812,6 +812,16 @@ and is_subpatterns_flat_helper (sp : subpatterns) (first : bool) : bool =
    is_string_empty (strip_ocaml_comments s)
 ;;*)
 
+let is_production_empty (p : production) : bool = 
+   match p with
+   | Production(_,_,pa,pal) -> 
+      List.fold_left (fun res pa ->
+         match pa with
+         | Pattern(_,_,_,_,Code(_,_),_,_) -> false
+         | _ -> res
+      ) true (pa::pal)
+;;
+
 (** {b Functions for handling charsets} *)
 
 let rec compile_char_list (cl: char list) : chars list = 

@@ -1,3 +1,2 @@
-3. The flattening needs to generate the correct eq_ and str_ code for each expanded thing
-4. Maybe add support for detecting AST types and using the appropriate eq_ and str_ functions
-  (finished for str_, now adding eq_)
+1. The flattening needs to generate the correct eq_ and str_ code for each expanded thing (maybe fixed?)
+2. Fix the comments stripping

@@ -5,34 +5,33 @@
 
 {
    let add_ints a b = a + b;;
-   let my_test a = ();;
    let test_cmp a b = match (a,b) with
      | (x,y) -> x = y
    ;;
 }
 
-Program   ->   "mod" <:() @{}> Integer <:int> "begin" <:() @{String.uppercase s}>
-               Statement* <:(int list)> "end" <:()> eof
+Program   ->   "mod" <:() @{s^" "}> Integer <:int>
+               "begin" <:() @{"\n"^s}>
+               Statement* <:(int list) @{List.fold_left (fun res i -> res^"\n"^(string_of_int i)) "" s}>
+               "end" <:() @{"\n"^s}> eof
 	       { Program(NoPos,$2,List.map (fun i -> i mod $2) $4) } ;
 
-Statement -> Expr <:(int)> ';' <:()@{}> { $1 } ;
+Statement -> Expr <:int> ';' <:()@{}> { $1 } ;
 
-Expr      -> Integer <:int>                                  : IntExpr  { $1 }
-           | Expr <:int ={(*let f = fun a b -> a = b in f*)}> "+" <:() left> Expr <:int> : PlusExpr { add_ints $1 $3 } ;
+Expr      -> Integer <:int>                         : IntExpr  { $1 }
+           | Expr <:int> "+" <:() left> Expr <:int> : PlusExpr { add_ints $1 $3 } ;
 
 Integer -> ('0' | [1-9] [0-9]*) <{int_of_string s}:int> { $1 } ;
 
-SingleComm -> ("//" [^\n]*) <{my_test s}:()> : ;  /* throw away single-line comments */
-MultiComm  -> "/*" .. "*/" <{}:()@{"COMMENT"}> : CommentTest ;  /* throw away recursive multiline comments */
+SingleComm -> "//" [^\n]* <{}:()> : {};  /* throw away single-line comments */
+MultiComm  -> "/*" .. "*/" <{}:()> : {};  /* throw away recursive multiline comments */
 
-TestThingss -> TestThing2 ? ;
-TestThing1 -> "one" <{1}:int> "two" <{false}:bool> ;
-TestThing2 -> ("two" <{222}:int> | "three" <{3.14}:float>) * ;
-TestThing3 -> (TestThing4 | TestThing2) + ;
-TestThing4 -> "four" ? <={test_cmp s t}>;
-TestThing5 -> [abcdef;]\'a' <:()> ;
+Blanks -> [\r\n\t ]* <{}:()> : {};
 
-Blanks -> ((([\r\n\t ]))) <{}:()> : ;
+/*TestThing -> "one" ;
+TestThing2 -> "two" * ;
+TestThing3 -> TestThing4 + ;
+TestThing4 -> "four" ? ;*/
 
 {
    (* this is the trailer *)

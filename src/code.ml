@@ -670,9 +670,9 @@ let generate_parser_code file prefix g (h : ((string*((string*int) option)*typ o
    output_string file "%start main /* the entry point */\n";
    output_string file ("%type <"^prefix^"ast."^(get_production_type_name name)^"> main\n");
    output_string file "%%\n";
-   let _ = List.fold_left (fun n ((Production(p2,name,pa,pal)) (*as pr*)) ->
+   let _ = List.fold_left (fun n ((Production(p2,name,pa,pal)) as pr) ->
       (* made sure (via parser) that the first production is non-empty *)
-      (*if (not (is_production_empty pr)) then begin*)
+      if (not (is_production_empty pr)) then begin
          let name2 = if n = 1 then "main" else (output_string file "\n"; (get_production_type_name name)) in
          output_string file (name2^":\n");
          let _ = List.fold_left (fun k (Pattern(_,sl,_,ef,cd,i,asc)) ->
@@ -697,7 +697,7 @@ let generate_parser_code file prefix g (h : ((string*((string*int) option)*typ o
          ) 1 (pa::pal) in 
          output_string file ";\n";
          n+1
-      (*end else n*)
+      end else n
    ) 1 (prodf::prodl) in ();
    output_string file "\n";
    output_string file "%%\n";
@@ -966,7 +966,7 @@ let generate_utils_code file g =
   output_string file ";;\n";
   output_string file "\n";
   output_string file "let rec str_pair (f : 'a -> string) (g : 'b -> string) ((a,b) : ('a * 'b)) : string =\n";
-  output_string file "   (f a);\n";
+  output_string file "   (f a)^\n";
   output_string file "   (g b)\n";
   output_string file ";;\n";
   output_string file "\n";

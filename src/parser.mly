@@ -72,7 +72,7 @@ pattern:
       let p = get_current_pos () in
       let c = (match $4 with
       | Some(cd) -> cd
-      | _ -> EmptyCode(p)) in
+      | _ -> Code(p,"")) in (* was EmptyCode *)
       let (l,(pr,assoc)) = $3 in Pattern(get_current_pos (),$1,l,$2,c,pr,assoc)
    }
 ;
