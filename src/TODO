@@ -1,2 +1,5 @@
 1. The flattening needs to generate the correct eq_ and str_ code for each expanded thing (maybe fixed?)
 2. Fix the comments stripping
+3. CodeBlock -> ('{' .. '}') : Code   { Code(get_current_pos (),$1) } ;
+   doesnt work for some reason!
+4. When there's no code block on a Pattern, put in a default one!

@@ -966,7 +966,7 @@ let generate_utils_code file g =
   output_string file ";;\n";
   output_string file "\n";
   output_string file "let rec str_pair (f : 'a -> string) (g : 'b -> string) ((a,b) : ('a * 'b)) : string =\n";
-  output_string file "   (f a)^\n";
+  output_string file "   (f a)^\" \"^\n";
   output_string file "   (g b)\n";
   output_string file ";;\n";
   output_string file "\n";

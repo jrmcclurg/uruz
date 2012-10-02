@@ -10,7 +10,20 @@
    ;;
 }
 
-Program   ->   "mod" <:() @{s^" "}> Integer <:int>
+Grammar -> CodeBlock Production+ CodeBlock eof { Grammar(get_current_pos (),$1,$2,$3) };
+
+CodeBlock ->                            : NoCode    { NoCode(get_current_pos ()) }
+           | ('{' [\n\r\t ]* '}') <:()> : EmptyCode { EmptyCode(get_current_pos ()) }
+           | '{' .. '}' <@{"'"^s^"'"}>  : Code      { Code(get_current_pos (),$1) } ;
+
+Production -> "hello" { Production(get_current_pos (),$1) } ;
+
+SingleComm -> ("//" [^\n]*) <{}:()> : {};  /* throw away single-line comments */
+MultiComm  -> "/*" .. "*/" <{}:()> : {};  /* throw away recursive multiline comments */
+
+Blanks -> [\r\n\t ]* <{}:()> : {};
+
+/* Program   ->   "mod" <:() @{s^" "}> Integer <:int>
                "begin" <:() @{"\n"^s}>
                Statement* <:(int list) @{List.fold_left (fun res i -> res^"\n"^(string_of_int i)) "" s}>
                "end" <:() @{"\n"^s}> eof
@@ -21,12 +34,8 @@ Statement -> Expr <:int> ';' <:()@{}> { $1 } ;
 Expr      -> Integer <:int>                         : IntExpr  { $1 }
            | Expr <:int> "+" <:() left> Expr <:int> : PlusExpr { add_ints $1 $3 } ;
 
-Integer -> ('0' | [1-9] [0-9]*) <{int_of_string s}:int> { $1 } ;
+Integer -> ('0' | [1-9] [0-9]*) <{int_of_string s}:int> { $1 } ;*/
 
-SingleComm -> ("//" [^\n]*) <{}:()> : {};  /* throw away single-line comments */
-MultiComm  -> "/*" .. "*/" <{}:()> : {};  /* throw away recursive multiline comments */
-
-Blanks -> [\r\n\t ]* <{}:()> : {};
 
 /*TestThing -> "one" ;
 TestThing2 -> "two" * ;
