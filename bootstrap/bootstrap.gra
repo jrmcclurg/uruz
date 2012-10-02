@@ -13,7 +13,7 @@
 Grammar -> CodeBlock Production+ CodeBlock eof { Grammar(get_current_pos (),$1,$2,$3) };
 
 CodeBlock ->                            : NoCode    { NoCode(get_current_pos ()) }
-           | ('{' [\n\r\t ]* '}') <:()> : EmptyCode { EmptyCode(get_current_pos ()) }
+           | ('{' [ \n\r\t]* '}') <:()> : EmptyCode { EmptyCode(get_current_pos ()) }
            | '{' .. '}' <@{"'"^s^"'"}>  : Code      { Code(get_current_pos (),$1) } ;
 
 Production -> Pattern 
