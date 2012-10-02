@@ -774,7 +774,7 @@ and is_subpattern_flat_helper (s : subpattern) (first : bool) : bool =
    | SimpleSubpattern(_,a1,Options(_,_,_,_,None,_,_,_)) -> is_atom_flat_helper a1 first
    | SimpleSubpattern(_,a1,Options(_,_,_,_,Some(UnitType(_)),_,_,_)) -> is_atom_flat_helper a1 first
    | SimpleSubpattern(_,a1,Options(_,_,_,_,Some(_),_,_,_)) -> if first then is_atom_flat_helper a1 first else false
-   | RecursiveSubpattern(_,a1,a2,_) -> false (*(is_atom_flat a1) && (is_atom_flat a2)*)
+   | RecursiveSubpattern(_,a1,a2,_) -> first (*(is_atom_flat a1) && (is_atom_flat a2)*)
    ) in
    result
 
@@ -783,7 +783,7 @@ and is_atom_flat (a : atom) : bool =
 
 and is_atom_flat_helper (a : atom) (first : bool) : bool =
    match a with
-   | IdentAtom(_,s) -> false
+   | IdentAtom(_,s) -> first
    | StringAtom(_,s) -> true
    | CharsetsAtom(_,cs) -> true
    | ChoiceAtom(_,sp,spl) ->
@@ -793,8 +793,8 @@ and is_atom_flat_helper (a : atom) (first : bool) : bool =
          else false
       ) true (sp::spl)
 
-and is_subpatterns_flat (sp : subpatterns) : bool =
-   is_subpatterns_flat_helper sp true
+(*and is_subpatterns_flat (sp : subpatterns) : bool =
+   is_subpatterns_flat_helper sp true*)
 
 and is_subpatterns_flat_helper (sp : subpatterns) (first : bool) : bool =
    match sp with

@@ -51,85 +51,116 @@ let create_file filename =
   open_out filename
 ;;
 
-let rec flatten_grammar g = 
+(* most of these flatten functions return something of the form
+   (xxx * pattern list * bool), i.e.
+   (new expression * list of pulled-out patterns * is static (i.e. no non-terminals on RHS?
+*)
+let rec flatten_grammar (g : grammar) : (grammar * bool) = 
   match g with
   | Grammar(p,c1,c2,px,pl) ->
-    let pl2 = List.fold_right (fun pr l -> (flatten_production pr)@l) (px::pl) [] in
-    Grammar(p,c1,c2,List.hd pl2,List.tl pl2)
-and flatten_production p = 
+    let (pl2,static) = List.fold_right (fun pr (l,static) -> 
+       let (pr2,static2) = flatten_production pr in
+       (pr2@l, static && static2)
+    ) (px::pl) ([],true) in
+    (Grammar(p,c1,c2,List.hd pl2,List.tl pl2), static)
+
+and flatten_production (p : production) : (production list * bool) = 
   match p with
-  | Production(p,s,px,plx) -> let pl = px::plx in let (npl,nl) =
-    List.fold_right (fun p (pl2,l) -> let (p2,e) = flatten_pattern s p in (p2::pl2,e@l)) pl ([],[]) in
-    Production(p,s,List.hd npl,List.tl npl)::nl
-and flatten_pattern prefix p = 
+  | Production(p,s,px,plx) ->
+    let pl = px::plx in
+    let (npl,nl,static) =
+    List.fold_right (fun p (pl2,l,static) ->
+       let (p2,e,static2) = flatten_pattern s p in
+       (p2::pl2,e@l,static2 && static)
+    ) pl ([],[],true) in
+    (Production(p,s,List.hd npl,List.tl npl)::nl, static)
+
+and flatten_pattern (prefix : string) (p : pattern) : (pattern * production list * bool) = 
   match p with
-  | Pattern(p,slx,label,eof,c,i,asc) -> let sl = slx in let (nsl,nl,_,_) =
+  | Pattern(p,slx,label,eof,c,i,asc) ->
+    let sl = slx in
     let len = List.length sl in
-    List.fold_right (fun s (sl2,l,n,flag) ->
-       (* NOTE - pull out range patterns *)
-       (* NOTE - pull out *,+,?-modified stuff *)
+    let (nsl,nl,_,_,static) =
+    List.fold_right (fun s (sl2,l,n,last,static) ->
        let new_pref = (prefix^"_"^(string_of_int n)) in
-       match s with
-       | RecursiveSubpattern(rp,ra1,ra2,ro) ->
-          if flag then (s::sl2, l, n-1, false)
-          else ((SimpleSubpattern(rp,IdentAtom(rp,new_pref),Options(rp,None,None,None,None,None,None,None)))::sl2,
-          [Production(rp,new_pref,Pattern(rp,[s],None,false,Code(rp,""),None,None),[])]@l, n-1, false)
-       | SimpleSubpattern(rp,IdentAtom(rp2,name),Options(rp3,Some(o),o1,o2,typo,o5,o6,o7)) ->
-          let the_typename = (get_production_type_name name) in
-          let (nm,e,tp) = (match o with
-          | StarOp(_) ->
-             let nm = (new_pref^"_list") in
-             (nm,[Production(rp,nm,Pattern(rp,[],Some(EmptyName(rp)),false,Code(rp," [] "),None,None),
-                                  [Pattern(rp,[s;
-                                  SimpleSubpattern(rp,IdentAtom(rp,nm),Options(rp,None,None,None,None,None,None,None))],
-                                  Some(EmptyName(rp)),false,Code(rp," $1::$2 "),None,None)])],
-              ConstrType(rp3, (IdentType(rp3,(the_typename,[])),[]), ("list",[])))
-          | PlusOp(_) ->
-             let nm = (new_pref^"_pair") in
-             (nm,[Production(rp,nm,Pattern(rp,[s],Some(EmptyName(rp)),false,(Code(rp," ($1,[]) ")),None,None),
-                                  [Pattern(rp,[s;
-                                  SimpleSubpattern(rp,IdentAtom(rp,nm),Options(rp,None,None,None,None,None,None,None))],
-                                  Some(EmptyName(rp)),false,(Code(rp," let (h,l) = $2 in ($1,h::l) ")),None,None)])],
-              TupleType(rp3, (IdentType(rp3,(the_typename,[])),[ConstrType(rp3,(IdentType(rp3,(the_typename,[])),[]),("list",[]))])))
-          | QuestionOp(_) ->
-             let nm = (new_pref^"_opt") in
-             (nm,[Production(rp,nm,Pattern(rp,[],Some(EmptyName(rp)),false,Code(rp," None "),None,None),
-                                  [Pattern(rp,[s],
-                                  Some(EmptyName(rp)),false,Code(rp," Some($1) "),None,None)])],
-              ConstrType(rp3, (IdentType(rp3,(the_typename,[])),[]), ("option",[])))
-          ) in
-          let use_type = (match typo with
-          | None -> Some(tp)
-          | _ -> typo) in
-          ((SimpleSubpattern(rp,IdentAtom(rp2,nm),Options(rp3,None,o1,o2,use_type,o5,o6,o7)))::sl2, e@l, n-1, false)
-       | _ ->
-          let (s2,e) = flatten_subpattern new_pref s in (s2::sl2,e@l,n-1,false)
-    ) sl ([],[],len,true) in
-    (Pattern(p,nsl,label,eof,c,i,asc),nl)
-and flatten_subpattern prefix s = 
-  if (is_subpattern_flat s) then (s,[])
-  else
+       let (s2,e,static2) = flatten_subpattern new_pref s last in (s2::sl2,e@l,n-1,false,static2 && static)
+    ) sl ([],[],len,true,true) in
+    (Pattern(p,nsl,label,eof,c,i,asc), nl, static)
+
+and flatten_subpattern (prefix : string) (s : subpattern) (last : bool) : (subpattern * production list * bool) = 
+  (*if (is_subpattern_flat_helper s first) then (s,[])
+  else*)
   match s with
-  | SimpleSubpattern(p,a,o)    -> let (a2,nl) = flatten_atom prefix a in (SimpleSubpattern(p,a2,o),nl)
-  | RecursiveSubpattern(p,a1,a2,o) -> (s,[])
-and flatten_atom prefix a = 
+       | RecursiveSubpattern(rp,ra1,ra2,ro) ->
+          if last then (s, [], true)
+          else ((SimpleSubpattern(rp,IdentAtom(rp,prefix),Options(rp,None,None,None,None,None,None,None))),
+          [Production(rp,prefix,Pattern(rp,[s],None,false,Code(rp,""),None,None),[])],false)
+       | SimpleSubpattern(rp,atm,(Options(rp3,Some(o),o1,o2,typo,o5,o6,o7) as opt)) ->
+          let (atm2,pl,static) = flatten_atom prefix atm in (* the "flatten_atom" will always return IdentAtom or a static token for "atm2" *)
+          let sub2 = SimpleSubpattern(rp,atm2,opt) in
+          (match atm2 with
+          | IdentAtom(rp2,name) ->
+            let the_typename = (get_production_type_name name) in
+            let (nm,e,tp) = (match o with
+            | StarOp(_) ->
+               let nm = (prefix^"_list") in
+               (nm,[Production(rp,nm,Pattern(rp,[],Some(EmptyName(rp)),false,Code(rp," [] "),None,None),
+                                    [Pattern(rp,[sub2;
+                                    SimpleSubpattern(rp,IdentAtom(rp,nm),Options(rp,None,None,None,None,None,None,None))],
+                                    Some(EmptyName(rp)),false,Code(rp," $1::$2 "),None,None)])],
+                ConstrType(rp3, (IdentType(rp3,(the_typename,[])),[]), ("list",[])))
+            | PlusOp(_) ->
+               let nm = (prefix^"_pair") in
+               (nm,[Production(rp,nm,Pattern(rp,[sub2],Some(EmptyName(rp)),false,(Code(rp," ($1,[]) ")),None,None),
+                                    [Pattern(rp,[sub2;
+                                    SimpleSubpattern(rp,IdentAtom(rp,nm),Options(rp,None,None,None,None,None,None,None))],
+                                    Some(EmptyName(rp)),false,(Code(rp," let (h,l) = $2 in ($1,h::l) ")),None,None)])],
+                TupleType(rp3, (IdentType(rp3,(the_typename,[])),[ConstrType(rp3,(IdentType(rp3,(the_typename,[])),[]),("list",[]))])))
+            | QuestionOp(_) ->
+               let nm = (prefix^"_opt") in
+               (nm,[Production(rp,nm,Pattern(rp,[],Some(EmptyName(rp)),false,Code(rp," None "),None,None),
+                                    [Pattern(rp,[sub2],
+                                    Some(EmptyName(rp)),false,Code(rp," Some($1) "),None,None)])],
+                ConstrType(rp3, (IdentType(rp3,(the_typename,[])),[]), ("option",[])))
+            ) in
+            let use_type = (match typo with
+            | None -> Some(tp)
+            | _ -> typo) in
+            ((SimpleSubpattern(rp,IdentAtom(rp2,nm),Options(rp3,None,o1,o2,use_type,o5,o6,o7))), e@pl, false)
+          | _ -> (sub2,pl,static))
+  | SimpleSubpattern(p,a,o) ->
+    let (a2,nl,static) = flatten_atom prefix a in
+    (SimpleSubpattern(p,a2,o),nl,static)
+
+and flatten_atom (prefix : string) (a : atom) : (atom * production list * bool) = 
   match a with
   | ChoiceAtom(p,spx,splx) ->
     let spl = spx::splx in
-    let (nspl,nl,_) =
-    (* here's where we expand things *)
-    List.fold_right (fun sp (spl2,l,n) ->
-      let (sp2,e) = flatten_subpatterns (prefix^"_"^(string_of_int n)) sp in (sp2::spl2,e@l,n-1)
-    ) spl ([],[],List.length spl) in
-    if (List.length spl) = 1 then (a,[]) else
-    let temp = List.map (fun (Subpatterns(pa,x,l)) -> Pattern(pa,(x::l),None,false,Code(pa,""),None,None)) nspl (* TODO *) in
-    (IdentAtom(p,prefix),Production(p,prefix,List.hd temp,List.tl temp)::nl)
-  | _                -> (a,[])
-and flatten_subpatterns prefix sp = 
+    let (nspl,nl,_,static) =
+    (* NOTE: here's where we expand things *)
+    List.fold_right (fun sp (spl2,l,n,static) ->
+      let (sp2,e,static2) = flatten_subpatterns (prefix^"_"^(string_of_int n)) sp in
+      (sp2::spl2,e@l,n-1,static2 && static)
+    ) spl ([],[],List.length spl,true) in
+    (*if (List.length spl) = 1 then (a,[]) else*)
+    (*if (List.length nl) = 0 then (a,[]) else*)
+    if static then (a,[],true) else (* << TODO - don't know if this line should be here! *)
+    let temp = List.map (fun (Subpatterns(pa,x,l)) ->
+      Pattern(pa,(x::l),None,false,Code(pa,""),None,None)
+    ) nspl in
+    (IdentAtom(p,prefix),Production(p,prefix,List.hd temp,List.tl temp)::nl, static)
+  | IdentAtom(_,s) -> (a,[],false)
+  | _ -> (a,[],true)
+
+and flatten_subpatterns (prefix : string) (sp : subpatterns) : (subpatterns * production list * bool) = 
   match sp with
-  | Subpatterns(p,sx,sl) -> let (nsl,nl) =
-    List.fold_right (fun s (sl2,l) -> let (s2,e) = flatten_subpattern prefix s in (s2::sl2,e@l)) (sx::sl) ([],[]) in
-    (Subpatterns(p,List.hd nsl,List.tl nsl),nl)
+  | Subpatterns(p,sx,sl) ->
+    let (nsl,nl,_,static) =
+    List.fold_right (fun s (sl2,l,last,static) ->
+      let (s2,e,static2) = flatten_subpattern prefix s last in
+      (s2::sl2,e@l,false,static2 && static)
+    ) (sx::sl) ([],[],true,true) in
+    (Subpatterns(p,List.hd nsl,List.tl nsl),nl,static)
 ;;
 
 let rec get_terminals_grammar (g : grammar)
@@ -380,10 +411,11 @@ and get_subpatterns_str_helper (sp : subpatterns) : string option =
    match sp with
    | Subpatterns(_,s,sl) ->
       List.fold_left (fun r s ->
-         match r with
-         | None -> None
-         | _ -> get_subpattern_str_helper s
-      ) (Some("")) (s::sl)
+         match (r,get_subpattern_str_helper s) with
+         | (None,s) -> s
+         | (Some(s1),Some(s2)) -> Some(s1^s2)
+         | (s,None) -> s
+      ) None (s::sl)
 and get_subpattern_str_helper (s : subpattern) : string option =
    match s with
    | SimpleSubpattern(_,a,_) -> get_atom_str_helper a false
@@ -675,24 +707,29 @@ let generate_parser_code file prefix g (h : ((string*((string*int) option)*typ o
       if (not (is_production_empty pr)) then begin
          let name2 = if n = 1 then "main" else (output_string file "\n"; (get_production_type_name name)) in
          output_string file (name2^":\n");
-         let _ = List.fold_left (fun k (Pattern(_,sl,_,ef,cd,i,asc)) ->
+         let one = ((List.length pal) = 0) in
+         let _ = List.fold_left (fun k (Pattern(_,sl,name_opt,ef,cd,i,asc)) ->
             output_string file "   |";
-            let _ = List.fold_left (fun j s ->
-               let str = (try let (x,_,_,_) = SubpatternHashtbl.find h s in (" "^x) with _ -> 
+            let (_,params) = List.fold_left (fun (j,params) s ->
+               let (str,param) = (try let (x,_,(ty : typ option),_) = SubpatternHashtbl.find h s in (" "^x,(match ty with None -> "" | _ -> ", $"^(string_of_int j))) with _ -> 
                   match s with
-                  | SimpleSubpattern(_,IdentAtom(_,name),_) -> (" "^(get_production_type_name name))
-                  | _ -> "XXX" (* TODO - this should never happen - do error? *)
+                  | SimpleSubpattern(_,IdentAtom(_,name),Options(_,_,_,_,ty,_,_,_)) ->
+                     (" "^(get_production_type_name name),(match ty with Some(UnitType(_)) -> "" | _ -> ", $"^(string_of_int j)))
+                  | _ -> ("XXX","") (* TODO - this should never happen - do error? *)
                ) in
                output_string file (str);
-               j+1
-            ) 1 sl in
+               (j+1,params^param)
+            ) (1,"") sl in
             if ef then output_string file " EOF";
             (* TODO - add precedence *)
             output_string file " {";
             (match cd with
             | EmptyCode(_) -> ()
-            | Code(_,s) -> output_string file s);
-            output_string file "}\n";
+            | Code(_,s) -> output_string file (if (is_string_empty s) then (match name_opt with
+              | Some(EmptyName(_)) -> ""
+              | Some(Name(_,name)) -> " "^name^"(get_current_pos()"^params^") "
+              | _ -> (" "^name^(if one then "" else ("_"^(string_of_int k)))^"(get_current_pos()"^params^") ")) else s));
+            output_string file ("}\n");
             k+1
          ) 1 (pa::pal) in 
          output_string file ";\n";
@@ -766,7 +803,7 @@ let rec generate_lexer_code file prefix g (h : (string*((string*int) option)*typ
 
 and generate_lexer_atom_code file a : bool =
    match a with
-   | IdentAtom(ps,s) -> false (* NOTE - this is only used to provide the %prec things to parser.mly,
+   | IdentAtom(ps,s) -> output_string file "XYZ"; false (* NOTE - this is only used to provide the %prec things to parser.mly, TODO XXX - get rid of XXX!!!
                                *        so just ignore it*)
    | StringAtom(_,s) -> output_string file ("\""^s^"\""); true
    | CharsetsAtom(_,SimpleCharsets(_,c)) -> generate_lexer_charset_code file c; true
@@ -1109,7 +1146,7 @@ let generate_code (*filename*) g2 =
   let prefix = get_prefix () in
   let prefix_up = String.capitalize prefix in
   let dir    = (!out_dir)^(Filename.dir_sep) in
-  let g = flatten_grammar g2 in
+  let (g,_) = flatten_grammar g2 in
   (try Unix.mkdir dir 0o755 with _ -> ());
   match g with
   | Grammar(_, c1, c2, px, plx) ->

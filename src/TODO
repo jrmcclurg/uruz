@@ -3,3 +3,4 @@
 3. CodeBlock -> ('{' .. '}') : Code   { Code(get_current_pos (),$1) } ;
    doesnt work for some reason!
 4. When there's no code block on a Pattern, put in a default one!
+5. check on the is_atom_flat in parser.mly (and change the is_xxx_flat to use the flatten_ functions instead )

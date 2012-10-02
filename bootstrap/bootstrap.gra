@@ -16,7 +16,11 @@ CodeBlock ->                            : NoCode    { NoCode(get_current_pos ())
            | ('{' [\n\r\t ]* '}') <:()> : EmptyCode { EmptyCode(get_current_pos ()) }
            | '{' .. '}' <@{"'"^s^"'"}>  : Code      { Code(get_current_pos (),$1) } ;
 
-Production -> "hello" { Production(get_current_pos (),$1) } ;
+Production -> Pattern 
+              ("&" Pattern)*
+              CodeBlock ';' <:()> { Production(get_current_pos (),$1,$2,$3) } ;
+
+Pattern -> "hello" <:()> { Pattern(get_current_pos ()) } ;
 
 SingleComm -> ("//" [^\n]*) <{}:()> : {};  /* throw away single-line comments */
 MultiComm  -> "/*" .. "*/" <{}:()> : {};  /* throw away recursive multiline comments */
