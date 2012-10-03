@@ -17,7 +17,7 @@ CodeBlock ->                            : NoCode    { NoCode(get_current_pos ())
            | '{' .. '}' <@{"'"^s^"'"}>  : Code      { Code(get_current_pos (),$1) } ;
 
 Production -> Pattern 
-              ("&" Pattern)*
+              ("&" <:()> Pattern)*
               CodeBlock ';' <:()> { Production(get_current_pos (),$1,$2,$3) } ;
 
 Pattern -> "hello" <:()> { Pattern(get_current_pos ()) } ;

@@ -1,0 +1,14 @@
+-- R2 mote triggers
+ON EVENT RECV(m)
+IF (m MATCHES M_SAMPLE) (
+LIGHT_SAMPLING_ON();
+SET num_ticks = 30;
+SEND(parent, M_L(light))
+)
+ON EVENT ONE_HZ_TICK
+IF (light_sampling_on) (
+SET num_ticks -= 1;
+IF (num_ticks == 0) (
+LIGHT_SAMPLING_OFF()
+)
+)

@@ -1,0 +1,124 @@
+// This is a comment
+/*
+  This is a multi-line comment
+*/
+
+{
+   let add_ints a b = a + b;;
+   let test_cmp a b = match (a,b) with
+     | (x,y) -> x = y
+   ;;
+}
+
+Program -> Trigger+ ;
+
+Trigger -> "ON" "EVENT" Event Test;
+
+Test -> "IF" Condition SimpleAction Else? ;
+
+Else -> "ELSE" ActionOrTest ;
+
+ActionOrTest -> SimpleAction
+              | Test ;
+
+SimpleAction ->                          : EmptyAction 
+              | Computation              : CompAction
+              | "SET" Var "+=" Value     : IncAction
+              | "SET" Var "-=" Value     : DecAction
+              | "SET" Var '=' Value      : SetAction
+              | "SELECT" Data From       : SelectAction
+              | '(' ActionList ')' : SeqAction ;
+
+ActionList -> Action
+            | Action ';' ActionList ;
+
+Action -> SimpleAction
+        | Test              : TestAction ;
+
+From -> 
+      | "FROM" VarOper ;
+
+Computation -> VarOper '(' Params? ')' ;
+
+Param -> Const
+       | Var
+       | VarOper
+       | Computation ;
+
+Params -> Param
+        | Param ',' Params ;
+
+Data -> Value
+      | "AVG" '(' Var ')'
+      | "MIN" '(' Var ')'
+      | "MAX" '(' Var ')'
+      | '(' Data ')' ;
+
+Condition -> Data
+           | '(' Var "MATCHES" Pattern ')'
+           | BinCondition ;
+
+BinCondition -> ConditionVal '<' ConditionVal
+              | ConditionVal '>' ConditionVal
+              | ConditionVal "<=" ConditionVal
+              | ConditionVal ">=" ConditionVal
+              | ConditionVal "==" ConditionVal
+              | '(' BinCondition ')' ;
+
+ConditionVal -> Data
+              /*| Computation*/ ;
+
+Event -> SimpleEvent
+       | Condition ;
+
+SimpleEvent -> Pattern 
+             | '(' SimpleEvent ')' ;
+
+Pattern -> VarOper
+         | VarOper '(' Bindings? ')' ;
+
+Bindings -> VarName
+          | VarName ',' Bindings ;
+
+Value -> Const
+       | TimeVar ;
+
+Bool -> "TRUE"
+      | "FALSE" ;
+
+UnsignedInteger -> ('0' | [1-9] [0-9]*) ;
+
+Integer -> UnsignedInteger
+         | '-' UnsignedInteger ;
+
+Const -> Bool
+       | Integer
+       | Integer '.' UnsignedInteger ;
+
+Var -> TimeVar
+     | Region '.' TimeVar
+     | '{' VarList '}' ;
+
+TimeVar -> VarName
+         | VarName '[' Integer ',' Integer ']' ;
+
+VarList -> Var
+         | Var ',' VarList ;
+
+Region -> VarOper
+       | '{' VarOperList '}' ;
+
+VarOperList -> VarOper
+         | VarOper ',' VarOperList ;
+
+VarName -> ([a-z] [a-z0-9_]*) ;
+VarOper -> ([A-Z] [A-Z0-9_]*) ;
+
+SingleComm -> ("--" [^\n]*) <{}:()> : {};  /* throw away single-line comments */
+MultiComm  -> "/*" .. "*/" <{}:()> : {};  /* throw away recursive multiline comments */
+
+Blanks -> [\r\n\t ]* <{}:()> : {};
+
+{
+   (* this is the trailer *)
+}

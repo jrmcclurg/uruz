@@ -1,0 +1,9 @@
+-- R1 BaseStation trigger
+ON EVENT RECV(m)
+IF (m MATCHES M_TEMP(x)) (
+  ADD_TO_AVG(temp[0,0], x);
+  IF (AVG(temp[-30,0]) > 90) SEND(R2, M_LREQ)
+) ELSE IF (m MATCHES M_L(light)) (
+  SEND(children, M_INCFREQ);
+  SEND(parent, M_TL({temp}))
+)
