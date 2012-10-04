@@ -33,36 +33,39 @@
 \vspace{0.05in}
 \centerline{\Large { NWU-EECS-00-00}}
 \vspace{0.05in}
-\centerline{\Large { June 27, 2012}}
+\centerline{\Large { October 15, 2012}}
 \vspace{0.3in}
 
-\centerline{\Large {\bf Parser Generator Generator (PGG) -- a Tool for}}
+% Parser Generator Generator (PGG): A Tool for Rapid Parser Construction via EBNF Grammars
+\centerline{\Large {\bf Parser Generator Generator (PGG): A Tool for}}
 \centerline{\Large {\bf Rapid Parser Construction via EBNF Grammars}}
 \vspace{0.3in}
-\centerline{\large {\bf Jedidiah McClurg \hspace {0.2in} Goce Trajcevski}}
+\centerline{\large {\bf Jedidiah McClurg}}
+%  \hspace {0.2in} Goce Trajcevski
 \vspace{0.8in}
 
 \centerline{\large {\bf Abstract}}
 \vspace{0.15in}
-When developing programming languages, it is very important
-to get the syntax just right.  This involves first making a
-parser, and then adjusting the parser through many iterations
-as the language's grammar changes and evolves through the
-development.  Each time this happens, both the parser and
+Designing a Domain Specific Language (DSL) can be quite tedious,
+with large amounts of time and effort spent building successive
+iterations of the lexer and parser as the language evolves
+throughout the development process.
+Each time a syntactical change is made, both the lexer/parser and
 the Abstract Syntax Tree (AST) data structures and manipulation
-functionality needs to change.  This process can become very
-tiresome, and can take time away from development of the
+functions may change.  This process can become very
+time-consuming, and can distract from development of the
 language's functionality.  Thus, we have built the Parser
-Generator Generator (PGG) system to automate this unnecessary
-attention to the language syntax.  PGG takes a high-level
-grammar specification, in an expressive EBNF form, and
-produces the corresponding OCaml lexer/parser scripts, as
+Generator Generator (PGG) system to abstract away this unnecessary
+attention to the frontend implementation details.  PGG takes a high-level
+grammar specification in an expressive Extended Backus Naur Form (EBNF),
+and produces the corresponding OCaml lexer/parser scripts, as
 well as AST data structures and manipulation functions.  The
 tool can also emit the necessary skeleton code to allow
 PGG to be integrated into the build for the project.  This
 allows for projects where the entire lexing/parsing/AST
-frontend is specified in a highly-readable EBNF form.
+frontend is specified in a highly-readable EBNF form,
+and allows DSL developers to quicky get a prototype up and running.
 
 \vspace{0.5in}
-{\bf Keywords:} Parser, Lexer, AST, EBNF, OCaml
+{\bf Keywords:} Parser, Lexer, AST, EBNF Grammar, OCaml
 \end{document}

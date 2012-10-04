@@ -6,9 +6,9 @@
 %\addtolength{\textwidth}{1in}
 %\addtolength{\textheight}{1in}
 
-\title{Parser Generator Generator (PGG)}
+\title{Parser Generator Generator (PGG): A Tool for \\ Rapid Parser Construction via EBNF Grammars}
 \author{Jedidiah McClurg}
-\date{Month DD, YYYY}
+\date{October 15, 2012}
 \usepackage{amsmath,amscd}
 \usepackage{amsthm}
 \usepackage{amssymb}
@@ -26,14 +26,65 @@
 \begin{document}
 \maketitle
 
+\begin{abstract}
+Designing a Domain Specific Language (DSL) can be quite tedious,
+with large amounts of time and effort spent building successive
+iterations of the lexer and parser as the language evolves
+throughout the development process.
+Each time a syntactical change is made, both the lexer/parser and
+the Abstract Syntax Tree (AST) data structures and manipulation
+functions may change.  This process can become very
+time-consuming, and can distract from development of the
+language's functionality.  Thus, we have built the Parser
+Generator Generator (PGG) system to abstract away this unnecessary
+attention to the frontend implementation details.  PGG takes a high-level
+grammar specification in an expressive Extended Backus Naur Form (EBNF),
+and produces the corresponding OCaml lexer/parser scripts, as
+well as AST data structures and manipulation functions.  The
+tool can also emit the necessary skeleton code to allow
+PGG to be integrated into the build for the project.  This
+allows for projects where the entire lexing/parsing/AST
+frontend is specified in a highly-readable EBNF form,
+and allows DSL developers to quicky get a prototype up and running.
+\end{abstract}
+
 \section{Introduction}
 This is the introduction
 
-\section{Related Work}
-This is the related work \cite{raab1999controlled}
+\section{System Overview}
+This is the system overview.
 
-\section{Conclusion}
+\section{EBNF Input Language}
+This is about the language
+
+\section{Implementation}
+This talks about how the system is implemented.
+
+\section{Case Studies}
+\subsection{Simple Modulo Arithmetic Language}
+\subsection{PGG Bootstrap}
+
+\section{Related Work}
+This is the related work
+Simple Grammar Tools
+\cite{uiowa_gt} \cite{noonan_grammar}.
+\cite{visser2008webdsl} DSL development process!
+\cite{heering1989syntax} (SDF = context free syntax + lexical syntax + abstract syntax)
+\cite{moonen2001generating} (island grammars)
+\cite{klint1993meta} (detailed journal version of the 2001 paper: ASF + SDF, algebraic specification formalism + syntax definition formalism = ways of specifying the language)
+\cite{klint2011easy} More recent work by Klint
+\cite{van2001sf} (integrated def of lexical, context-free, and abstract syntax.  integration of syntax and semantics. compilation to parser, pretty-printer, etc).
+% http://www.cs.wm.edu/~noonan/Grammar/
+
+\section{Conclusion and Future Work}
 Blah blah
+
+\section{Aknowledgements}
+I would like to thank Aaron Stump and Cesare Tinelli for an educational
+semester(s) spent in the Computational Logic Center (CLC) at the University of Iowa.
+During this time, I gained valuable experience using OCaml, and had the opportunity
+to work with the Center's useful ``Grammar Tool" (GT), which is the inspiration for this project.
+Special thanks goes to JJ Meyer, primary author/developer of GT.
 
 \bibliographystyle{plain}
 \bibliography{paper}

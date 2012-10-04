@@ -48,25 +48,27 @@ Param -> Const
 Params -> Param
         | Param ',' Params ;
 
-Data -> Value
+Data -> Const
+      | NamedVal
       | "AVG" '(' Var ')'
       | "MIN" '(' Var ')'
       | "MAX" '(' Var ')'
+      | "LEN" '(' Var ')'
       | '(' Data ')' ;
 
 Condition -> Data
-           | '(' Var "MATCHES" Pattern ')'
+           | MatchCondition
            | BinCondition ;
 
-BinCondition -> ConditionVal '<' ConditionVal
-              | ConditionVal '>' ConditionVal
-              | ConditionVal "<=" ConditionVal
-              | ConditionVal ">=" ConditionVal
-              | ConditionVal "==" ConditionVal
-              | '(' BinCondition ')' ;
+MatchCondition -> '(' Var "MATCHES" Pattern ')'
+                | '(' MatchCondition ')' ;
 
-ConditionVal -> Data
-              /*| Computation*/ ;
+BinCondition -> Data '<' Data
+              | Data '>' Data
+              | Data "<=" Data
+              | Data ">=" Data
+              | Data "==" Data
+              | '(' BinCondition ')' ;
 
 Event -> SimpleEvent
        | Condition ;
@@ -95,9 +97,11 @@ Const -> Bool
        | Integer
        | Integer '.' UnsignedInteger ;
 
-Var -> TimeVar
-     | Region '.' TimeVar
+Var -> NamedVal
      | '{' VarList '}' ;
+
+NamedVal -> TimeVar
+          | Region '.' TimeVar ;
 
 TimeVar -> VarName
          | VarName '[' Integer ',' Integer ']' ;
