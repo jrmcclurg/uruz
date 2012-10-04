@@ -31,21 +31,21 @@ Designing a Domain Specific Language (DSL) can be quite tedious,
 with large amounts of time and effort spent building successive
 iterations of the lexer and parser as the language evolves
 throughout the development process.
-Each time a syntactical change is made, both the lexer/parser and
+Each time a syntactic change is made, both the lexer/parser and
 the Abstract Syntax Tree (AST) data structures and manipulation
-functions may change.  This process can become very
+functions may need to be adjusted.  This process can become very
 time-consuming, and can distract from development of the
 language's functionality.  Thus, we have built the Parser
-Generator Generator (PGG) system to abstract away this unnecessary
-attention to the frontend implementation details.  PGG takes a high-level
-grammar specification in an expressive Extended Backus Naur Form (EBNF),
-and produces the corresponding OCaml lexer/parser scripts, as
+Generator Generator (PGG) system to shift some unnecessary
+attention away from the frontend implementation details.  PGG accepts a high-level
+syntax specification in an expressive variant of Extended Backus Naur Form (EBNF),
+and produces corresponding OCaml lexer/parser scripts, as
 well as AST data structures and manipulation functions.  The
-tool can also emit the necessary skeleton code to allow
-PGG to be integrated into the build for the project.  This
-allows for projects where the entire lexing/parsing/AST
-frontend is specified in a highly-readable EBNF form,
-and allows DSL developers to quickly get a prototype up and running.
+tool can also emit skeleton code which allows
+PGG to be integrated into the project's build sequence,  
+enabling projects where the entire lexing/parsing/AST
+frontend is specified in a single readable source file,
+and allowing DSL developers to quickly get a prototype up and running.
 \end{abstract}
 
 \section{Introduction}
