@@ -653,6 +653,11 @@ let generate_parser_code file prefix g (h : ((string*((string*int) option)*typ o
    output_string file "%{\n";
    output_string file ("   open "^prefix^"ast;;\n");
    output_string file ("   open "^prefix^"utils;;\n");
+  output_string file "\n";
+  (*(match footer with
+  | None -> ()
+  | Some(EmptyCode(_)) -> ()
+  | Some(Code(_,s)) -> output_string file (s^"\n"));*)
    output_string file "%}\n\n";
    SubpatternHashtbl.iter (fun k (s,assoc_str,typo,ps) -> 
       print_string (">>> processing terminal symbol: "^s^"\n");
@@ -761,12 +766,17 @@ let generate_parser_code file prefix g (h : ((string*((string*int) option)*typ o
 
 (* generate lexer.mll *)
 let rec generate_lexer_code file prefix g (h : (string*((string*int) option)*typ option*pos) SubpatternHashtbl.t) =
+match g with Grammar(_,header,footer,_,_) ->
    output_warning_msg file "(*\n" " *" " *" " *)";
    output_string file "\n\n";
    output_string file "{\n";
    output_string file ("   open "^prefix^"parser;;\n");
    output_string file ("   open "^prefix^"ast;;\n");
    output_string file ("   open "^prefix^"utils;;\n");
+  (match footer with
+  | None -> ()
+  | Some(EmptyCode(_)) -> ()
+  | Some(Code(_,s)) -> output_string file ("\n"^s));
    output_string file "}\n\n";
    output_string file ("(* The type \"token\" is defined in "^prefix^"parser.mli *)\n");
    output_string file "rule token = parse\n";
@@ -802,9 +812,11 @@ let rec generate_lexer_code file prefix g (h : (string*((string*int) option)*typ
       | (None,None) -> ("",name)
       | (None,Some(EmptyCode(_))) -> ("",tok)
       | (None,Some(Code(_,s))) -> ("","let "^this_var2^" = "^s^" in ignore "^this_var2^"; "^tok)
+      | (Some(IdentType(_,("token",[]))),None) -> ("",this_var)
       | (Some(s),None) -> ("",(name^"("^this_var^")"))
       | (Some(s2),Some(EmptyCode(_))) ->
          ("",tok)
+      | (Some(IdentType(_,("token",[]))),Some(Code(_,s))) -> ("","let "^this_var2^" = "^s^" in ignore "^this_var2^"; "^"t")
       | (Some(s2),Some(Code(_,s))) ->
          ("","let "^this_var2^" = "^s^" in ignore "^this_var2^"; "^name^"(t)")
       ) in
@@ -912,10 +924,10 @@ let generate_utils_code file g =
   output_string file "open Parsing;;\n";
   output_string file "(* open Flags;; *)\n";
   output_string file "\n";
-  (match header with
+  (*(match header with
   | None -> ()
   | Some(EmptyCode(_)) -> ()
-  | Some(Code(_,s)) -> output_string file (s^"\n"));
+  | Some(Code(_,s)) -> output_string file (s^"\n"));*)
   let p = (get_production_type_name "Pos") in
   output_string file "(* data type for file positions *)\n";
   output_string file ("type "^p^" = NoPos | Pos of string*int*int;; (* file,line,col *)\n");
@@ -1038,7 +1050,7 @@ let generate_utils_code file g =
   output_string file "   | [] -> \"\"\n";
   output_string file "   | a::more -> ((if (not first) then \"\" else \"\")^(f a)^(str_list_helper f more false))\n";
   output_string file ";;\n";
-  (match footer with
+  (match header with
   | None -> ()
   | Some(EmptyCode(_)) -> ()
   | Some(Code(_,s)) -> output_string file ("\n"^s));
