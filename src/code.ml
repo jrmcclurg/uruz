@@ -315,7 +315,7 @@ let rec get_str_fun (ty : typ) (prefix : string) : (string option * string optio
    (*print_string (">>> trying to get type for '"^(typ_to_string ty)^"'\n");*)
    let res = (match ty with
    | UnitType(_) -> (None,None)
-   | TokenType(_) -> (None,None)
+   | TokenType(_) -> (None,Some("eq_base")) (* TODO XXX - why exactly do we have to put eq_base here for it to work?!? *)
    | IdentType(_, (s,s1::[])) ->
       if (s = (prefix^"ast")) then (Some("str_"^s1),Some("eq_"^s1)) else (None,None) (* TODO XXX - vvvv also do the check here for "s1" *)
    | IdentType(_, (s,[])) ->
@@ -576,7 +576,7 @@ and generate_ast_subpattern_code (file : out_channel) (prefix : string) (flag : 
   match s with
   | TokenSubpattern(ps) ->
      let t = (get_subpattern_default_type s) in
-     (flag,"", fst (get_str_code None t s prefix), "foobar")
+     (flag,"", fst (get_str_code None t s prefix), "")
   | SimpleSubpattern(ps,a,Options(_,o,_,_,None,_,_,eqco)) ->
     let (t,xxx,eq_code) = (if (is_subpattern_flat s) then (
        let t = (get_subpattern_default_type s) in
