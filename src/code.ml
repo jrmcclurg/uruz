@@ -677,7 +677,7 @@ let generate_parser_code file prefix g (h : ((string*((string*int) option)*typ o
   | Some(Code(_,s)) -> output_string file (s^"\n"));*)
    output_string file "%}\n\n";
    SubpatternHashtbl.iter (fun k (s,assoc_str,typo,ps) -> 
-      print_string (">>> processing terminal symbol: "^s^"\n");
+      (*print_string (">>> processing terminal symbol: "^s^"\n");*)
       let ty = (match typo with
       | None -> None
       | Some(t) -> Some(typ_to_string t)) in
@@ -806,10 +806,10 @@ match g with Grammar(_,header,footer,_,_) ->
    let hl2 = List.sort (fun (name1,_,_,_,_) (name2,_,_,_,_) -> compare name1 name2) hl in
    let tb = "token lexbuf" in
    let rules = List.fold_left (fun rules (name,s,_,ty,p) ->
-      print_string ("<<< subpattern: "^name^"\n");
+      (*print_string ("<<< subpattern: "^name^"\n");
       (match ty with 
       | None -> ()
-      | Some(ty) -> print_typ 0 ty; print_string "\n");
+      | Some(ty) -> print_typ 0 ty; print_string "\n");*)
       let (cd,aft2,tok,rules2) = (match s with
       | TokenSubpattern(_) -> (None,None,"","") (* TODO XXX - this may be problematic! *)
       | SimpleSubpattern(_,_,Options(_,_,_,_,_,cd,_,_)) -> (cd,None,tb,"")
