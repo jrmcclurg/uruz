@@ -191,12 +191,12 @@ let string_of_string (s:string) : string =
 ;;
 
 let is_string_empty (s : string) : bool =
-   print_string ("is_empty("^s^")=");
+   (*print_string ("is_empty("^s^")=");*)
    let sp = "[\r\n\t ]+" in
    let t = Str.global_replace (Str.regexp sp) "" s in
    let result = (if t = "" then true else false) in
-   print_string (if result then "yes" else "no");
-   print_string "\n";
+   (*print_string (if result then "yes" else "no");
+   print_string "\n";*)
    result
 ;;
 

@@ -73,7 +73,8 @@ pattern:
       let c = (match $4 with
       | Some(cd) -> cd
       | _ -> Code(p,"")) in (* was EmptyCode *)
-      let (l,(pr,assoc)) = $3 in Pattern(get_current_pos (),$1,l,$2,c,pr,assoc)
+      let spl = if ((List.length $1) == 0) then [EmptySubpattern(p)] else $1 in
+      let (l,(pr,assoc)) = $3 in Pattern(get_current_pos (),spl,l,$2,c,pr,assoc)
    }
 ;
 

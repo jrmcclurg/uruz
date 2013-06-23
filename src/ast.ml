@@ -44,7 +44,9 @@ and pattern = Pattern of pos * subpattern list * name option * bool * code * int
                 associativity *)
 
 (** AST node for a subpattern *)
-and subpattern = SimpleSubpattern of pos * atom * opts (**
+and subpattern = EmptySubpattern of pos (**
+                   Signifies no subpattern *)
+               | SimpleSubpattern of pos * atom * opts (**
                    Atomic subpattern having given
                    position,
                    atom,
@@ -223,6 +225,7 @@ and reloc_pattern (p : pattern) =
 
 and reloc_subpattern (s : subpattern) =
    match s with
+   | EmptySubpattern(p) -> EmptySubpattern(p) (* TODO XXX - this is a hack to make empty ones unequal *)
    | SimpleSubpattern(p,a,o) -> SimpleSubpattern(NoPos,reloc_atom a,reloc_opts o)
    | RecursiveSubpattern(p,a1,a2,o) -> RecursiveSubpattern(NoPos,a1,a2,reloc_opts o)
 
@@ -432,6 +435,10 @@ and print_pattern (n:int) (pa:pattern) : unit =
 
 and print_subpattern (n:int) (sp:subpattern) : unit =
    match sp with
+   | EmptySubpattern(p) ->
+      print_indent n "EmptySubpattern(\n";
+      print_pos (n+1) p;
+      print_indent n ")";
    | SimpleSubpattern(p,a,o) ->
       print_indent n "SimpleSubpattern(\n";
       print_pos (n+1) p;
@@ -734,6 +741,8 @@ let output_production_type_name file s =
 
 let rec get_subpattern_default_type (sp : subpattern) : typ =
    match sp with
+   | EmptySubpattern(p) -> IdentType(p, ("string",[]))
+   (*| EmptySubpattern(p) -> UnitType(p)*)
    (* TODO XXX - i think this needs to take the operators into acount!!! *)
    | SimpleSubpattern(_,a,Options(_,None,_,_,_,_,_,_)) -> get_atom_default_type a
    | SimpleSubpattern(p,(IdentAtom(_,_) as a),Options(_,Some(StarOp(_)),_,_,_,_,_,_)) ->
@@ -771,6 +780,7 @@ let rec is_subpattern_flat (s : subpattern) : bool =
 and is_subpattern_flat_helper (s : subpattern) (first : bool) : bool =
    let result = 
    (match s with
+   | EmptySubpattern(_) -> true (* TODO XXX - is this correct? *)
    | SimpleSubpattern(_,a1,Options(_,_,_,_,None,_,_,_)) -> is_atom_flat_helper a1 first
    | SimpleSubpattern(_,a1,Options(_,_,_,_,Some(UnitType(_)),_,_,_)) -> is_atom_flat_helper a1 first
    | SimpleSubpattern(_,a1,Options(_,_,_,_,Some(_),_,_,_)) -> if first then is_atom_flat_helper a1 first else false

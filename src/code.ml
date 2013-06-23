@@ -91,6 +91,8 @@ and flatten_subpattern (prefix : string) (s : subpattern) (last : bool) : (subpa
   (*if (is_subpattern_flat_helper s first) then (s,[])
   else*)
   match s with
+       | EmptySubpattern(_) ->
+          (s,[],true)
        | RecursiveSubpattern(rp,ra1,ra2,ro) ->
           if last then (s, [], true)
           else ((SimpleSubpattern(rp,IdentAtom(rp,prefix),Options(rp,None,None,None,None,None,None,None))),
@@ -194,6 +196,7 @@ and get_terminals_pattern (pa : pattern) (s : string)
       | _ -> SubpatternHashtbl.replace h
                 (SimpleSubpattern(NoPos,IdentAtom(NoPos,name),Options(NoPos,None,None,None,None,None,None,None)))
                 ((name^"_0"),x,None,ps)); (* TODO - does this work? *)
+      (*let spl = if ((List.length spl) = 0) then [EmptySubpattern(ps)] else spl in*)
       let b = ((List.length spl) = 1) in
       let _ = List.fold_left (fun n sp ->
          get_terminals_subpattern sp (name^(if b then "" else ("_"^(string_of_int n)))) h n;
@@ -202,6 +205,9 @@ and get_terminals_pattern (pa : pattern) (s : string)
 and get_terminals_subpattern (sp : subpattern) (s : string)
                              (h : (string*((string*int) option)*typ option*pos) SubpatternHashtbl.t) (n : int) : int =
    match sp with
+   | EmptySubpattern(ps) ->
+      SubpatternHashtbl.replace h sp (s,None,(*(Some(get_subpattern_default_type sp) : typ option)*)None,ps);
+      n+1
    | SimpleSubpattern(_,IdentAtom(_,_),Options(ps,_,prec,a,_,_,_,_)) ->
       let x = (get_assoc_str a prec) in
       (match x with
@@ -280,10 +286,10 @@ let generate_makefile_code file prefix =
    output_string file ("\t\t$(OCAMLC) -c "^prefix^"ast.ml\n");
    output_string file ("\n");
    output_string file (""^prefix^"parser.ml:\t"^prefix^"parser.mly\n");
-   output_string file ("\t\tocamlyacc "^prefix^"parser.mly\n");
+   output_string file ("\t\tocamlyacc -v "^prefix^"parser.mly\n");
    output_string file ("\n");
    output_string file (""^prefix^"parser.mli:\t"^prefix^"parser.mly\n");
-   output_string file ("\t\tocamlyacc "^prefix^"parser.mly\n");
+   output_string file ("\t\tocamlyacc -v "^prefix^"parser.mly\n");
    output_string file ("\n");
    output_string file (""^prefix^"lexer.ml:\t"^prefix^"lexer.mll\n");
    output_string file ("\t\tocamllex "^prefix^"lexer.mll\n");
@@ -298,7 +304,7 @@ let generate_makefile_code file prefix =
 (* generate ast.ml *)
 (* returns str_code * eq_code *)
 let rec get_str_fun (ty : typ) (prefix : string) : (string option * string option) = 
-   print_string (">>> trying to get type for '"^(typ_to_string ty)^"'\n");
+   (*print_string (">>> trying to get type for '"^(typ_to_string ty)^"'\n");*)
    let res = (match ty with
    | UnitType(_) -> (None,None)
    | IdentType(_, (s,s1::[])) ->
@@ -336,7 +342,7 @@ let rec get_str_fun (ty : typ) (prefix : string) : (string option * string optio
       (rso,req)
    | _ -> (None,None)) in (* other str_ functions are not provided (user will need to explicitly provide them) *)
    (match res with
-   | (Some(s),_) -> print_string (">>> got type: "^s^"\n")
+   | (Some(s),_) -> (*print_string (">>> got type: "^s^"\n")*) ()
    | (None,_) -> ());
    res
 
@@ -418,6 +424,7 @@ and get_subpatterns_str_helper (sp : subpatterns) : string option =
       ) None (s::sl)
 and get_subpattern_str_helper (s : subpattern) : string option =
    match s with
+   | EmptySubpattern(_) -> None (* TODO XXX - is this okay? *)
    | SimpleSubpattern(_,a,_) -> get_atom_str_helper a false
    | RecursiveSubpattern(_,s1,s2,_) -> Some(s1^" "^s2)
 ;;
@@ -435,6 +442,7 @@ let get_str_code (v1o : string option) (ty : typ) (s : subpattern) (prefix : str
    match v1o with
    | None -> ("(* NONE => "^(typ_to_string ty)^" *) "^(
       match s with
+      | EmptySubpattern(_) -> "" (* TODO XXX - is this okay? *)
       | SimpleSubpattern(_,a,Options(_,_,_,_,_,_,Some(EmptyCode(_)),_)) -> ""
       | SimpleSubpattern(_,a,Options(_,_,_,_,_,_,Some(Code(_,s)),_)) ->
          "^(let s = "^(get_atom_str a false)^" in ignore s; "^s^")"
@@ -448,6 +456,7 @@ let get_str_code (v1o : string option) (ty : typ) (s : subpattern) (prefix : str
       let (tf,eqo) = get_str_fun ty prefix in
       ("(* TODO "^v1^" => "^(typ_to_string ty)^" *)"^(
       match (s,tf) with
+      | (EmptySubpattern(_),_) -> "" (* TODO XXX - is this okay? *)
       | (SimpleSubpattern(_,a,Options(_,_,_,_,_,_,Some(EmptyCode(_)),_)),_) -> ""
       | (SimpleSubpattern(_,a,Options(_,_,_,_,_,_,Some(Code(_,s)),_)),_) ->
          "^(let s = "^v1^" in ignore s; "^s^")"
@@ -508,6 +517,7 @@ and generate_ast_pattern_code file prefix name (prev : int) n flag p s flag2 : (
           let tp = (", "^this_var^(string_of_int k)) in
           let tp2 = (", "^this_var2^(string_of_int k)) in
           let (new_param,new_param2,new_k) = (match s with
+          | EmptySubpattern(_) -> ("","",k)
           | SimpleSubpattern(_,_,Options(_,_,_,_,Some(UnitType(_)),_,_,_)) -> ("","",k)
           | RecursiveSubpattern(_,_,_,Options(_,_,_,_,Some(UnitType(_)),_,_,_)) -> ("","",k)
           | _ -> (tp,tp2,k+1)) in
@@ -553,6 +563,9 @@ and generate_ast_subpattern_code (file : out_channel) (prefix : string) (flag : 
   let f = (if flag then " * " else "") in
   let the_code = (fun s -> ("&& (let s = "^v1^" in let t = "^v2^" in ignore s; ignore t; "^s^")")) in
   match s with
+  | EmptySubpattern(ps) ->
+     let t = (get_subpattern_default_type s) in
+     (flag,"", fst (get_str_code None t s prefix), "")
   | SimpleSubpattern(ps,a,Options(_,o,_,_,None,_,_,eqco)) ->
     let (t,xxx,eq_code) = (if (is_subpattern_flat s) then (
        let t = (get_subpattern_default_type s) in
@@ -642,6 +655,7 @@ let generate_parser_code file prefix g (h : ((string*((string*int) option)*typ o
    output_string file ("   open "^prefix^"utils;;\n");
    output_string file "%}\n\n";
    SubpatternHashtbl.iter (fun k (s,assoc_str,typo,ps) -> 
+      print_string (">>> processing terminal symbol: "^s^"\n");
       let ty = (match typo with
       | None -> None
       | Some(t) -> Some(typ_to_string t)) in
@@ -711,14 +725,18 @@ let generate_parser_code file prefix g (h : ((string*((string*int) option)*typ o
          let _ = List.fold_left (fun k (Pattern(_,sl,name_opt,ef,cd,i,asc)) ->
             output_string file "   |";
             let (_,params) = List.fold_left (fun (j,params) s ->
-               let (str,param) = (try let (x,_,(ty : typ option),_) = SubpatternHashtbl.find h s in (" "^x,(match ty with None -> "" | _ -> ", $"^(string_of_int j))) with _ -> 
-                  match s with
-                  | SimpleSubpattern(_,IdentAtom(_,name),Options(_,_,_,_,ty,_,_,_)) ->
-                     (" "^(get_production_type_name name),(match ty with Some(UnitType(_)) -> "" | _ -> ", $"^(string_of_int j)))
-                  | _ -> ("XXX","") (* TODO - this should never happen - do error? *)
-               ) in
-               output_string file (str);
-               (j+1,params^param)
+               (match s with
+               | EmptySubpattern(_) -> (j,params)
+               | _ ->
+                   let (str,param) = (try let (x,_,(ty : typ option),_) = SubpatternHashtbl.find h s in (" "^x,(match ty with None -> "" | _ -> ", $"^(string_of_int j))) with _ -> 
+                      match s with
+                      | SimpleSubpattern(_,IdentAtom(_,name),Options(_,_,_,_,ty,_,_,_)) ->
+                         (" "^(get_production_type_name name)^"",(match ty with Some(UnitType(_)) -> "" | _ -> ", $"^(string_of_int j)))
+                      | _ -> ("XXX","") (* TODO - this should never happen - do error? *)
+                   ) in
+                   output_string file (""^str^"");
+                   (j+1,params^param)
+               )
             ) (1,"") sl in
             if ef then output_string file " EOF";
             (* TODO - add precedence *)
@@ -753,12 +771,16 @@ let rec generate_lexer_code file prefix g (h : (string*((string*int) option)*typ
    output_string file ("(* The type \"token\" is defined in "^prefix^"parser.mli *)\n");
    output_string file "rule token = parse\n";
    let hl = SubpatternHashtbl.fold (fun s (name,assoc_prec,ty,p) res ->
-      (name,s,assoc_prec,ty,p)::res
+      match s with
+      | EmptySubpattern(_) -> res
+      | _ -> 
+         (name,s,assoc_prec,ty,p)::res
    ) h [] in
    let hl2 = List.sort (fun (name1,_,_,_,_) (name2,_,_,_,_) -> compare name1 name2) hl in
    let tb = "token lexbuf" in
    let rules = List.fold_left (fun rules (name,s,_,ty,p) ->
       let (cd,aft2,tok,rules2) = (match s with
+      | EmptySubpattern(_) -> (None,None,"","") (* TODO XXX - this may be problematic! *)
       | SimpleSubpattern(_,_,Options(_,_,_,_,_,cd,_,_)) -> (cd,None,tb,"")
       | RecursiveSubpattern(p,a,b,Options(_,_,_,_,_,cd,_,_)) ->
          let temp = (match cd with
@@ -835,6 +857,7 @@ and generate_lexer_subpatterns_code file sp =
 and generate_lexer_subpattern_code file s : bool =
    (* TODO - what about code subpatterns, i.e. empty patterns *)
    match s with
+   | EmptySubpattern(_) -> false (* TODO XXX - is this okay? *)
    | SimpleSubpattern(_,a,Options(_,o,_,_,_,_,_,_)) -> 
       let r = generate_lexer_atom_code file a in
       (match o with
