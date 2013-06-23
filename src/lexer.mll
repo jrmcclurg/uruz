@@ -12,6 +12,7 @@ rule token = parse
 | "left" { LEFT }
 | "right" { RIGHT }
 | "unary" { UNARY }
+| "token" { TOKENTYPE }
 | '/' '/' [^'\n']* { token lexbuf }
 | ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9']* as s { IDENT(s) }
 | ['a'-'z' 'A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']* as s { TYPENAME(s) }

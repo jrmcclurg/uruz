@@ -31,7 +31,7 @@
 %token RECUR
 %token EOF
 %token COLON SEMI COMMA DOT LBRACK RBRACK
-%token LEFT RIGHT UNARY
+%token LEFT RIGHT UNARY TOKENTYPE
 %token ARROW BAR DQUOT QUOT STAR PLUS QUESTION AMP EQUAL DOLLAR WILDCARD DIFF ENDFILE
 %left PLUS MINUS /* lowest precedence */
 %left TIMES DIV /* medium precedence */
@@ -73,7 +73,7 @@ pattern:
       let c = (match $4 with
       | Some(cd) -> cd
       | _ -> Code(p,"")) in (* was EmptyCode *)
-      let spl = if ((List.length $1) == 0) then [EmptySubpattern(p)] else $1 in
+      let spl = (*if ((List.length $1) == 0) then [EmptySubpattern(p)] else*) $1 in
       let (l,(pr,assoc)) = $3 in Pattern(get_current_pos (),spl,l,$2,c,pr,assoc)
    }
 ;
@@ -120,7 +120,8 @@ subpattern_list:
 ;
 
 subpattern:
-     atom opts { (* TODO - does this error work? *)
+     TOKENTYPE { TokenSubpattern(get_current_pos ()) }
+   | atom opts { (* TODO - does this error work? *)
                              let msg = "only flat expressions may have precedence/associativity modifiers" in
                              if (not (is_atom_flat $1)) then (
                              match $2 with
@@ -204,8 +205,9 @@ type_name:
    | TYPENAME DOT type_name { let (a,l) = $3 in ($1, a::l) }
 ;
 
-typ:
+typ:           
    | LPAREN RPAREN                              { UnitType(get_current_pos ()) }
+   | TOKENTYPE                                  { TokenType(get_current_pos ()) }
    | type_name                                  { IdentType(get_current_pos (), $1) }
    | LPAREN typ type_name RPAREN                { ConstrType(get_current_pos (), ($2,[]), $3) }
    | LPAREN typ typ_comma_list RPAREN type_name { ConstrType(get_current_pos (), ($2,$3), $5) }

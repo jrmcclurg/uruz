@@ -44,8 +44,8 @@ and pattern = Pattern of pos * subpattern list * name option * bool * code * int
                 associativity *)
 
 (** AST node for a subpattern *)
-and subpattern = EmptySubpattern of pos (**
-                   Signifies no subpattern *)
+and subpattern = TokenSubpattern of pos (**
+                   Signifies a token subpattern *)
                | SimpleSubpattern of pos * atom * opts (**
                    Atomic subpattern having given
                    position,
@@ -158,6 +158,9 @@ and assoc = LeftAssoc of pos (**
 and typ = UnitType of pos (**
            Unit type having given
            position *)
+        | TokenType of pos (**
+           Token type having given
+           position *)
         | IdentType of pos * (string * string list) (**
            Type having given
            position,
@@ -225,7 +228,7 @@ and reloc_pattern (p : pattern) =
 
 and reloc_subpattern (s : subpattern) =
    match s with
-   | EmptySubpattern(p) -> EmptySubpattern(p) (* TODO XXX - this is a hack to make empty ones unequal *)
+   | TokenSubpattern(p) -> TokenSubpattern(p) (* TODO XXX - this is a hack to make empty ones unequal *)
    | SimpleSubpattern(p,a,o) -> SimpleSubpattern(NoPos,reloc_atom a,reloc_opts o)
    | RecursiveSubpattern(p,a1,a2,o) -> RecursiveSubpattern(NoPos,a1,a2,reloc_opts o)
 
@@ -284,6 +287,7 @@ and reloc_assoc_opt (a : assoc option) =
 
 and reloc_typ (t : typ) =
    match t with
+   | TokenType(p) -> TokenType(NoPos)
    | UnitType(p) -> UnitType(NoPos)
    | IdentType(p,s) -> IdentType(NoPos,s)
    | ConstrType(p,t,s) -> ConstrType(NoPos,t,s)
@@ -435,8 +439,8 @@ and print_pattern (n:int) (pa:pattern) : unit =
 
 and print_subpattern (n:int) (sp:subpattern) : unit =
    match sp with
-   | EmptySubpattern(p) ->
-      print_indent n "EmptySubpattern(\n";
+   | TokenSubpattern(p) ->
+      print_indent n "TokenSubpattern(\n";
       print_pos (n+1) p;
       print_indent n ")";
    | SimpleSubpattern(p,a,o) ->
@@ -650,6 +654,7 @@ and print_assoc (n:int) (a:assoc option) : unit =
 
 and print_typ (n:int) (ty:typ) : unit =
    match ty with
+   | TokenType(p) -> print_indent n "TokenType("; print_pos 0 p; print_string ")"
    | UnitType(p) -> print_indent n "UnitType("; print_pos 0 p; print_string ")"
    | IdentType(p,s) -> () (* TODO XXX - print *)
       (*print_indent n "IdentType(\n";
@@ -691,6 +696,7 @@ let typ_is_char (t : typ) : bool = (* TODO XXX - does this work? *)
 
 let rec strip_typ (t : typ) (target : string) : typ =
    match t with
+   | TokenType(p) -> t
    | UnitType(p) -> t
    | IdentType(p,sl) -> IdentType(p, strip_full_name sl target)
    | ConstrType(p,(t1,tl),sl) ->
@@ -701,6 +707,7 @@ let rec strip_typ (t : typ) (target : string) : typ =
 
 let rec typ_to_stripped_string (t : typ) (target : string) : string =
    match t with
+   | TokenType(_) -> "string" (* TODO XXX - this is a hack to make token rules have a string entry *)
    | UnitType(_) -> "()"
    | IdentType(_,sl) -> full_name_to_stripped_string sl target
    | ConstrType(_,(t1,tl),sl) -> (* TODO XXX - maybe put parens around the whole expression! *)
@@ -741,7 +748,8 @@ let output_production_type_name file s =
 
 let rec get_subpattern_default_type (sp : subpattern) : typ =
    match sp with
-   | EmptySubpattern(p) -> IdentType(p, ("string",[]))
+   (* TODO XXX - jed is this okay? *)
+   | TokenSubpattern(p) -> IdentType(p, ("string",[]))
    (*| EmptySubpattern(p) -> UnitType(p)*)
    (* TODO XXX - i think this needs to take the operators into acount!!! *)
    | SimpleSubpattern(_,a,Options(_,None,_,_,_,_,_,_)) -> get_atom_default_type a
@@ -780,7 +788,7 @@ let rec is_subpattern_flat (s : subpattern) : bool =
 and is_subpattern_flat_helper (s : subpattern) (first : bool) : bool =
    let result = 
    (match s with
-   | EmptySubpattern(_) -> true (* TODO XXX - is this correct? *)
+   | TokenSubpattern(_) -> true (* TODO XXX - is this correct? *)
    | SimpleSubpattern(_,a1,Options(_,_,_,_,None,_,_,_)) -> is_atom_flat_helper a1 first
    | SimpleSubpattern(_,a1,Options(_,_,_,_,Some(UnitType(_)),_,_,_)) -> is_atom_flat_helper a1 first
    | SimpleSubpattern(_,a1,Options(_,_,_,_,Some(_),_,_,_)) -> if first then is_atom_flat_helper a1 first else false
