@@ -1,4 +1,0 @@
-ON EVENT (AVG(R1.temp[-30,0]) > 90)
-IF (AVG(R2.light) >= 80) (
-SET {R1,R2}.freq[0,30] = 1.0;
-SELECT AVG({R1.temp,R2.light}))
