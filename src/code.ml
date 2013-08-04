@@ -440,9 +440,10 @@ and get_subpattern_str_helper (s : subpattern) : string option =
 
 let get_atom_str (a : atom) (append : bool) : string =
    let so = get_atom_str_helper a append in
-   match so with
+   (if append then "^" else "")^"\""^
+   (match so with
    | None -> ""
-   | Some(s) -> (if append then "^" else "")^"\""^s^"\""
+   | Some(s) -> s)^"\""
 ;;
 
 (* Gets the code for the str_ functions *)
