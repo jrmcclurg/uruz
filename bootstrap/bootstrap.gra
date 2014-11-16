@@ -1,3 +1,8 @@
+// TODO XXX bug list:
+// empty grammar (i.e. no root nonterminal) causes compile error
+// "eof"? on RHS of a production doesn't work
+// when a (...)* is in a list of item separated by bar, it gives compile warnings
+
 // This is a comment
 /*
   This is a multi-line comment
@@ -10,41 +15,103 @@
    ;;
 }
 
-Grammar -> CodeBlock Production+ CodeBlock eof { Grammar(get_current_pos (),$1,$2,$3) };
+Grammar -> CodeBlock Production+ CodeBlock ;
+CodeBlock -> 
+| Code
+;
 
-CodeBlock ->                            : NoCode    { NoCode(get_current_pos ()) }
-           | ('{' [ \n\r\t]* '}') <:()> : EmptyCode { EmptyCode(get_current_pos ()) }
-           | '{' .. '}' <@{"'"^s^"'"}>  : Code      { Code(get_current_pos (),$1) } ;
+Code -> "{" .. "}" ;
 
-Production -> Pattern 
-              ("&" <:()> Pattern)*
-              CodeBlock ';' <:()> { Production(get_current_pos (),$1,$2,$3) } ;
+Production -> XIdent "->" Pattern ('|' Pattern)* ';' ;
 
-Pattern -> "hello" <:()> { Pattern(get_current_pos ()) } ;
+Pattern -> SubPattern* EofOp Label CodeBlock ;
+EofOp ->
+| "eof" ;
+Label -> 
+| Colon XIdent? PatternOpt* ;
+
+Colon -> ':' ;
+PatternOpt -> Int | Assoc ;
+
+Assoc -> "left" | "right" | "unary" ;
+
+SubPattern ->
+  "token"
+| Atom Opts
+| Quot ".." Quot Opts
+;
+
+Opts -> 
+  OpOpr OptList?
+;
+
+OptList -> '<' Opt* '>' ; // TODO XXX
+Opt ->
+  Int
+| Assoc
+| Code
+| ':' Typ
+| '@' Code
+| '=' Code
+;
+
+Typ ->
+  "token"
+| '(' ')'
+| TypeName
+| '(' Typ TypeName ')'
+| '(' Typ StarTypList ')'
+| '(' Typ CommaTypList ')'
+| '(' Typ ')'
+;
+
+TypeName -> 
+ZTypeIdent ('.' ZTypeIdent)*
+;
+
+StarTypList -> ('*' Typ)+ ;
+CommaTypList -> (',' Typ)+ ;
+
+OpOpr ->
+| '*' | '+' | '?' ;
+
+Quot ->
+  CharQuot
+| StringQuot ;
+
+Atom ->
+  XIdent
+| StringQuot
+| Charsets
+| Subs
+;
+
+Charsets -> Charset ('/' Charset)? ;
+Subs -> '(' SubPatterns ('|' SubPatterns)* ')' ;
+SubPatterns -> SubPattern+ ;
+
+Charset ->
+  '_'
+| CharQuot
+| Chars ;
+
+ZTypeIdent -> ([a-zA-Z] [a-zA-Z0-9_]*) ; // TODO XXX - this clashes with XIdent
+XIdent -> ([A-Z] [0-9a-zA-Z]*) ;
+Chars -> ('[' ([^\\\]]* ('\\' _)*)* ']') ; // TODO XXX
+StringQuot -> ('"' (([^\\\"]* ('\\' _)*)*) '"') ;
+CharQuot -> ('\'' (([^\\\'] |
+         ('\\' ('\\'|'"'|'\''|'n'|'r'|'t'|'b')) |
+         ('\\' [0-9] [0-9] [0-9]) )) '\'') ;
+Int -> ([0-9]+) ;
 
 SingleComm -> ("//" [^\n]*) <{}:()> : {};  /* throw away single-line comments */
-MultiComm  -> "/*" .. "*/" <{}:()> : {};  /* throw away recursive multiline comments */
+MultiComm  -> "/*" .. "*/" <{}:()> : {};
+/* ^^ throw away recursive multiline comments */
 
-Blanks -> [\r\n\t ]* <{}:()> : {};
-
-/* Program   ->   "mod" <:() @{s^" "}> Integer <:int>
-               "begin" <:() @{"\n"^s}>
-               Statement* <:(int list) @{List.fold_left (fun res i -> res^"\n"^(string_of_int i)) "" s}>
-               "end" <:() @{"\n"^s}> eof
-	       { Program(NoPos,$2,List.map (fun i -> i mod $2) $4) } ;
-
-Statement -> Expr <:int> ';' <:()@{}> { $1 } ;
-
-Expr      -> Integer <:int>                         : IntExpr  { $1 }
-           | Expr <:int> "+" <:() left> Expr <:int> : PlusExpr { add_ints $1 $3 } ;
-
-Integer -> ('0' | [1-9] [0-9]*) <{int_of_string s}:int> { $1 } ;*/
+Blanks -> [\r\t ]* <{}:()> : {};
+Newlines -> '\n' <{do_newline lexbuf}:()> : {};
 
 
-/*TestThing -> "one" ;
-TestThing2 -> "two" * ;
-TestThing3 -> TestThing4 + ;
-TestThing4 -> "four" ? ;*/
 
 {
    (* this is the trailer *)
