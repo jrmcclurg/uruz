@@ -2,6 +2,7 @@
 // empty grammar (i.e. no root nonterminal) causes compile error
 // "eof"? on RHS of a production doesn't work
 // when a (...)* is in a list of item separated by bar, it gives compile warnings
+// when (SubOption+ "eof"? | '.') is compiled, there are problems when "eof" exists in input
 
 // This is a comment
 /*
@@ -69,14 +70,12 @@ CodeBlock ->
 | CodeZ<:code> : { Some($1) }
 ;
 
-Production -> ("def" XIdent OptList '=')? Pattern ('|' Pattern)* ;
-SemiProd -> Production ';' ;
+Production -> ("def" XIdent Opt* '=' | '<' XIdent Opt* '>')? Pattern ('|' Pattern)* ;
+SemiProd -> Production ';' ; 
 
-Pattern -> SubPattern+ EofOp Label CodeBlock<:(code option)> ;
+Pattern -> (SubOption+ EofOp | '.' Opt?) ;
 EofOp ->
 | "eof" ;
-Label -> 
-| ':' XIdent? PatternOpt* ;
 
 PatternOpt -> Int<:int> | Assoc ;
 
@@ -88,28 +87,33 @@ Assoc ->
 
 SubPattern ->
   "token"                : TokenSubpattern
-| '.'                    : EmptySubpattern
-| Atom Options           : SimpleSubpattern
-| Quot ".." Quot Options : RecursiveSubpattern
+| Atom : SimpleSubpattern
+| Quot ".." Quot : RecursiveSubpattern
+;
+
+SubOption ->
+  SubPattern
+| SubOption OpOpr
+| SubOption Opt
 ;
 
 Options -> 
   OpOpr? OptList?
 ;
 
-OptList -> '<' Opt* '>' ;
+OptList -> Opt+ ;
 
 Opt ->
   ':' Typ  : TypeOption
 | Int<:int>      : PrecOption
 | Assoc    : AssocOption
-| CodeZ<:code>     : CodeOption
-| '@' CodeZ<:code> : PrintOption
-| '=' CodeZ<:code> : EqOption
+| CodeZ<:code>     : CodeOption // TODO XXX
+| "str" CodeZ<:code> : PrintOption
+| "eq" CodeZ<:code> : EqOption
 ;
 
 Typ ->
-  "token"                        : TokenType
+  "$token"                       : TokenType // TODO XXX - distinguish this from the "token" atom
 | '(' ')'                        : UnitType
 | TypeName                       : IdentType
 | '(' CommaTypList TypeName ')'  : ConstrType
@@ -143,9 +147,6 @@ Atom ->
 ;
 
 Charsets -> Charset ('/' Charset)? ;
-Subs -> '(' SubPatterns ('|' SubPatterns)* ')' ;
-
-SubPatterns -> SubPattern+ ;
 
 Charset ->
   '_'      : WildcardCharset
