@@ -2,7 +2,7 @@
 // empty grammar (i.e. no root nonterminal) causes compile error
 // "eof"? on RHS of a production doesn't work
 // when a (...)* is in a list of item separated by bar, it gives compile warnings
-// when (SubOption+ "eof"? | '.') is compiled, there are problems when "eof" exists in input
+// when (AnnotAtom+ "eof"? | '.') is compiled, there are problems when "eof" exists in input
 
 // This is a comment
 /*
@@ -70,10 +70,11 @@ CodeBlock ->
 | CodeZ<:code> : { Some($1) }
 ;
 
-Production -> ("def" XIdent Opt* '=' | '<' XIdent Opt* '>')? Pattern ('|' Pattern)* ;
-SemiProd -> Production ';' ; 
+Production -> ("def" XIdent Opt* '=' | '<' XIdent Opt* '>' EqOp)? Pattern ('|' Pattern)* ;
+SemiProd -> (Production | "token" XIdent+) ';' ; 
+EqOp -> | '=' ;
 
-Pattern -> (SubOption+ EofOp | '.' Opt?) ;
+Pattern -> (AnnotAtom+ EofOp | '.' Opt?) ;
 EofOp ->
 | "eof" ;
 
@@ -85,16 +86,10 @@ Assoc ->
 | "unary" : UnaryAssoc
 ;
 
-SubPattern ->
-  "token"                : TokenSubpattern
-| Atom : SimpleSubpattern
-| Quot ".." Quot : RecursiveSubpattern
-;
-
-SubOption ->
-  SubPattern
-| SubOption OpOpr
-| SubOption Opt
+AnnotAtom ->
+  Atom
+| AnnotAtom OpOpr
+| AnnotAtom Opt
 ;
 
 Options -> 
@@ -143,6 +138,7 @@ Atom ->
   StringQuot : StringAtom
 | XIdent     : IdentAtom
 | Charsets   : CharsetsAtom
+| Quot ".." Quot : RecursiveSubpattern
 | '(' Production ')'
 ;
 
