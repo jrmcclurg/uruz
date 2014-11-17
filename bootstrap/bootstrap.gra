@@ -17,8 +17,12 @@
             position, 
             OCaml code *)
 
-   let str_code s = ""
-   let eq_code a b = false
+   let str_code s = 
+   match s with
+   | EmptyCode(_) -> "{}"
+   | Code(_,s) -> "{"^s^"}"
+
+   let eq_code a b = ((compare a b)=0)
 
    let is_string_empty (s : string) : bool =
    (*print_string ("is_empty("^s^")=");*)
@@ -69,15 +73,17 @@ CodeBlock ->
 | CodeZ<:code> : { Some($1) }
 ;
 
-Production -> XIdent "->" Pattern ('|' Pattern)* ';' ;
+Production -> XIdent<:string> "->"<:()> Pattern BarPattern*<:(pattern_t list){}> ';'<:()> ;
+BarPattern -> '|' Pattern : { $2 } ;
 
-Pattern -> SubPattern* EofOp Label CodeBlock<:(code option)> ;
+Pattern -> SubPattern* EofOp<:bool> Label CodeBlock<:(code option)>  ;
 EofOp ->
-| "eof" ;
+        : { false }
+| "eof" : { true } ;
 Label -> 
-| ':' XIdent? PatternOpt* ;
+| ':'<:()> XIdent?<:(string option)@{str_option (fun x -> x) s}> PatternOpt* ;
 
-PatternOpt -> Int | Assoc ;
+PatternOpt -> Int<:int> | Assoc ;
 
 Assoc ->
   "left"  : LeftAssoc
@@ -98,7 +104,7 @@ Options ->
 OptList -> '<' Opt* '>' ;
 
 Opt ->
-  Int      : PrecOption
+  Int<:int>      : PrecOption
 | Assoc    : AssocOption
 | CodeZ<:code>     : CodeOption
 | ':' Typ  : TypeOption
@@ -115,7 +121,7 @@ Typ ->
 | '(' Typ ')'              
 ;
 
-TypeIdent -> ZTypeIdent | XIdent ;
+TypeIdent -> ZTypeIdent | XIdent<:string> ;
 TypeName -> 
 TypeIdent ('.' TypeIdent)*
 ;
@@ -134,7 +140,7 @@ Quot ->
 | StringQuot ;
 
 Atom ->
-  XIdent     : IdentAtom
+  XIdent<:string>     : IdentAtom
 | StringQuot : StringAtom
 | Charsets   : CharsetsAtom
 | Subs       : ChoiceAtom
@@ -152,13 +158,13 @@ Charset ->
 ;
 
 ZTypeIdent -> ([a-zA-Z] [a-zA-Z0-9_]*) ; // TODO XXX - this clashes with XIdent
-XIdent -> ([A-Z] [0-9a-zA-Z]*) ;
+XIdent -> ([A-Z] [0-9a-zA-Z]*)<:string> : { $1 } ;
 Chars -> ('[' ([^\\\]]* ('\\' _)*)* ']') ; // TODO XXX
 StringQuot -> ('"' (([^\\\"]* ('\\' _)*)*) '"') ;
 CharQuot -> ('\'' (([^\\\'] |
          ('\\' ('\\'|'"'|'\''|'n'|'r'|'t'|'b')) |
          ('\\' [0-9] [0-9] [0-9]) )) '\'') ;
-Int -> ([0-9]+) ;
+Int -> ([0-9]+)<:int{int_of_string s}> : { $1 } ;
 CodeZ -> "{" .. "}"<:(Lexing.position*string){let p = Lexing.lexeme_start_p lexbuf in (p,s)}> : { handle_code $1 } ;
 
 SingleComm -> ("//" [^\n]*) <{}:()> : {};  /* throw away single-line comments */
