@@ -202,7 +202,9 @@ opt:
 
 type_name:
    | TYPENAME               { ($1,[]) }
+   | IDENT                  { ($1,[]) }
    | TYPENAME DOT type_name { let (a,l) = $3 in ($1, a::l) }
+   | IDENT DOT type_name    { let (a,l) = $3 in ($1, a::l) }
 ;
 
 typ:           
