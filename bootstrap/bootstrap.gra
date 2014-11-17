@@ -69,10 +69,10 @@ CodeBlock ->
 | CodeZ<:code> : { Some($1) }
 ;
 
-Production -> ('&' XIdent? "::=")? Pattern ('|' Pattern)* ;
+Production -> ("def" XIdent OptList '=')? Pattern ('|' Pattern)* ;
 SemiProd -> Production ';' ;
 
-Pattern -> SubPattern* EofOp Label CodeBlock<:(code option)> ;
+Pattern -> SubPattern+ EofOp Label CodeBlock<:(code option)> ;
 EofOp ->
 | "eof" ;
 Label -> 
@@ -88,6 +88,7 @@ Assoc ->
 
 SubPattern ->
   "token"                : TokenSubpattern
+| '.'                    : EmptySubpattern
 | Atom Options           : SimpleSubpattern
 | Quot ".." Quot Options : RecursiveSubpattern
 ;
@@ -99,10 +100,10 @@ Options ->
 OptList -> '<' Opt* '>' ;
 
 Opt ->
-  Int<:int>      : PrecOption
+  ':' Typ  : TypeOption
+| Int<:int>      : PrecOption
 | Assoc    : AssocOption
 | CodeZ<:code>     : CodeOption
-| ':' Typ  : TypeOption
 | '@' CodeZ<:code> : PrintOption
 | '=' CodeZ<:code> : EqOption
 ;
@@ -135,10 +136,9 @@ Quot ->
 | StringQuot ;
 
 Atom ->
-  XIdent     : IdentAtom
-| StringQuot : StringAtom
+  StringQuot : StringAtom
+| XIdent     : IdentAtom
 | Charsets   : CharsetsAtom
-//| Subs       : ChoiceAtom
 | '(' Production ')'
 ;
 
