@@ -71,14 +71,17 @@ CodeBlock ->
 ;
 
 Production -> ("def" XIdent Opt* '=' | '<' XIdent Opt* '>' EqOp)? Pattern ('|' Pattern)* ;
-SemiProd -> (Production | "token" XIdent+) ';' ; 
+SemiProd -> (
+  Production
+| ("token" | "tok") XIdent+
+| ("keyword" | "kw") XIdent '=' StringQuot
+| ("property" | "prop") XIdent+ '=' (Bool<:bool> | Int<:int> | StringQuot)
+) ';' ; 
 EqOp -> | '=' ;
 
 Pattern -> (AnnotAtom+ EofOp | '.' Opt?) ;
 EofOp ->
 | "eof" ;
-
-PatternOpt -> Int<:int> | Assoc ;
 
 Assoc ->
   "left"  : LeftAssoc
@@ -92,12 +95,6 @@ AnnotAtom ->
 | AnnotAtom Opt
 ;
 
-Options -> 
-  OpOpr? OptList?
-;
-
-OptList -> Opt+ ;
-
 Opt ->
   ':' Typ  : TypeOption
 | Int<:int>      : PrecOption
@@ -108,7 +105,7 @@ Opt ->
 ;
 
 Typ ->
-  "$token"                       : TokenType // TODO XXX - distinguish this from the "token" atom
+  "token"                        : TokenType // TODO XXX - maybe there's a need to set the name of this type?
 | '(' ')'                        : UnitType
 | TypeName                       : IdentType
 | '(' CommaTypList TypeName ')'  : ConstrType
@@ -150,6 +147,7 @@ Charset ->
 | Chars    : ListCharset
 ;
 
+Bool -> "true" { true } | "false" { false } ;
 ZTypeIdent -> ([a-zA-Z] [a-zA-Z0-9_]*) ; // TODO XXX - this clashes with XIdent
 XIdent -> ([A-Z] [0-9a-zA-Z]*) ;
 Chars -> ('[' ([^\\\]]* ('\\' _)*)* ']') ; // TODO XXX
