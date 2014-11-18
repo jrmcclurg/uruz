@@ -3,6 +3,8 @@
 // "eof"? on RHS of a production doesn't work
 // when a (...)* is in a list of item separated by bar, it gives compile warnings
 // when (AnnotAtom+ "eof"? | '.') is compiled, there are problems when "eof" exists in input
+// for ("token" | "tok") within a production, the strings are not pulled out, so it clashes with another "token"
+//   in another production
 
 // This is a comment
 /*
@@ -67,19 +69,19 @@
 Grammar -> CodeBlock<:(code option)> SemiProd+ CodeBlock<:(code option)> ;
 CodeBlock -> 
                : { None }
-| CodeZ<:code> : { Some($1) }
+| CodeLit<:code> : { Some($1) }
 ;
 
 Production -> ("def" XIdent Opt* '=' | '<' XIdent Opt* '>' EqOp)? Pattern ('|' Pattern)* ;
 SemiProd -> (
   Production
-| ("token" | "tok") XIdent+
+| (TokenKw | "tok") XIdent+
 | ("keyword" | "kw") XIdent '=' StringQuot
 | ("property" | "prop") XIdent+ '=' (Bool<:bool> | Int<:int> | StringQuot)
 ) ';' ; 
 EqOp -> | '=' ;
 
-Pattern -> (AnnotAtom+ EofOp | '.' Opt?) ;
+Pattern -> AnnotAtom+ EofOp ;
 EofOp ->
 | "eof" ;
 
@@ -99,13 +101,14 @@ Opt ->
   ':' Typ  : TypeOption
 | Int<:int>      : PrecOption
 | Assoc    : AssocOption
-| CodeZ<:code>     : CodeOption // TODO XXX
-| "str" CodeZ<:code> : PrintOption
-| "eq" CodeZ<:code> : EqOption
+| CodeLit<:code>     : CodeOption // TODO XXX
+| "str" CodeLit<:code> : PrintOption
+| "eq" CodeLit<:code> : EqOption
 ;
 
+TokenKw -> "token" ;
 Typ ->
-  "token"                        : TokenType // TODO XXX - maybe there's a need to set the name of this type?
+  TokenKw                        : TokenType // TODO XXX - maybe there's a need to set the name of this type?
 | '(' ')'                        : UnitType
 | TypeName                       : IdentType
 | '(' CommaTypList TypeName ')'  : ConstrType
@@ -113,9 +116,7 @@ Typ ->
 | '(' Typ ')'              
 ;
 
-TypeIdent -> ZTypeIdent | XIdent ;
-TypeName -> 
-TypeIdent ('.' TypeIdent)*
+TypeName -> XIdent ('.' XIdent)*
 ;
 
 StarTypList -> ('*' Typ)+ ;
@@ -132,7 +133,8 @@ Quot ->
 | StringQuot ;
 
 Atom ->
-  StringQuot : StringAtom
+  '~'        : EmptyAtom // TODO XXX - empty string "" can also denote an empty atom
+| StringQuot : StringAtom
 | XIdent     : IdentAtom
 | Charsets   : CharsetsAtom
 | Quot ".." Quot : RecursiveSubpattern
@@ -148,15 +150,14 @@ Charset ->
 ;
 
 Bool -> "true" { true } | "false" { false } ;
-ZTypeIdent -> ([a-zA-Z] [a-zA-Z0-9_]*) ; // TODO XXX - this clashes with XIdent
-XIdent -> ([A-Z] [0-9a-zA-Z]*) ;
-Chars -> ('[' ([^\\\]]* ('\\' _)*)* ']') ; // TODO XXX
+XIdent -> ([a-zA-Z] [a-zA-Z0-9_]*) ; // TODO XXX - make sure this works with the ident translator
+Chars -> ('[' ([^\\\]]* ('\\' _)*)* ']') ;
 StringQuot -> ('"' (([^\\\"]* ('\\' _)*)*) '"') ;
 CharQuot -> ('\'' (([^\\\'] |
          ('\\' ('\\'|'"'|'\''|'n'|'r'|'t'|'b')) |
          ('\\' [0-9] [0-9] [0-9]) )) '\'') ;
 Int -> ([0-9]+)<:int{int_of_string s}> : { $1 } ;
-CodeZ -> "{" .. "}"<:(Lexing.position*string){let p = Lexing.lexeme_start_p lexbuf in (p,s)}> : { handle_code $1 } ;
+CodeLit -> "{" .. "}"<:(Lexing.position*string){let p = Lexing.lexeme_start_p lexbuf in (p,s)}> : { handle_code $1 } ;
 
 SingleComm -> ("//" [^\n]*) <{}:()> : {};  /* throw away single-line comments */
 MultiComm  -> "/*" .. "*/" <{}:()> : {};
@@ -164,8 +165,6 @@ MultiComm  -> "/*" .. "*/" <{}:()> : {};
 
 Blanks -> [\r\t ]* <{}:()> : {};
 Newlines -> '\n' <{do_newline lexbuf}:()> : {};
-
-
 
 {
    (* this is the trailer *)
