@@ -107,8 +107,12 @@ Opt ->
 ;
 
 TokenKw -> "token" ;
+
 Typ ->
   TokenKw                        : TokenType // TODO XXX - maybe there's a need to set the name of this type?
+| '(' (XIdent | '_') "of" Typ StarTypList ')'                            : AbstrType
+| '_'                            : AnyType
+| '~'                            : NoType
 | '(' ')'                        : UnitType
 | TypeName                       : IdentType
 | '(' CommaTypList TypeName ')'  : ConstrType
