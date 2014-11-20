@@ -131,7 +131,8 @@ TupleType ->
 ;
 
 ConstrType ->
- Typ TypeName*
+  Typ
+| ConstrType TypeName
 ;
 
 TypeName -> XIdent ('.' XIdent)* ;
