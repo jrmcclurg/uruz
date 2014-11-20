@@ -97,8 +97,8 @@ keyword MyKeyword = "test" ;
 
 token One Two THree ;
 
-def Model:int = (<Model> Empty:bool ElementSemi* 
-:(element_t list) str{
+parser Model:int = (<Model> Empty:bool ElementSemi* 
+:(element_t list) @str{
   fst (List.fold_left (fun (res,flag) e ->
     (res^(if flag then "\n" else "")^(str_element_t e),true)) ("",false) s)}
 eof)
@@ -121,22 +121,28 @@ eof)
    )
    ) [] $3)
 } ;
-def Empty = "" { false } ;
-def Empty2 = Empty { false } 123 ;
+parser Empty = "" { false } ;
+parser Empty2 = Empty { false } 123 ;
 
-def ElementSemi = (Element (<OptSemi> ~ | ';')) { $1 };
-def OptSemi =
+parser ElementSemi = (Element (<OptSemi> ~ | ';')) { $1 };
+parser OptSemi =
   ~
 | ';'
 ;
 
-def MyTest = "one" : token;
-def MyTest2 = "foobar" : (string of string * int) ;
-def MyTest3 = "test" : (((int,int*bool) Hashtbl.t) list list list * string) ;
-def MyTest3 = "test" : ((int*int) Hashtbl.t) ;
-def MyTest3 = "test" : ((int,int) Hashtbl.t) ;
-def MyTest3 = "test" : (_ of int * string) ;
-def MyTest3 = "test" : (Foo of ((int) * string)) ;
+parser MyTest = "one" : token;
+parser MyTest2 = "foobar" : (string of string * int) ;
+parser MyTest3 = "test" : (((int,int*bool) Hashtbl.t) list list list * string) ;
+parser MyTest3 = "test" : ((int*int) Hashtbl.t) ;
+parser MyTest3 123 = ("test" : ((int,int) Hashtbl.t)):int 124 ;
+parser MyTest3 @$foobar = "test" : (_ of int * string) ;
+parser MyTest3 = "test" @str{blah} @$foobar : (Foo of ((int) * string)) ;
+
+code foobar = str{this is code} ;
+
+ast MyTest3 = ~:(Foo of ((int) * string)) | ~:(Bar of int) ;
+
+ast MyTest3 = (<One> MyTest4 MyTest5*) | (<Two> MyTest2) ;
 
 token AKWfinal ; // final
 token AKWtrue; // true
@@ -152,74 +158,74 @@ token AKWedge ; // edge
 
 
 <Element> =
-   (<NodeElement> = AKWswitch:()str{"switch "} Node)
- | (<EdgeElement> = AKWlink:()str{"link "} Edge)
- | (<SpecElement> = AKWspec:()str{"spec "} Exp)
- | (<TrafficElement> = AKWtraffic:()str{"traffic "} Traffic)
+   (<NodeElement> = AKWswitch:()@str{"switch "} Node)
+ | (<EdgeElement> = AKWlink:()@str{"link "} Edge)
+ | (<SpecElement> = AKWspec:()@str{"spec "} Exp)
+ | (<TrafficElement> = AKWtraffic:()@str{"traffic "} Traffic)
 ;
 
-def GraphElement =
+parser GraphElement =
    GraphField { (false,[]) }
  | (AKWnode:() GraphBlock) { (false,$2) }
  | (AKWedge:() GraphBlock) { (true,$2) }
 ;
 
-def GraphBlock = (AAYlsquare GraphField* AAYrsquare) { $2 } ;
+parser GraphBlock = (AAYlsquare GraphField* AAYrsquare) { $2 } ;
 
-def GraphField = (XIdent GraphValue) { (str_xident_t $1,$2) } ;
+parser GraphField = (XIdent GraphValue) { (str_xident_t $1,$2) } ;
 
-def GraphValue =
+parser GraphValue =
   IntegerVal:int  { string_of_int $1 }
 | FloatVal:float  { string_of_float $1 }
 | String:string   { $1 }
 ;
 
-def Traffic =
-  Names str{fst (List.fold_left (fun (res,flag) x ->
+parser Traffic =
+  Names @str{fst (List.fold_left (fun (res,flag) x ->
     (res^(if flag then "" else ", ")^(get_symbol x),false)) ("",true) s)}:(int list)
-  ExpListOpt:(exp_t list) str{" ["^(fst (List.fold_left (fun (res,flag) p ->
+  ExpListOpt:(exp_t list) @str{" ["^(fst (List.fold_left (fun (res,flag) p ->
     (res^(if flag then ", " else "")^(str_exp_t p),true)) ("",false) s))^"]"}
   FloatValP:float
     ;
-def Node = Name str{get_symbol s}:int Ports:(int list) str{" ("^(fst (List.fold_left (fun (res,flag) i ->
+parser Node = Name @str{get_symbol s}:int Ports:(int list) @str{" ("^(fst (List.fold_left (fun (res,flag) i ->
     (res^(if flag then ", " else "")^(get_symbol i),true)) ("",false) s))^")"}
-  ExpListOpt:(exp_t list) str{" ["^(fst (List.fold_left (fun (res,flag) p ->
+  ExpListOpt:(exp_t list) @str{" ["^(fst (List.fold_left (fun (res,flag) p ->
     (res^(if flag then ", " else "")^(str_exp_t p),true)) ("",false) s))^"]"}
-  Rules:(edge_t list) str{" \123"^(fst (List.fold_left (fun (res,flag) i ->
+  Rules:(edge_t list) @str{" \123"^(fst (List.fold_left (fun (res,flag) i ->
     (res^(if flag then "" else "")^"\n  rule "^(str_edge_t i),true)) ("",false) s))^"\n\125"}
-  FinalRules:(edge_t list) str{" final \123"^(fst (List.fold_left (fun (res,flag) i ->
+  FinalRules:(edge_t list) @str{" final \123"^(fst (List.fold_left (fun (res,flag) i ->
     (res^(if flag then "" else "")^"\n  rule "^(str_edge_t i),true)) ("",false) s))^"\n\125"}
 ;
-def Edge =  UniqueId str{""}:int
+parser Edge =  UniqueId @str{""}:int
   //EdgeConstraint<@{" ["^(string_of_int s)^"] "}:int>
-  Name? str{(match s with None -> "" | Some(s) -> get_symbol s)}:(int option)
-  "=>":() str{" => "} NamesOpt str{fst (List.fold_left (fun (res,flag) x ->
+  Name? @str{(match s with None -> "" | Some(s) -> get_symbol s)}:(int option)
+  "=>":() @str{" => "} NamesOpt @str{fst (List.fold_left (fun (res,flag) x ->
   (res^(if flag then "" else ", ")^(get_symbol x),false)) ("",true) s)}:(int list)
-  ExpList:(exp_t list) str{" ["^(fst (List.fold_left (fun (res,flag) p ->
+  ExpList:(exp_t list) @str{" ["^(fst (List.fold_left (fun (res,flag) p ->
     (res^(if flag then ", " else "")^(str_exp_t p),true)) ("",false) s))^"]"}
   FloatValP:float
     ;
 
-def UniqueId = ~ { get_unique_id () } ;
+parser UniqueId = ~ { get_unique_id () } ;
 
-def Ports =
+parser Ports =
    ~                                                  { [] }
  | (AAYlparen:() AAYrparen:())                    { [] }
  | (AAYlparen:() Names:(int list) AAYrparen:()) { $2 }
 ;
 
-def FinalRules =
+parser FinalRules =
    ~                                  { [] }
  | (AKWfinal:() Rules:(edge_t list))  { $2 }
 ;
 
-def Rules =
+parser Rules =
    ~                              { [] }
  | (AAYlbrack:() Rule*:(edge_t list) AAYrbrack:()) { $2 }
 ;
 
 /*
-def Rule ->
+parser Rule ->
   AKWrule<:()@{"rule"}> Edge { $2 }
 ;
 

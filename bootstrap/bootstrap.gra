@@ -72,11 +72,12 @@ CodeBlock ->
 | CodeLit<:code> : { Some($1) }
 ;
 
-Production -> ("def" XIdent Opt* '=' | '<' XIdent Opt* '>' EqOp)? Pattern ('|' Pattern)* ;
+Production -> (("parse" | "parser" | "ast") XIdent Opt* '=' | '<' XIdent Opt* '>' EqOp)? Pattern ('|' Pattern)* ;
 SemiProd -> (
   Production
 | (TokenKw | "tok") XIdent+
 | ("keyword" | "kw") XIdent '=' StringQuot
+| "code" XIdent '=' XIdent? CodeLit<:code>
 | ("property" | "prop") XIdent+ '=' (Bool<:bool> | Int<:int> | StringQuot)
 ) ';' ; 
 EqOp -> | '=' ;
@@ -102,8 +103,10 @@ Opt ->
 | Int<:int>      : PrecOption
 | Assoc    : AssocOption
 | CodeLit<:code>     : CodeOption // TODO XXX
-| "str" CodeLit<:code> : PrintOption
-| "eq" CodeLit<:code> : EqOption
+//| "str" CodeLit<:code> : PrintOption
+//| "eq" CodeLit<:code> : EqOption
+| '@' XIdent CodeLit<:code> : FnOption
+| '@' '$' XIdent : FnNameOption
 ;
 
 TokenKw -> "token" ;
