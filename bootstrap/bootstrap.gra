@@ -108,14 +108,15 @@ Opt ->
 
 TokenKw -> "token" ;
 
-Typ ->
+RootType ->
   SimpleType
-| '(' ComplexType ')'
+//| '(' ComplexType ')'
 | '(' Typ ')'
 ;
 
-RootType ->
-  Typ
+Typ ->
+  RootType
+| ComplexType
 ;
 
 SimpleType ->
@@ -127,16 +128,16 @@ SimpleType ->
 ;
 
 ComplexType ->
-  Typ TypeName                        : ConstrType
-| Typ StarTypList                     : TupleType
-| Typ CommaTypList                    : CommaType
+  RootType StarTypList                     : TupleType
+| RootType CommaTypList                    : CommaType
+| RootType TypeName                        : ConstrType
 | (XIdent | '_') "of" Typ : AbstrType
 ;
 
 TypeName -> XIdent ('.' XIdent)* ;
 
-StarTypList -> ('*' Typ)+ ;
-CommaTypList -> (',' Typ)+ ;
+StarTypList -> ('*' RootType)+ ;
+CommaTypList -> (',' RootType)+ ;
 
 OpOpr ->
   '*' : StarOp
