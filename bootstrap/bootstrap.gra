@@ -77,17 +77,17 @@ CodeBlock ->
 ;
 
 Production ->
-  (("parse" | "parser" | "lex" | "lexer" | "ast")<@{s^" "}> XIdent OptList Eq 
-   | '<' XIdent OptList '>' Eq?
+  (("parse" | "parser" | "lex" | "lexer" | "ast")<@{s^" "}> XIdent<:string> OptList Eq 
+   | '<' XIdent<:string> OptList '>' Eq?
   )?
   Pattern<@{"\n"^(str_pattern_t s)^"\n"}> ('|'<@{"| "}> Pattern<@{(str_pattern_t s)^"\n"}>)* ;
 
 SemiProd -> (
   Production
-| (TokenKw<@{(str_token_kw_t s)^" "}> | "tok"<@{s^" "}>) XIdent+
-| ("keyword" | "kw")<@{s^" "}> XIdent Eq StringQuot
-| "code"<@{s^" "}> XIdent Eq XIdent? CodeLit<:code>
-| ("property" | "prop")<@{s^" "}> XIdent+ Eq (Bool<:bool> | Int<:int> | StringQuot)
+| (TokenKw<@{(str_token_kw_t s)^" "}> | "tok"<@{s^" "}>) XIdent+<:(string*(string list))>
+| ("keyword" | "kw")<@{s^" "}> XIdent<:string> Eq StringQuot<:string>
+| "code"<@{s^" "}> XIdent<:string> Eq XIdent?<:(string option)> CodeLit<:code>
+| ("property" | "prop")<@{s^" "}> XIdent+<:(string*(string list))> Eq (Bool<:bool> | Int<:int> | StringQuot<:string>)
 ) ';' ; 
 
 Eq -> '='<@{" = "}> ;
@@ -100,9 +100,9 @@ EofOp ->
 | "eof"<@{" eof"}> ;
 
 Assoc ->
-  "left"  : LeftAssoc
-| "right" : RightAssoc
-| "unary" : UnaryAssoc
+  "left"     : LeftAssoc
+| "right"    : RightAssoc
+| "nonassoc" : NonAssoc
 ;
 
 AnnotAtom ->
@@ -114,12 +114,12 @@ AnnotAtom ->
 OptList -> Opt*<@{str_list (fun x -> " "^(str_opt_t x)) s}> ;
 
 Opt ->
-  ':' Typ  : TypeOption
-| Int<:int>      : PrecOption
-| Assoc    : AssocOption
-| CodeLit<:code>     : CodeOption // TODO XXX
-| '@' XIdent CodeLit<:code> : FnOption
-| '@' '$' XIdent : FnNameOption
+  ':' Typ                   : TypeOption
+| Int<:int>                 : PrecOption
+| Assoc                     : AssocOption
+| CodeLit<:code>            : CodeOption
+| '@' XIdent<:string> CodeLit<:code> : FnOption
+| '@' '$' XIdent<:string>            : FnNameOption
 ;
 
 TokenKw -> "token" ;
@@ -138,8 +138,8 @@ SimpleType ->
 ;
 
 ComplexType ->
- TupleType (',' TupleType)*     : CommaType
-| (XIdent | '_') "of"<@{" of "}> TupleType : AbstrType
+ TupleType (',' TupleType)*                : CommaType
+| (XIdent<:string> | '_') "of"<@{" of "}> TupleType : AbstrType
 ;
 
 TupleType ->
@@ -151,7 +151,7 @@ ConstrType ->
 | ConstrType TypeName<@{" "^(str_type_name_t s)}>
 ;
 
-TypeName -> XIdent ('.' XIdent)* ;
+TypeName -> XIdent<:string> ('.' XIdent<:string>)* ;
 
 OpOpr ->
   '*' : StarOp
@@ -160,33 +160,34 @@ OpOpr ->
 ;
 
 Quot ->
-  CharQuot
-| StringQuot ;
+  CharQuot<:string>   { $1 }
+| StringQuot<:string> { $1 }
+;
 
 Atom ->
-  '~'        : EmptyAtom // TODO XXX - empty string "" can also denote an empty atom
-| StringQuot : StringAtom
-| XIdent     : IdentAtom
-| Charsets   : CharsetsAtom
-| Quot ".." Quot : RecursiveSubpattern
-| '(' Production ')'
+  '~'                              : EmptyAtom // TODO XXX - empty string "" can also denote an empty atom
+| StringQuot<:string>              : StringAtom
+| XIdent<:string>                           : IdentAtom
+| Charsets                         : CharsetsAtom
+| Quot<:string> ".." Quot<:string> : RecurAtom
+| '(' Production ')'               : ProdAtom
 ;
 
 Charsets -> Charset ('/' Charset)? ;
 
 Charset ->
-  '_'      : WildcardCharset
-| CharQuot : SingletonCharset
-| Chars    : ListCharset
+  '_'               : WildcardCharset
+| CharQuot<:string> : SingletonCharset
+| Chars<:string>    : ListCharset
 ;
 
-Bool -> "true" { true } | "false" { false } ;
-XIdent -> ([a-zA-Z] [a-zA-Z0-9_]*) ; // TODO XXX - make sure this works with the ident translator
-Chars -> ('[' ([^\\\]]* ('\\' _)*)* ']') ;
-StringQuot -> ('"' (([^\\\"]* ('\\' _)*)*) '"') ;
+Bool -> "true" : { true } | "false" : { false } ;
+XIdent -> ([a-zA-Z] [a-zA-Z0-9_]*)<:string> : { $1 } ; // TODO XXX - make sure this works with the ident translator
+Chars -> ('[' ([^\\\]]* ('\\' _)*)* ']')<:string> : { $1 } ;
+StringQuot -> ('"' (([^\\\"]* ('\\' _)*)*) '"')<:string> : { $1 };
 CharQuot -> ('\'' (([^\\\'] |
          ('\\' ('\\'|'"'|'\''|'n'|'r'|'t'|'b')) |
-         ('\\' [0-9] [0-9] [0-9]) )) '\'') ;
+         ('\\' [0-9] [0-9] [0-9]) )) '\'')<:string> { $1 } ;
 Int -> ([0-9]+)<:int{int_of_string s}> : { $1 } ;
 CodeLit -> "{" .. "}"<:(Lexing.position*string){let p = Lexing.lexeme_start_p lexbuf in (p,s)}> : { handle_code $1 } ;
 

@@ -243,6 +243,7 @@ Newlines -> '\n' <{do_newline lexbuf}:()> : {};
 parser SingleComm = ("//" [^\n]*) {}:() {};  /* throw away single-line comments */
 lexer MultiComm  = "/*" .. "*/" {}:() {};
 lexer Multi  = "one" | "two" | "three";
+parser Temp = One | Two | Three (Five Six)*? Four ;
 "one" | "two" | "three";
 /* ^^ throw away recursive multiline comments */
 

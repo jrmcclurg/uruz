@@ -323,7 +323,7 @@ let rec get_str_fun (ty : typ) (prefix : string) : (string option * string optio
       (match s with
       | "bool" -> (Some("string_of_bool"),e)
       | "char" -> (Some("String.make 1"),e)
-      | "string" -> (Some(""),e)
+      | "string" -> (Some("(fun x -> x)"),e)
       | "int" -> (Some("string_of_int"),e)
       | "float" -> (Some("string_of_float"),e)
       | "int32" -> (Some("Int32.to_string"),e)
