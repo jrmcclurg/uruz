@@ -131,6 +131,7 @@ def OptSemi =
 ;
 
 def MyTest = "one" : token;
+def MyTest2 = "foobar" : (string of (string * int)) ;
 
 token AKWfinal ; // final
 token AKWtrue; // true

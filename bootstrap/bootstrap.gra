@@ -98,7 +98,7 @@ AnnotAtom ->
 ;
 
 Opt ->
-  ':' Typ  : TypeOption
+  ':' RootType  : TypeOption
 | Int<:int>      : PrecOption
 | Assoc    : AssocOption
 | CodeLit<:code>     : CodeOption // TODO XXX
@@ -109,22 +109,34 @@ Opt ->
 TokenKw -> "token" ;
 
 Typ ->
+  SimpleType
+| '(' ComplexType ')'
+| '(' Typ ')'
+;
+
+RootType ->
+  Typ
+;
+
+SimpleType ->
   TokenKw                        : TokenType // TODO XXX - maybe there's a need to set the name of this type?
-| '(' (XIdent | '_') "of" Typ StarTypList ')'                            : AbstrType
 | '_'                            : AnyType
 | '~'                            : NoType
 | '(' ')'                        : UnitType
 | TypeName                       : IdentType
-| '(' CommaTypList TypeName ')'  : ConstrType
-| '(' Typ StarTypList ')'        : TupleType
-| '(' Typ ')'              
 ;
 
-TypeName -> XIdent ('.' XIdent)*
+ComplexType ->
+  Typ TypeName                        : ConstrType
+| Typ StarTypList                     : TupleType
+| Typ CommaTypList                    : CommaType
+| (XIdent | '_') "of" Typ : AbstrType
 ;
+
+TypeName -> XIdent ('.' XIdent)* ;
 
 StarTypList -> ('*' Typ)+ ;
-CommaTypList -> Typ (',' Typ)* ;
+CommaTypList -> (',' Typ)+ ;
 
 OpOpr ->
   '*' : StarOp
