@@ -132,6 +132,11 @@ def OptSemi =
 
 def MyTest = "one" : token;
 def MyTest2 = "foobar" : (string of string * int) ;
+def MyTest3 = "test" : (((int,int*bool) Hashtbl.t) list list list * string) ;
+def MyTest3 = "test" : ((int*int) Hashtbl.t) ;
+def MyTest3 = "test" : ((int,int) Hashtbl.t) ;
+def MyTest3 = "test" : (_ of int * string) ;
+def MyTest3 = "test" : (Foo of ((int) * string)) ;
 
 token AKWfinal ; // final
 token AKWtrue; // true
