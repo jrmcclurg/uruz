@@ -20,7 +20,7 @@
             position, 
             OCaml code *)
 
-   let str_code s = ""
+   let str_code s = match s with EmptyCode(_) -> "" | Code(_,c) -> ("{"^c^"}")
    let eq_code a b = false
 
    let is_string_empty (s : string) : bool =
@@ -66,25 +66,38 @@
    ;;
 }
 
-Grammar -> CodeBlock<:(code option)> SemiProd+ CodeBlock<:(code option)> ;
+Grammar ->
+  CodeBlock<:(code option)@{(str_option str_code s)^"\n"}>
+  SemiProd+<@{let (x,y)=s in (str_semi_prod_t x)^(str_list (fun y -> "\n\n"^(str_semi_prod_t y)) y)}>
+  CodeBlock<:(code option)@{"\n"^(str_option str_code s)}>
+;
 CodeBlock -> 
-               : { None }
+                 : { None }
 | CodeLit<:code> : { Some($1) }
 ;
 
-Production -> (("parse" | "parser" | "ast") XIdent Opt* '=' | '<' XIdent Opt* '>' EqOp)? Pattern ('|' Pattern)* ;
+Production ->
+  (("parse" | "parser" | "lex" | "lexer" | "ast")<@{s^" "}> XIdent OptList Eq 
+   | '<' XIdent OptList '>' Eq?
+  )?
+  Pattern<@{"\n"^(str_pattern_t s)^"\n"}> ('|'<@{"| "}> Pattern<@{(str_pattern_t s)^"\n"}>)* ;
+
 SemiProd -> (
   Production
-| (TokenKw | "tok") XIdent+
-| ("keyword" | "kw") XIdent '=' StringQuot
-| "code" XIdent '=' XIdent? CodeLit<:code>
-| ("property" | "prop") XIdent+ '=' (Bool<:bool> | Int<:int> | StringQuot)
+| (TokenKw<@{(str_token_kw_t s)^" "}> | "tok"<@{s^" "}>) XIdent+
+| ("keyword" | "kw")<@{s^" "}> XIdent Eq StringQuot
+| "code"<@{s^" "}> XIdent Eq XIdent? CodeLit<:code>
+| ("property" | "prop")<@{s^" "}> XIdent+ Eq (Bool<:bool> | Int<:int> | StringQuot)
 ) ';' ; 
-EqOp -> | '=' ;
 
-Pattern -> AnnotAtom+ EofOp ;
+Eq -> '='<@{" = "}> ;
+
+Pattern ->
+  AnnotAtom+ <@{let (x,y)=s in (str_annot_atom_t x)^(str_list (fun y -> " "^(str_annot_atom_t y)) y)}>
+  EofOp
+;
 EofOp ->
-| "eof" ;
+| "eof"<@{" eof"}> ;
 
 Assoc ->
   "left"  : LeftAssoc
@@ -95,16 +108,16 @@ Assoc ->
 AnnotAtom ->
   Atom
 | AnnotAtom OpOpr
-| AnnotAtom Opt
+| AnnotAtom Opt<@{" "^(str_opt_t s)}>
 ;
+
+OptList -> Opt*<@{str_list (fun x -> " "^(str_opt_t x)) s}> ;
 
 Opt ->
   ':' Typ  : TypeOption
 | Int<:int>      : PrecOption
 | Assoc    : AssocOption
 | CodeLit<:code>     : CodeOption // TODO XXX
-//| "str" CodeLit<:code> : PrintOption
-//| "eq" CodeLit<:code> : EqOption
 | '@' XIdent CodeLit<:code> : FnOption
 | '@' '$' XIdent : FnNameOption
 ;
@@ -126,7 +139,7 @@ SimpleType ->
 
 ComplexType ->
  TupleType (',' TupleType)*     : CommaType
-| (XIdent | '_') "of" TupleType : AbstrType
+| (XIdent | '_') "of"<@{" of "}> TupleType : AbstrType
 ;
 
 TupleType ->
@@ -135,7 +148,7 @@ TupleType ->
 
 ConstrType ->
   Typ
-| ConstrType TypeName
+| ConstrType TypeName<@{" "^(str_type_name_t s)}>
 ;
 
 TypeName -> XIdent ('.' XIdent)* ;
