@@ -166,12 +166,23 @@ SimpleType ->
 ;
 
 CompoundType ->
- TupleType (',' TupleType)*                : CommaType
-| (XIdent<:string> | '_'<:()>) "of"<@{" of "}> TupleType : AbstrType
+  CompoundType1<:((constr_type_t list) list)@{""^(str_x_list (fun x -> str_x_list str_constr_type_t x "*") s ",")^""}> : CommaType
+| AbstrName "of"<@{" of "}> TupleType<:(constr_type_t list)@{str_x_list str_constr_type_t s "*"}>   : AbstrType
+;
+
+AbstrName ->
+  XIdent<:string> : IdentName
+| '_'<:()>        : AnyName
+;
+
+CompoundType1 ->
+  TupleType<:(constr_type_t list)>                        : { [$1] }
+| TupleType<:(constr_type_t list)> ','<:()> CompoundType1 : { $1::$3 }
 ;
 
 TupleType ->
- ConstrType ('*'<:()> ConstrType)*
+  ConstrType                    : { [$1] }
+| ConstrType '*'<:()> TupleType : { $1::$3 }
 ;
 
 ConstrType ->

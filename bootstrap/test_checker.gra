@@ -247,6 +247,8 @@ property foo = false ;
 keyword MyKeyword = "test" ;
 parser Test = [abc] / [123] : (string foo list bar * foo bar list) ;
 parser Test = "foo" : one.two ;
+parser Test = "foo" : ((int,string*int) Hashtbl.t) ;
+parser Test = "foo" : (_ of int * string * bool) ;
 /* ^^ throw away recursive multiline comments */
 
 {
