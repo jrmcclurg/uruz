@@ -68,7 +68,7 @@
 
 Grammar ->
   CodeBlock<:(code option)@{(str_option str_code s)^"\n"}>
-  SemiProd+<@{let (x,y)=s in (str_semi_prod_t x)^(str_list (fun y -> "\n\n"^(str_semi_prod_t y)) y)}>
+  SemiDecl+<:(decl_t*(decl_t list))@{let (x,y)=s in (str_decl_t x)^";"^(str_list (fun y -> "\n\n"^(str_decl_t y)^";") y)}>
   CodeBlock<:(code option)@{"\n"^(str_option str_code s)}>
 ;
 CodeBlock -> 
@@ -77,38 +77,66 @@ CodeBlock ->
 ;
 
 Production ->
-  (("parse" | "parser" | "lex" | "lexer" | "ast")<@{s^" "}> XIdent<:string> OptList Eq 
-   | '<' XIdent<:string> OptList '>' Eq?
-  )?
-  Pattern<@{"\n"^(str_pattern_t s)^"\n"}> ('|'<@{"| "}> Pattern<@{(str_pattern_t s)^"\n"}>)* ;
+  ProdType?<:(((string option)*(string*opt_list_t)) option)
+    @{str_option (fun s -> let (x,(y,z))=s in match x with
+        None -> "<"^y^(str_opt_list_t z)^"> "
+      | Some(x) -> x^" "^y^(str_opt_list_t z)^" = ") s}>
+  Pattern<@{"\n"^(str_pattern_t s)^"\n"}> BarPattern<:(pattern_t list)
+    @{str_list (fun x -> "| "^(str_pattern_t x)^"\n") s}> ;
 
-SemiProd -> (
-  Production
-| (TokenKw<@{(str_token_kw_t s)^" "}> | "tok"<@{s^" "}>) XIdent+<:(string*(string list))>
-| ("keyword" | "kw")<@{s^" "}> XIdent<:string> Eq StringQuot<:string>
-| "code"<@{s^" "}> XIdent<:string> Eq XIdent?<:(string option)> CodeLit<:code>
-| ("property" | "prop")<@{s^" "}> XIdent+<:(string*(string list))> Eq (Bool<:bool> | Int<:int> | StringQuot<:string>)
-) ';' ; 
+ProdType ->
+  ProdKw<:string@{s^" "}> XIdent<:string> OptList Eq : { (Some($1),($2,$3)) }
+| '<' XIdent<:string> OptList '>' Eq? : { (None,($2,$3)) }
+;
 
-Eq -> '='<@{" = "}> ;
+BarPattern ->
+                 : { [] }
+| '|' Pattern BarPattern : { $2::$3 }
+;
+
+ProdKw -> ("parse" | "parser" | "lex" | "lexer" | "ast")<:string> : { $1 } ;
+
+SemiDecl -> Decl ';' : { $1 } ;
+
+Decl -> 
+  Production : ProdDecl
+| TokenKws<:()@{"token "}> XIdent+<:(string*(string list))> : TokenDecl
+| KeywordKws<:()@{"keyword "}> XIdent<:string> Eq<:()@{" = "}> StringQuot<:string> : KeywordDecl
+| "code"<:()@{"code "}> XIdent<:string> Eq<:()@{" = "}> XIdent?<:(string option)> CodeLit<:code> : CodeDecl
+| PropKws<:()@{"property "}> XIdent<:string> Eq<:()@{" = "}> Value : PropDecl
+ ; 
+
+TokenKws -> TokenKw :  | "tok" :  ;
+KeywordKws -> "keyword" : | "kw" : ;
+PropKws -> "property" : | "prop" : ;
+
+Value ->
+  Bool<:bool>         : BoolVal
+| Int<:int>           : IntVal
+| StringQuot<:string> : StringVal
+;
+
+Eq -> '='<@{" = "}> : ;
 
 Pattern ->
   AnnotAtom+ <@{let (x,y)=s in (str_annot_atom_t x)^(str_list (fun y -> " "^(str_annot_atom_t y)) y)}>
-  EofOp
+  EofOp<:bool@{if s then " eof" else ""}>
 ;
 EofOp ->
-| "eof"<@{" eof"}> ;
+        : { false }
+| "eof" : { true}
+;
 
 Assoc ->
-  "left"     : LeftAssoc
-| "right"    : RightAssoc
-| "nonassoc" : NonAssoc
+  "left"<:()>     : LeftAssoc
+| "right"<:()>    : RightAssoc
+| "nonassoc"<:()> : NonAssoc
 ;
 
 AnnotAtom ->
-  Atom
-| AnnotAtom OpOpr
-| AnnotAtom Opt<@{" "^(str_opt_t s)}>
+  Atom                                : SingletonAnnotAtom
+| AnnotAtom Quant                     : QuantAnnotAtom
+| AnnotAtom Opt<@{" "^(str_opt_t s)}> : OptAnnotAtom
 ;
 
 OptList -> Opt*<@{str_list (fun x -> " "^(str_opt_t x)) s}> ;
@@ -153,10 +181,10 @@ ConstrType ->
 
 TypeName -> XIdent<:string> ('.' XIdent<:string>)* ;
 
-OpOpr ->
-  '*' : StarOp
-| '+' : PlusOp
-| '?' : QuestionOp
+Quant ->
+  '*' : StarQuant
+| '+' : PlusQuant
+| '?' : QuestionQuant
 ;
 
 Quot ->

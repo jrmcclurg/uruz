@@ -7,12 +7,7 @@ end);;*)
 this is some code
 }
 
-property foo = "true" ;
-property foo = false ;
 
-keyword MyKeyword = "test" ;
-
-token One Two THree ;
 
 parser Model:int = (<Model> Empty:bool ElementSemi* 
 :(element_t list) @str{
@@ -245,6 +240,11 @@ lexer MultiComm  = "/*" .. "*/" {}:() {};
 lexer Multi  = "one" | "two" | "three";
 parser Temp = One | Two | Three (Five Six)*? Four ;
 "one" | "two" | "three";
+token One Two THree ;
+property foo = "true" ;
+property foo = false ;
+
+keyword MyKeyword = "test" ;
 /* ^^ throw away recursive multiline comments */
 
 {
