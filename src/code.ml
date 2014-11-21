@@ -1071,6 +1071,11 @@ let generate_utils_code file g =
   output_string file "   match l with\n";
   output_string file "   | [] -> \"\"\n";
   output_string file "   | a::more -> ((if (not first) then \"\" else \"\")^(f a)^(str_list_helper f more false))\n";
+  output_string file "let rec str_x_list (f : 'a -> string) (il : 'a list) (comma : string) : string = \n";
+  output_string file "    (fst (List.fold_left\n";
+  output_string file "    (fun (str,flag) i ->\n";
+  output_string file "      (str^(if flag then \"\" else comma)^(f i), false)\n";
+  output_string file "    ) (\"\",true) il))\n";
   output_string file ";;\n";
   (match header with
   | None -> ()

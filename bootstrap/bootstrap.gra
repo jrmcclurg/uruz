@@ -162,7 +162,7 @@ SimpleType ->
 | '_'<:()>      : AnyType
 | '~'<:()>      : NoType
 | '('<:()> ')'<:()>  : UnitType
-| TypeName : IdentType
+| TypeName<:(string list)@{""^(str_x_list (fun x -> x) s ".")^""}> : IdentType
 ;
 
 CompoundType ->
@@ -176,10 +176,12 @@ TupleType ->
 
 ConstrType ->
   Typ                                             : SingletonConstrType
-| ConstrType TypeName<@{" "^(str_type_name_t s)}> : InstConstrType
+| ConstrType TypeName<:(string list)@{" "^(str_x_list (fun x -> x) s ".")^""}> : InstConstrType
 ;
 
-TypeName -> XIdent<:string> ('.' XIdent<:string>)* ;
+TypeName ->
+  XIdent<:string>              : { [$1] }
+| XIdent<:string> '.' TypeName : { $1::$3 } ;
 
 Quant ->
   '*'<:()> : StarQuant

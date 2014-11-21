@@ -245,7 +245,8 @@ property foo = "true" ;
 property foo = false ;
 
 keyword MyKeyword = "test" ;
-parser Test = [abc] / [123] ;
+parser Test = [abc] / [123] : (string foo list bar * foo bar list) ;
+parser Test = "foo" : one.two ;
 /* ^^ throw away recursive multiline comments */
 
 {
