@@ -245,6 +245,7 @@ property foo = "true" ;
 property foo = false ;
 
 keyword MyKeyword = "test" ;
+parser Test = [abc] / [123] ;
 /* ^^ throw away recursive multiline comments */
 
 {

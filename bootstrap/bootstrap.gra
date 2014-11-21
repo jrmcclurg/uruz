@@ -77,16 +77,16 @@ CodeBlock ->
 ;
 
 Production ->
-  ProdType?<:(((string option)*(string*opt_list_t)) option)
+  ProdType?<:(((string option)*(string*(opt_t list))) option)
     @{str_option (fun s -> let (x,(y,z))=s in match x with
-        None -> "<"^y^(str_opt_list_t z)^"> "
-      | Some(x) -> x^" "^y^(str_opt_list_t z)^" = ") s}>
+        None -> "<"^y^(str_list (fun x -> " "^(str_opt_t x)) z)^"> "
+      | Some(x) -> x^" "^y^(str_list (fun x -> " "^(str_opt_t x)) z)^" = ") s}>
   Pattern<@{"\n"^(str_pattern_t s)^"\n"}> BarPattern<:(pattern_t list)
     @{str_list (fun x -> "| "^(str_pattern_t x)^"\n") s}> ;
 
 ProdType ->
-  ProdKw<:string@{s^" "}> XIdent<:string> OptList Eq : { (Some($1),($2,$3)) }
-| '<' XIdent<:string> OptList '>' Eq? : { (None,($2,$3)) }
+  ProdKw<:string@{s^" "}> XIdent<:string> OptList<:(opt_t list)> Eq : { (Some($1),($2,$3)) }
+| '<' XIdent<:string> OptList<:(opt_t list)> '>' Eq? : { (None,($2,$3)) }
 ;
 
 BarPattern ->
@@ -106,7 +106,7 @@ Decl ->
 | PropKws<:()@{"property "}> XIdent<:string> Eq<:()@{" = "}> Value : PropDecl
  ; 
 
-TokenKws -> TokenKw :  | "tok" :  ;
+TokenKws -> TokenKw<:()> :  | "tok" :  ;
 KeywordKws -> "keyword" : | "kw" : ;
 PropKws -> "property" : | "prop" : ;
 
@@ -139,72 +139,79 @@ AnnotAtom ->
 | AnnotAtom Opt<@{" "^(str_opt_t s)}> : OptAnnotAtom
 ;
 
-OptList -> Opt*<@{str_list (fun x -> " "^(str_opt_t x)) s}> ;
+OptList -> Opt*<:(opt_t list)> : { $1 } ;
 
 Opt ->
-  ':' Typ                   : TypeOption
-| Int<:int>                 : PrecOption
-| Assoc                     : AssocOption
-| CodeLit<:code>            : CodeOption
-| '@' XIdent<:string> CodeLit<:code> : FnOption
-| '@' '$' XIdent<:string>            : FnNameOption
+  ':'<:()> Typ                            : TypeOption
+| Int<:int>                               : PrecOption
+| Assoc                                   : AssocOption
+| CodeLit<:code>                          : CodeOption
+| '@'<:()> XIdent<:string> CodeLit<:code> : FnOption
+| '@'<:()> '$'<:()> XIdent<:string>       : FnNameOption
 ;
 
-TokenKw -> "token" ;
+TokenKw -> "token" : ;
 
 Typ ->
-  SimpleType
-| '(' ComplexType ')'
+  SimpleType          : SimpleType
+| '('<:()> CompoundType ')'<:()> : CompoundType
 ;
 
 SimpleType ->
-  TokenKw  : TokenType // TODO XXX - maybe there's a need to set the name of this type?
-| '_'      : AnyType
-| '~'      : NoType
-| '(' ')'  : UnitType
+  TokenKw<:()> : TokenType // TODO XXX - maybe there's a need to set the name of this type?
+| '_'<:()>      : AnyType
+| '~'<:()>      : NoType
+| '('<:()> ')'<:()>  : UnitType
 | TypeName : IdentType
 ;
 
-ComplexType ->
+CompoundType ->
  TupleType (',' TupleType)*                : CommaType
-| (XIdent<:string> | '_') "of"<@{" of "}> TupleType : AbstrType
+| (XIdent<:string> | '_'<:()>) "of"<@{" of "}> TupleType : AbstrType
 ;
 
 TupleType ->
- ConstrType ('*' ConstrType)*
+ ConstrType ('*'<:()> ConstrType)*
 ;
 
 ConstrType ->
-  Typ
-| ConstrType TypeName<@{" "^(str_type_name_t s)}>
+  Typ                                             : SingletonConstrType
+| ConstrType TypeName<@{" "^(str_type_name_t s)}> : InstConstrType
 ;
 
 TypeName -> XIdent<:string> ('.' XIdent<:string>)* ;
 
 Quant ->
-  '*' : StarQuant
-| '+' : PlusQuant
-| '?' : QuestionQuant
+  '*'<:()> : StarQuant
+| '+'<:()> : PlusQuant
+| '?'<:()> : QuestionQuant
 ;
 
 Quot ->
-  CharQuot<:string>   { $1 }
-| StringQuot<:string> { $1 }
+  CharQuot<:string>   : { $1 }
+| StringQuot<:string> : { $1 }
 ;
 
 Atom ->
-  '~'                              : EmptyAtom // TODO XXX - empty string "" can also denote an empty atom
+  '~'<:()>                         : EmptyAtom // TODO XXX - empty string "" can also denote an empty atom
 | StringQuot<:string>              : StringAtom
-| XIdent<:string>                           : IdentAtom
+| XIdent<:string>                  : IdentAtom
 | Charsets                         : CharsetsAtom
-| Quot<:string> ".." Quot<:string> : RecurAtom
-| '(' Production ')'               : ProdAtom
+| Quot<:string> ".."<:()@{" .. "}> Quot<:string> : RecurAtom
+| '('<:()> Production ')'<:()>     : ProdAtom
 ;
 
-Charsets -> Charset ('/' Charset)? ;
+Charsets ->
+  Charset CharsetDiffOption<:(charset_t option)
+    @{str_option (fun x -> " / "^(str_charset_t x)) s}>
+;
+CharsetDiffOption ->
+              : { None }
+| '/' Charset : { Some($2) }
+;
 
 Charset ->
-  '_'               : WildcardCharset
+  '_'<:()>               : WildcardCharset
 | CharQuot<:string> : SingletonCharset
 | Chars<:string>    : ListCharset
 ;
@@ -215,7 +222,7 @@ Chars -> ('[' ([^\\\]]* ('\\' _)*)* ']')<:string> : { $1 } ;
 StringQuot -> ('"' (([^\\\"]* ('\\' _)*)*) '"')<:string> : { $1 };
 CharQuot -> ('\'' (([^\\\'] |
          ('\\' ('\\'|'"'|'\''|'n'|'r'|'t'|'b')) |
-         ('\\' [0-9] [0-9] [0-9]) )) '\'')<:string> { $1 } ;
+         ('\\' [0-9] [0-9] [0-9]) )) '\'')<:string> : { $1 } ;
 Int -> ([0-9]+)<:int{int_of_string s}> : { $1 } ;
 CodeLit -> "{" .. "}"<:(Lexing.position*string){let p = Lexing.lexeme_start_p lexbuf in (p,s)}> : { handle_code $1 } ;
 
