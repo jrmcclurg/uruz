@@ -114,6 +114,7 @@ Value ->
   Bool<:bool>         : BoolVal
 | Int<:int>           : IntVal
 | StringQuot<:string> : StringVal
+| CharQuot<:string>   : CharVal
 ;
 
 Eq -> '='<@{" = "}> : ;
@@ -232,10 +233,10 @@ Charset ->
 Bool -> "true" : { true } | "false" : { false } ;
 XIdent -> ([a-zA-Z] [a-zA-Z0-9_]*)<:string> : { $1 } ; // TODO XXX - make sure this works with the ident translator
 Chars -> ('[' ([^\\\]]* ('\\' _)*)* ']')<:string> : { $1 } ;
-StringQuot -> ('"' (([^\\\"]* ('\\' _)*)*) '"')<:string> : { $1 };
+StringQuot -> ('"' (([^\\\"]* ('\\' _)*)*) '"')<:string> : { Scanf.sscanf $1 "%S" (fun x -> x) };
 CharQuot -> ('\'' (([^\\\'] |
          ('\\' ('\\'|'"'|'\''|'n'|'r'|'t'|'b')) |
-         ('\\' [0-9] [0-9] [0-9]) )) '\'')<:string> : { $1 } ;
+         ('\\' [0-9] [0-9] [0-9]) )) '\'')<:string> : { String.make 1 (Scanf.sscanf $1 "%C" (fun x -> x)) } ;
 Int -> ([0-9]+)<:int{int_of_string s}> : { $1 } ;
 CodeLit -> "{" .. "}"<:(Lexing.position*string){let p = Lexing.lexeme_start_p lexbuf in (p,s)}> : { handle_code $1 } ;
 
