@@ -102,9 +102,14 @@ Decl ->
   Production : ProdDecl
 | TokenKws<:()@{"token "}> XIdent+<:(string*(string list))> : TokenDecl
 | KeywordKws<:()@{"keyword "}> XIdent<:string> Eq<:()@{" = "}> StringQuot<:string> : KeywordDecl
-| "code"<:()@{"code "}> XIdent<:string> Eq<:()@{" = "}> XIdent?<:(string option)> CodeLit<:code> : CodeDecl
+| "code"<:()@{"code "}> XIdent<:string> Eq<:()@{" ="}>
+    NamedCode+<:(((string option)*code)*(((string option)*code) list))@{let (x,y) = s in str_list (fun (so,c) -> " "^(str_option (fun x -> x^" ") so)^(str_code c)) (x::y)}> : CodeDecl
 | PropKws<:()@{"property "}> XIdent<:string> Eq<:()@{" = "}> Value : PropDecl
  ; 
+
+NamedCode ->
+  XIdent?<:(string option)> CodeLit<:code> : { ($1,$2) }
+;
 
 TokenKws -> TokenKw<:()> :  | "tok" :  ;
 KeywordKws -> "keyword" : | "kw" : ;

@@ -75,10 +75,8 @@ and flatten_atom (a : atom_t) (defname : string option) (deftyp : string option)
 | ProdAtom(p,Production(p2,None,pat,patl)) ->
   let name = Flags.get_def_prod_name defname nesting in
   let (patl2,prods) = flatten_list flatten_pattern (pat::patl) defname deftyp nesting in
-  Printf.printf "flatten_atom\n";
   (IdentAtom(p,name),(ProdDecl(p2,Production(p2,Some(Some(Flags.get_def_prod_type deftyp),(name,[])),List.hd patl2,List.tl patl2)))::prods)
 | ProdAtom(p,Production(p2,Some(kwo,(name,ol)),pat,patl)) -> 
   let (patl2,prods) = flatten_list flatten_pattern (pat::patl) (Some(name)) kwo [] in
-  Printf.printf "flatten_atom2\n";
   (IdentAtom(p,name),(ProdDecl(p2,Production(p2,Some((match kwo with None -> Some(Flags.get_def_prod_type deftyp) | _ -> kwo),(name,ol)),List.hd patl2,List.tl patl2)))::prods)
 | _ -> (a,[])
