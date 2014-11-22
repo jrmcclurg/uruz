@@ -53,8 +53,13 @@ and flatten_production (p : production_t) (defname : string option) (deftyp : st
     | Some(kwo,(name,ol)) -> (Some(name),kwo,[])
     | _ -> (defname,deftyp,nesting)
   ) in
+  let o2 = (match o with
+  | None -> Some(Some(get_def_prod_type deftyp),(get_def_prod_name defname nesting,[]))
+  | Some(None,x) -> Some(Some(get_def_prod_type deftyp),x)
+  | _ -> o
+  ) in
   let (patl2,prods) = flatten_list flatten_pattern (pat::patl) defname deftyp nesting in
-  (Production(ps,o,List.hd patl2,List.tl patl2),prods)
+  (Production(ps,o2,List.hd patl2,List.tl patl2),prods)
 
 and flatten_pattern (p : pattern_t) (defname : string option) (deftyp : string option) (nesting : int list) : (pattern_t*decl_t list) = match p with
 | Pattern(p,(a,al),eof) ->
