@@ -51,6 +51,18 @@ let (l2,prods,_) = List.fold_left (fun (l2,prods,index) x ->
 ) ([],[], !Flags.def_prod_index) l in
 (List.rev l2, List.rev prods)
 
+let flatten_opt_list (ol : opt_t list) (code_table : (symb,pos_t*(symb option*code) list) Hashtbl.t) : opt_t list =
+  let result = List.rev_map (fun o ->
+    let new_opts = (match o with 
+    | CodeNameOption(p,s) ->
+      let (p2,codes) = (try Hashtbl.find code_table s with Not_found -> die_error p ("could not find code declaration named '"^(get_symbol s)^"'")) in
+      let o2 = (List.rev_map (fun (x,y) -> CodeOption(p2,x,y)) codes) in
+      o2
+    | _ -> [o]) in
+    new_opts
+  ) ol in
+  rev_flatten result
+
 let rec flatten_grammar (g : grammar_t) (code_table : (symb,pos_t*(symb option*code) list) Hashtbl.t) : grammar_t = match g with
 | Grammar(pos,code1,(d,dl),code2) ->
   (*let dl2 = List.rev_map (fun d -> let (x,y) = flatten_decl d in List.rev (x::y)) (d::dl) in
@@ -74,8 +86,8 @@ and flatten_production (p : production_t) (defname : symb option) (deftyp : stri
   ) in
   let o2 = (match o with
   | None -> Some(Some(get_def_prod_type deftyp),(get_def_prod_name defname nesting,[]))
-  | Some(None,x) -> Some(Some(get_def_prod_type deftyp),x)
-  | _ -> o
+  | Some(None,(x,y)) -> Some(Some(get_def_prod_type deftyp),(x,flatten_opt_list y code_table))
+  | Some(x,(y,ol)) -> Some(x,(y,flatten_opt_list ol code_table))
   ) in
   let (patl2,prods) = flatten_list flatten_pattern (pat::patl) defname deftyp nesting code_table in
   (Production(ps,o2,List.hd patl2,List.tl patl2),prods)
@@ -105,7 +117,7 @@ and flatten_atom (a : atom_t) (defname : symb option) (deftyp : string option) (
   (IdentAtom(p,name),(ProdDecl(p2,Production(p2,Some(Some(Flags.get_def_prod_type deftyp),(name,[])),List.hd patl2,List.tl patl2)))::prods)
 | ProdAtom(p,Production(p2,Some(kwo,(name,ol)),pat,patl)) -> 
   let (patl2,prods) = flatten_list flatten_pattern (pat::patl) (Some(name)) kwo [] code_table in
-  (IdentAtom(p,name),(ProdDecl(p2,Production(p2,Some((match kwo with None -> Some(Flags.get_def_prod_type deftyp) | _ -> kwo),(name,ol)),List.hd patl2,List.tl patl2)))::prods)
+  (IdentAtom(p,name),(ProdDecl(p2,Production(p2,Some((match kwo with None -> Some(Flags.get_def_prod_type deftyp) | _ -> kwo),(name,flatten_opt_list ol code_table)),List.hd patl2,List.tl patl2)))::prods)
 | _ -> (a,[])
 
 (*********************************************************)
@@ -125,7 +137,8 @@ type simple_graph =
   (int,
     IntSet.t    (* children of this vertex *) *
     mark        (* mark used in topological sort *) *
-    int(*production_t*) (* TODO XXX *)
+    bool        (* is_def *)
+    (*production_t*) (* TODO XXX *)
   ) Hashtbl.t
 
 (* Tarjan's algorithm - returns a topological sort of the strongly-connected components *)
@@ -197,15 +210,16 @@ and pop_until (graph : simple_graph) (stack : int Stack.t) (v : int) (res : IntS
 let rec build_def_graph_grammar (g : grammar_t) (count : int) : simple_graph = match g with
 | Grammar(pos,code1,(d,dl),code2) ->
   let graph = (Hashtbl.create (10*count)(*TODO XXX - num?*) : simple_graph) in
-  let dl2 = List.fold_left (fun (acc) d -> (match d with
+  List.iter (fun d -> (match d with
     | ProdDecl(p,Production(p2,None,pat,patl)) -> die_error p2 "production is not named"
     | ProdDecl(p,Production(p2,Some(_,(name,_)),pat,patl)) ->
-      let x = (try Hashtbl.find graph name with Not_found -> (IntSet.empty,None,0)) in
+      let x = (try let (set,m,is_def) = Hashtbl.find graph name in
+        if is_def then die_error p2 ("multiple definition of '"^(get_symbol name)^"'") else (set,m,is_def)
+        with Not_found -> (IntSet.empty,None,true)) in
       Hashtbl.replace graph name x;
-      List.iter (fun pat -> build_def_graph_pattern pat graph name) (pat::patl);
-      acc
-    | _ -> (d::acc))
-  ) ([]) (d::dl) in
+      List.iter (fun pat -> build_def_graph_pattern pat graph name) (pat::patl)
+    | _ -> ())
+  ) (d::dl);
   graph
 
 and build_def_graph_pattern (p : pattern_t) (g : simple_graph) (parent : symb) : unit = match p with
@@ -219,8 +233,8 @@ and build_def_graph_annot_atom (an : annot_atom_t) (g : simple_graph) (parent : 
 
 and build_def_graph_atom (a : atom_t) (g : simple_graph) (parent : symb) : unit = match a with
 | IdentAtom(p,id) -> 
-  let (set,m,prod) = (try Hashtbl.find g parent with Not_found -> (IntSet.empty,None,0)) in
-  Hashtbl.replace g parent (IntSet.add id set,m,prod);
-  let x = (try Hashtbl.find g id with Not_found -> (IntSet.empty,None,0)) in
+  let (set,m,is_def) = (try Hashtbl.find g parent with Not_found -> (IntSet.empty,None,false)) in
+  Hashtbl.replace g parent (IntSet.add id set,m,is_def);
+  let x = (try Hashtbl.find g id with Not_found -> (IntSet.empty,None,false)) in
   Hashtbl.replace g id x;
 | _ -> ()
