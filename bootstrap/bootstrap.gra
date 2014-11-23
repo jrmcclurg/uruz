@@ -151,7 +151,7 @@ BarPattern ->
 | '|' Pattern BarPattern : { $2::$3 }
 ;
 
-ProdKw -> ("parse" | "parser" | "lex" | "lexer" | "ast")<:string> : { Parser } ;
+ProdKw -> ("parse" | "parser" | "lex" | "lexer" | "ast")<:string> : { str_to_rule_type (get_current_pos ()) $1 } ;
 
 SemiDecl -> Decl ';' : { $1 } ;
 

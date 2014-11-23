@@ -51,7 +51,9 @@ let (l2,prods,_) = List.fold_left (fun (l2,prods,index) x ->
 ) ([],[], !Flags.def_prod_index) l in
 (List.rev l2, List.rev prods)
 
-let flatten_opt_list (ol : opt_t list) (code_table : (symb,pos_t*(symb option*code) list) Hashtbl.t) : opt_t list =
+let flatten_opt_list (p : pos_t) (ol : opt_t list) (deftyp : rule_type option) (nesting : int list) (code_table : (symb,pos_t*(symb option*code) list) Hashtbl.t) : opt_t list =
+  if List.length nesting > 1 (*TODO XXX*) && List.length ol > 0 && ((deftyp=Some(Lexer)) || (deftyp=None && !Flags.def_prod_type=Lexer)) then
+    die_error p "lexer productions can only contain annotations on the left-hand-side (i.e. applied to the entire production)";
   let result = List.rev_map (fun o ->
     let new_opts = (match o with 
     | CodeNameOption(p,s) ->
@@ -80,14 +82,15 @@ and flatten_decl (d : decl_t) (defname : symb option) (deftyp : rule_type option
 
 and flatten_production (p : production_t) (defname : symb option) (deftyp : rule_type option) (nesting : int list) (code_table : (symb,pos_t*(symb option*code) list) Hashtbl.t) : (production_t*decl_t list) = match p with
 | Production(ps,o,pat,patl) ->
+  let nesting_old = nesting in
   let (defname,deftyp,nesting) = (match o with
     | Some(kwo,(name,ol)) -> (Some(name),kwo,[])
     | _ -> (defname,deftyp,nesting)
   ) in
   let o2 = (match o with
   | None -> Some(Some(get_def_prod_type deftyp),(get_def_prod_name defname nesting,[]))
-  | Some(None,(x,y)) -> Some(Some(get_def_prod_type deftyp),(x,flatten_opt_list y code_table))
-  | Some(x,(y,ol)) -> Some(x,(y,flatten_opt_list ol code_table))
+  | Some(None,(x,y)) -> Some(Some(get_def_prod_type deftyp),(x,flatten_opt_list ps y deftyp nesting_old code_table))
+  | Some(x,(y,ol)) -> Some(x,(y,flatten_opt_list ps ol deftyp nesting_old code_table))
   ) in
   let (patl2,prods) = flatten_list flatten_pattern (pat::patl) defname deftyp nesting code_table in
   (Production(ps,o2,List.hd patl2,List.tl patl2),prods)
@@ -101,6 +104,8 @@ and flatten_annot_atom (an : annot_atom_t) (defname : symb option) (deftyp : rul
 | SingletonAnnotAtom(p,a) -> let (a2,prods) = flatten_atom a defname deftyp nesting code_table in (SingletonAnnotAtom(p,a2),prods)
 | QuantAnnotAtom(p,an,q) -> let (a2,prods) = flatten_annot_atom an defname deftyp nesting code_table in (QuantAnnotAtom(p,a2,q),prods)
 | OptAnnotAtom(p,an,o) ->
+  if (deftyp=Some(Lexer)) || (deftyp=None && !Flags.def_prod_type=Lexer) then
+    die_error p "lexer productions can only contain annotations on the left-hand-side (i.e. applied to the entire production)";
   let new_opts = (match o with 
   | CodeNameOption(p,s) ->
     let (p2,codes) = (try Hashtbl.find code_table s with Not_found -> die_error p ("could not find code declaration named '"^(get_symbol s)^"'")) in
@@ -117,7 +122,7 @@ and flatten_atom (a : atom_t) (defname : symb option) (deftyp : rule_type option
   (IdentAtom(p,name),(ProdDecl(p2,Production(p2,Some(Some(Flags.get_def_prod_type deftyp),(name,[])),List.hd patl2,List.tl patl2)))::prods)
 | ProdAtom(p,Production(p2,Some(kwo,(name,ol)),pat,patl)) -> 
   let (patl2,prods) = flatten_list flatten_pattern (pat::patl) (Some(name)) kwo [] code_table in
-  (IdentAtom(p,name),(ProdDecl(p2,Production(p2,Some((match kwo with None -> Some(Flags.get_def_prod_type deftyp) | _ -> kwo),(name,flatten_opt_list ol code_table)),List.hd patl2,List.tl patl2)))::prods)
+  (IdentAtom(p,name),(ProdDecl(p2,Production(p2,Some((match kwo with None -> Some(Flags.get_def_prod_type deftyp) | _ -> kwo),(name,flatten_opt_list p2 ol deftyp nesting code_table)),List.hd patl2,List.tl patl2)))::prods)
 | _ -> (a,[])
 
 (*********************************************************)
