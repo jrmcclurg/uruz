@@ -108,7 +108,6 @@ and flatten_atom (a : atom_t) (defname : symb option) (deftyp : string option) (
   (IdentAtom(p,name),(ProdDecl(p2,Production(p2,Some((match kwo with None -> Some(Flags.get_def_prod_type deftyp) | _ -> kwo),(name,ol)),List.hd patl2,List.tl patl2)))::prods)
 | _ -> (a,[])
 
-
 (*********************************************************)
 (**  TOPOLOGICAL SORT FUNCTIONALITY                     **)
 (*********************************************************)
@@ -122,44 +121,43 @@ end)
 (* (index,lowlink,in_S) *)
 type mark = (int * int * bool) option ;;
 
-type simple_graph = {
-  vertices : (int,
+type simple_graph =
+  (int,
     IntSet.t    (* children of this vertex *) *
     mark        (* mark used in topological sort *) *
-    production_t
-  ) Hashtbl.t;
-}
+    int(*production_t*) (* TODO XXX *)
+  ) Hashtbl.t
 
 (* Tarjan's algorithm - returns a topological sort of the strongly-connected components *)
 (* http://en.wikipedia.org/wiki/Tarjan%27s_strongly_connected_components_algorithm *)
-let rec topo_sort (graph : simple_graph) (vertices : IntSet.t) : (int list) list =
+let rec topo_sort (graph : simple_graph) (*(vertices : IntSet.t)*) : (int list) list =
   let stack = ((Stack.create ()) : int Stack.t) in
   let result = fst (Hashtbl.fold (fun k (childs,m,_) (res,index) ->
-    if (IntSet.mem k vertices) then topo_dfs k res graph index stack else (res,index)
-  ) graph.vertices ([],0)) in
+    if true(*(IntSet.mem k vertices)*) then topo_dfs k res graph index stack else (res,index)
+  ) graph ([],0)) in
   (* clear the marks *)
   Hashtbl.iter (fun k (t1,m,t4) ->
-    if (m<>None) then Hashtbl.replace graph.vertices k (t1,None,t4)
-  ) graph.vertices;
+    if (m<>None) then Hashtbl.replace graph k (t1,None,t4)
+  ) graph;
   result
 
 and topo_dfs (id : int) (res : (int list) list) (graph : simple_graph)
 (index : int) (stack : int Stack.t) : ((int list) list * int) =
-  let (childs,m,mb) = (try Hashtbl.find graph.vertices id with Not_found -> failwith "topo_dfs-1") in
+  let (childs,m,mb) = (try Hashtbl.find graph id with Not_found -> failwith "topo_dfs-1") in
   if (m=None) then (
     (* mark id with (index,index,true) *)
     let v_index = index in
     let v_lowlink = index in
-    Hashtbl.replace graph.vertices id (childs,Some(v_index,v_lowlink,true),mb);
+    Hashtbl.replace graph id (childs,Some(v_index,v_lowlink,true),mb);
     let index = index + 1 in
     Stack.push id stack;
 
     let (res,index,new_v_lowlink) = IntSet.fold (fun child_id (res,index,v_lowlink) ->
-      let (_,m,_) = (try Hashtbl.find graph.vertices child_id with Not_found -> failwith "topo_dfs-2") in
+      let (_,m,_) = (try Hashtbl.find graph child_id with Not_found -> failwith "topo_dfs-2") in
       let (new_v_lowlink,(res,index)) = (match m with
         | None ->
           let (res,index) = topo_dfs child_id res graph index stack in
-          let temp = (try Hashtbl.find graph.vertices child_id with Not_found -> failwith "topo_dfs-3") in
+          let temp = (try Hashtbl.find graph child_id with Not_found -> failwith "topo_dfs-3") in
           let (w_index,w_lowlink,w_in_s) = (match temp with
           | (_,Some(w_index,w_lowlink,w_in_s),_) -> (w_index,w_lowlink,w_in_s)
           | _ -> failwith ("topo_dfs-4")) in
@@ -171,7 +169,7 @@ and topo_dfs (id : int) (res : (int list) list) (graph : simple_graph)
       (res,index,new_v_lowlink)
     ) childs (res,index,v_lowlink) in
 
-    Hashtbl.replace graph.vertices id (childs,Some(v_index,new_v_lowlink,true),mb);
+    Hashtbl.replace graph id (childs,Some(v_index,new_v_lowlink,true),mb);
 
     if (new_v_lowlink=v_index) then (
       let comp = pop_until graph stack id IntSet.empty in
@@ -185,11 +183,44 @@ and topo_dfs (id : int) (res : (int list) list) (graph : simple_graph)
 
 and pop_until (graph : simple_graph) (stack : int Stack.t) (v : int) (res : IntSet.t) : IntSet.t =
   let w = (try Stack.pop stack with Stack.Empty -> failwith "pop_until-1") in
-  let temp = (try Hashtbl.find graph.vertices w with Not_found -> failwith "pop_until-1") in
+  let temp = (try Hashtbl.find graph w with Not_found -> failwith "pop_until-1") in
   let (childs,index,lowlink,in_s,mb) = (match temp with
   | (childs,Some(index,lowlink,in_s),mb) -> (childs,index,lowlink,in_s,mb)
   | _ -> failwith ("pop_until-2")) in
-  Hashtbl.replace graph.vertices w (childs,Some(index,lowlink,false),mb);
+  Hashtbl.replace graph w (childs,Some(index,lowlink,false),mb);
   let res2 = (IntSet.add w res) in
   if (w=v) then res2
   else pop_until graph stack v res2
+
+(* BUILD DEFINITION GRAPH *)
+
+let rec build_def_graph_grammar (g : grammar_t) (count : int) : simple_graph = match g with
+| Grammar(pos,code1,(d,dl),code2) ->
+  let graph = (Hashtbl.create (10*count)(*TODO XXX - num?*) : simple_graph) in
+  let dl2 = List.fold_left (fun (acc) d -> (match d with
+    | ProdDecl(p,Production(p2,None,pat,patl)) -> die_error p2 "production is not named"
+    | ProdDecl(p,Production(p2,Some(_,(name,_)),pat,patl)) ->
+      let x = (try Hashtbl.find graph name with Not_found -> (IntSet.empty,None,0)) in
+      Hashtbl.replace graph name x;
+      List.iter (fun pat -> build_def_graph_pattern pat graph name) (pat::patl);
+      acc
+    | _ -> (d::acc))
+  ) ([]) (d::dl) in
+  graph
+
+and build_def_graph_pattern (p : pattern_t) (g : simple_graph) (parent : symb) : unit = match p with
+| Pattern(p,(an,anl),b) ->
+  List.iter (fun an -> build_def_graph_annot_atom an g parent) (an::anl)
+
+and build_def_graph_annot_atom (an : annot_atom_t) (g : simple_graph) (parent : symb) : unit = match an with
+| SingletonAnnotAtom(p,a) -> build_def_graph_atom a g parent
+| QuantAnnotAtom(p,an,q) -> build_def_graph_annot_atom an g parent
+| OptAnnotAtom(p,an,o) -> build_def_graph_annot_atom an g parent
+
+and build_def_graph_atom (a : atom_t) (g : simple_graph) (parent : symb) : unit = match a with
+| IdentAtom(p,id) -> 
+  let (set,m,prod) = (try Hashtbl.find g parent with Not_found -> (IntSet.empty,None,0)) in
+  Hashtbl.replace g parent (IntSet.add id set,m,prod);
+  let x = (try Hashtbl.find g id with Not_found -> (IntSet.empty,None,0)) in
+  Hashtbl.replace g id x;
+| _ -> ()
