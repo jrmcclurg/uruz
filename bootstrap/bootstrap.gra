@@ -21,7 +21,52 @@
             OCaml code *)
 
    let str_code s = match s with EmptyCode(_) -> "" | Code(_,c) -> ("{"^c^"}")
-   let eq_code a b = false
+   let eq_code a b = ((compare a b)=0)
+
+  let current_id = ref (-1) ;;
+  let symbol_table = ((Hashtbl.create 1000) : (string,int) Hashtbl.t) ;;
+  let symbol_table_inv = ((Hashtbl.create 1000) : (int,string) Hashtbl.t) ;;
+
+
+  let print_symbol_table () =
+    Hashtbl.iter (fun k v ->
+      print_string ((string_of_int k)^" --> "^v^"\n")
+    ) symbol_table_inv
+
+  let force_add_symbol (s : string) (result : int) (complain : bool) : int =
+    (*if complain && (try let _ = Hashtbl.find symbol_table s in true with _ -> false) then failwith "multiply-defined symbol";*)
+    Hashtbl.replace symbol_table s result;
+    Hashtbl.replace symbol_table_inv result s;
+    result
+
+  let add_symbol (s : string) : int =
+    (try
+      int_of_string s
+     with _ -> (
+     try
+      Hashtbl.find symbol_table s
+     with _ ->
+       let result = !current_id in
+       (*print_string (">> ADD SYMBOL: "^s^" = "^(string_of_int result)^"\n");*)
+       let _ = force_add_symbol s result false in
+       current_id := result - 1;
+       result
+    ))
+
+  let get_symbol (id : int) : string =
+    try Hashtbl.find symbol_table_inv id
+    with _ ->
+      string_of_int id
+
+  let get_unique_id () : int =
+    let result = !current_id in
+    current_id := result - 1;
+    result
+
+   type symb = int
+   let str_symb = get_symbol
+   let eq_symb a b = ((compare a b)=0)
+
 
    let is_string_empty (s : string) : bool =
    (*print_string ("is_empty("^s^")=");*)
@@ -77,16 +122,16 @@ CodeBlock ->
 ;
 
 Production ->
-  ProdType?<:(((string option)*(string*(opt_t list))) option)
+  ProdType?<:(((string option)*(symb*(opt_t list))) option)
     @{str_option (fun s -> let (x,(y,z))=s in match x with
-        None -> "<"^y^(str_list (fun x -> " "^(str_opt_t x)) z)^"> "
-      | Some(x) -> x^" "^y^(str_list (fun x -> " "^(str_opt_t x)) z)^" = ") s}>
+        None -> "<"^(get_symbol y)^(str_list (fun x -> " "^(str_opt_t x)) z)^"> "
+      | Some(x) -> x^" "^(get_symbol y)^(str_list (fun x -> " "^(str_opt_t x)) z)^" = ") s}>
   Pattern<@{"\n"^(str_pattern_t s)^"\n"}> BarPattern<:(pattern_t list)
     @{str_list (fun x -> "| "^(str_pattern_t x)^"\n") s}> ;
 
 ProdType ->
-  ProdKw<:string@{s^" "}> XIdent<:string> OptList<:(opt_t list)> Eq : { (Some($1),($2,$3)) }
-| '<' XIdent<:string> OptList<:(opt_t list)> '>' Eq? : { (None,($2,$3)) }
+  ProdKw<:string@{s^" "}> XIdent<:symb> OptList<:(opt_t list)> Eq : { (Some($1),($2,$3)) }
+| '<' XIdent<:symb> OptList<:(opt_t list)> '>' Eq? : { (None,($2,$3)) }
 ;
 
 BarPattern ->
@@ -100,16 +145,16 @@ SemiDecl -> Decl ';' : { $1 } ;
 
 Decl -> 
   Production : ProdDecl
-| TokenKws<:()@{"token "}> XIdent+<:(string*(string list))> : TokenDecl
-| KeywordKws<:()@{"keyword "}> XIdent<:string> Eq<:()@{" = "}> StringQuot<:string> : KeywordDecl
-| "code"<:()@{"code "}> XIdent<:string> Eq<:()@{" ="}>
-    NamedCode+<:(((string option)*code)*(((string option)*code) list))
-    @{let (x,y) = s in str_list (fun (so,c) -> " "^(str_option (fun x -> x^"") so)^(str_code c)) (x::y)}> : CodeDecl
-| PropKws<:()@{"property "}> XIdent<:string> Eq<:()@{" = "}> Value : PropDecl
+| TokenKws<:()@{"token "}> XIdent+<:(symb*(symb list))> : TokenDecl
+| KeywordKws<:()@{"keyword "}> XIdent<:symb> Eq<:()@{" = "}> StringQuot<:string> : KeywordDecl
+| "code"<:()@{"code "}> XIdent<:symb> Eq<:()@{" ="}>
+    NamedCode+<:(((symb option)*code)*(((symb option)*code) list))
+    @{let (x,y) = s in str_list (fun (so,c) -> " "^(str_option (fun x -> (get_symbol x)^"") so)^(str_code c)) (x::y)}> : CodeDecl
+| PropKws<:()@{"property "}> XIdent<:symb> Eq<:()@{" = "}> Value : PropDecl
  ; 
 
 NamedCode ->
-  XIdent?<:(string option)> CodeLit<:code> : { ($1,$2) }
+  XIdent?<:(symb option)> CodeLit<:code> : { ($1,$2) }
 ;
 
 TokenKws -> TokenKw<:()> :  | "tok" :  ;
@@ -152,12 +197,12 @@ Opt ->
   ':'<:()> Typ                            : TypeOption
 | Int<:int>                               : PrecOption
 | Assoc                                   : AssocOption
-| FnName?<:(string option)> CodeLit<:code> : CodeOption
-| '@'<:()> '$'<:()> XIdent<:string>       : CodeNameOption
+| FnName?<:(symb option)> CodeLit<:code> : CodeOption
+| '@'<:()> '$'<:()> XIdent<:symb>       : CodeNameOption
 ;
 
 FnName -> 
-  '@'<:()> XIdent<:string> : { $2 }
+  '@'<:()> XIdent<:symb> : { $2 }
 ;
 
 TokenKw -> "token" : ;
@@ -172,7 +217,7 @@ SimpleType ->
 | '_'<:()>      : AnyType
 | '~'<:()>      : NoType
 | '('<:()> ')'<:()>  : UnitType
-| TypeName<:(string list)@{""^(str_x_list (fun x -> x) s ".")^""}> : IdentType
+| TypeName<:(symb list)@{""^(str_x_list get_symbol s ".")^""}> : IdentType
 ;
 
 CompoundType ->
@@ -181,7 +226,7 @@ CompoundType ->
 ;
 
 AbstrName ->
-  XIdent<:string> : IdentName
+  XIdent<:symb> : IdentName
 | '_'<:()>        : AnyName
 ;
 
@@ -197,12 +242,12 @@ TupleType ->
 
 ConstrType ->
   Typ                                             : SingletonConstrType
-| ConstrType TypeName<:(string list)@{" "^(str_x_list (fun x -> x) s ".")^""}> : InstConstrType
+| ConstrType TypeName<:(symb list)@{" "^(str_x_list get_symbol s ".")^""}> : InstConstrType
 ;
 
 TypeName ->
-  XIdent<:string>              : { [$1] }
-| XIdent<:string> '.' TypeName : { $1::$3 } ;
+  XIdent<:symb>              : { [$1] }
+| XIdent<:symb> '.' TypeName : { $1::$3 } ;
 
 Quant ->
   '*'<:()> : StarQuant
@@ -218,7 +263,7 @@ Quot ->
 Atom ->
   '~'<:()>                         : EmptyAtom // TODO XXX - empty string "" can also denote an empty atom
 | StringQuot<:string>              : StringAtom
-| XIdent<:string>                  : IdentAtom
+| XIdent<:symb>                  : IdentAtom
 | Charsets                         : CharsetsAtom
 | Quot<:string> ".."<:()@{" .. "}> Quot<:string> : RecurAtom
 | '('<:()> Production ')'<:()>     : ProdAtom
@@ -240,7 +285,7 @@ Charset ->
 ;
 
 Bool -> "true" : { true } | "false" : { false } ;
-XIdent -> ([a-zA-Z] [a-zA-Z0-9_]*)<:string> : { $1 } ; // TODO XXX - make sure this works with the ident translator
+XIdent -> ([a-zA-Z] [a-zA-Z0-9_]*)<:string> : { add_symbol $1 } ; // TODO XXX - make sure this works with the ident translator
 Chars -> ('[' ([^\\\]]* ('\\' _)*)* ']')<:string> : { $1 } ;
 StringQuot -> ('"' (([^\\\"]* ('\\' _)*)*) '"')<:string> : { Scanf.sscanf $1 "%S" (fun x -> x) };
 CharQuot -> ('\'' (([^\\\'] |
