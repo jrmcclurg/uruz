@@ -34,7 +34,7 @@ let collect_named_code (g : grammar_t) (count : int) : (grammar_t * ((string,pos
   let dl2 = List.rev dl2 in
   (Grammar(pos,code1,(List.hd dl2,List.tl dl2),code2),code_table)
 
-(* FLATTEN *)
+(* FLATTEN PRODUCTIONS (AND INLINE NAMED CODE) *)
 
 let rev_flatten (l : 'a list list) : 'a list =
   List.fold_left (fun acc l2 ->
@@ -107,3 +107,88 @@ and flatten_atom (a : atom_t) (defname : string option) (deftyp : string option)
   let (patl2,prods) = flatten_list flatten_pattern (pat::patl) (Some(name)) kwo [] code_table in
   (IdentAtom(p,name),(ProdDecl(p2,Production(p2,Some((match kwo with None -> Some(Flags.get_def_prod_type deftyp) | _ -> kwo),(name,ol)),List.hd patl2,List.tl patl2)))::prods)
 | _ -> (a,[])
+
+(*********************************************************)
+(**  TOPOLOGICAL SORT FUNCTIONALITY                     **)
+(*********************************************************)
+
+module IntSet = Set.Make(
+struct
+  type t = int
+  let compare = (Pervasives.compare : (int -> int -> int))
+end)
+
+(* (index,lowlink,in_S) *)
+type mark = (int * int * bool) option ;;
+
+type simple_graph = {
+  vertices : (int,
+    IntSet.t    (* children of this vertex *) *
+    mark        (* mark used in topological sort *) *
+    production_t
+  ) Hashtbl.t;
+}
+
+(* Tarjan's algorithm - returns a topological sort of the strongly-connected components *)
+(* http://en.wikipedia.org/wiki/Tarjan%27s_strongly_connected_components_algorithm *)
+let rec topo_sort (graph : simple_graph) (vertices : IntSet.t) : (int list) list =
+  let stack = ((Stack.create ()) : int Stack.t) in
+  let result = fst (Hashtbl.fold (fun k (childs,m,_) (res,index) ->
+    if (IntSet.mem k vertices) then topo_dfs k res graph index stack else (res,index)
+  ) graph.vertices ([],0)) in
+  (* clear the marks *)
+  Hashtbl.iter (fun k (t1,m,t4) ->
+    if (m<>None) then Hashtbl.replace graph.vertices k (t1,None,t4)
+  ) graph.vertices;
+  result
+
+and topo_dfs (id : int) (res : (int list) list) (graph : simple_graph)
+(index : int) (stack : int Stack.t) : ((int list) list * int) =
+  let (childs,m,mb) = (try Hashtbl.find graph.vertices id with Not_found -> failwith "topo_dfs-1") in
+  if (m=None) then (
+    (* mark id with (index,index,true) *)
+    let v_index = index in
+    let v_lowlink = index in
+    Hashtbl.replace graph.vertices id (childs,Some(v_index,v_lowlink,true),mb);
+    let index = index + 1 in
+    Stack.push id stack;
+
+    let (res,index,new_v_lowlink) = IntSet.fold (fun child_id (res,index,v_lowlink) ->
+      let (_,m,_) = (try Hashtbl.find graph.vertices child_id with Not_found -> failwith "topo_dfs-2") in
+      let (new_v_lowlink,(res,index)) = (match m with
+        | None ->
+          let (res,index) = topo_dfs child_id res graph index stack in
+          let temp = (try Hashtbl.find graph.vertices child_id with Not_found -> failwith "topo_dfs-3") in
+          let (w_index,w_lowlink,w_in_s) = (match temp with
+          | (_,Some(w_index,w_lowlink,w_in_s),_) -> (w_index,w_lowlink,w_in_s)
+          | _ -> failwith ("topo_dfs-4")) in
+          (* update *)
+          (min v_lowlink w_lowlink, (res,index))
+        | Some((w_index,w_lowlink,w_in_s)) ->
+          ((if (w_in_s) then min v_lowlink w_index else v_lowlink), (res,index))
+      ) in
+      (res,index,new_v_lowlink)
+    ) childs (res,index,v_lowlink) in
+
+    Hashtbl.replace graph.vertices id (childs,Some(v_index,new_v_lowlink,true),mb);
+
+    if (new_v_lowlink=v_index) then (
+      let comp = pop_until graph stack id IntSet.empty in
+      ((IntSet.elements comp)::res,index)
+    ) else (
+      (res,index)
+    )
+  ) else (
+    (res,index)
+  )
+
+and pop_until (graph : simple_graph) (stack : int Stack.t) (v : int) (res : IntSet.t) : IntSet.t =
+  let w = (try Stack.pop stack with Stack.Empty -> failwith "pop_until-1") in
+  let temp = (try Hashtbl.find graph.vertices w with Not_found -> failwith "pop_until-1") in
+  let (childs,index,lowlink,in_s,mb) = (match temp with
+  | (childs,Some(index,lowlink,in_s),mb) -> (childs,index,lowlink,in_s,mb)
+  | _ -> failwith ("pop_until-2")) in
+  Hashtbl.replace graph.vertices w (childs,Some(index,lowlink,false),mb);
+  let res2 = (IntSet.add w res) in
+  if (w=v) then res2
+  else pop_until graph stack v res2
