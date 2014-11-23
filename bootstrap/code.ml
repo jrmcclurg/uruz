@@ -137,7 +137,8 @@ type simple_graph =
   (int,
     IntSet.t    (* children of this vertex *) *
     mark        (* mark used in topological sort *) *
-    bool        (* is_def *)
+    bool        (* is_def *) *
+    pos_t       (* definition location *)
     (*production_t*) (* TODO XXX *)
   ) Hashtbl.t
 
@@ -145,34 +146,34 @@ type simple_graph =
 (* http://en.wikipedia.org/wiki/Tarjan%27s_strongly_connected_components_algorithm *)
 let rec topo_sort (graph : simple_graph) (*(vertices : IntSet.t)*) : (int list) list =
   let stack = ((Stack.create ()) : int Stack.t) in
-  let result = fst (Hashtbl.fold (fun k (childs,m,_) (res,index) ->
+  let result = fst (Hashtbl.fold (fun k (childs,m,_,_) (res,index) ->
     if true(*(IntSet.mem k vertices)*) then topo_dfs k res graph index stack else (res,index)
   ) graph ([],0)) in
   (* clear the marks *)
-  Hashtbl.iter (fun k (t1,m,t4) ->
-    if (m<>None) then Hashtbl.replace graph k (t1,None,t4)
+  Hashtbl.iter (fun k (t1,m,t4,t5) ->
+    if (m<>None) then Hashtbl.replace graph k (t1,None,t4,t5)
   ) graph;
   result
 
 and topo_dfs (id : int) (res : (int list) list) (graph : simple_graph)
 (index : int) (stack : int Stack.t) : ((int list) list * int) =
-  let (childs,m,mb) = (try Hashtbl.find graph id with Not_found -> failwith "topo_dfs-1") in
+  let (childs,m,mb,t5) = (try Hashtbl.find graph id with Not_found -> failwith "topo_dfs-1") in
   if (m=None) then (
     (* mark id with (index,index,true) *)
     let v_index = index in
     let v_lowlink = index in
-    Hashtbl.replace graph id (childs,Some(v_index,v_lowlink,true),mb);
+    Hashtbl.replace graph id (childs,Some(v_index,v_lowlink,true),mb,t5);
     let index = index + 1 in
     Stack.push id stack;
 
     let (res,index,new_v_lowlink) = IntSet.fold (fun child_id (res,index,v_lowlink) ->
-      let (_,m,_) = (try Hashtbl.find graph child_id with Not_found -> failwith "topo_dfs-2") in
+      let (_,m,_,_) = (try Hashtbl.find graph child_id with Not_found -> failwith "topo_dfs-2") in
       let (new_v_lowlink,(res,index)) = (match m with
         | None ->
           let (res,index) = topo_dfs child_id res graph index stack in
           let temp = (try Hashtbl.find graph child_id with Not_found -> failwith "topo_dfs-3") in
           let (w_index,w_lowlink,w_in_s) = (match temp with
-          | (_,Some(w_index,w_lowlink,w_in_s),_) -> (w_index,w_lowlink,w_in_s)
+          | (_,Some(w_index,w_lowlink,w_in_s),_,_) -> (w_index,w_lowlink,w_in_s)
           | _ -> failwith ("topo_dfs-4")) in
           (* update *)
           (min v_lowlink w_lowlink, (res,index))
@@ -182,7 +183,7 @@ and topo_dfs (id : int) (res : (int list) list) (graph : simple_graph)
       (res,index,new_v_lowlink)
     ) childs (res,index,v_lowlink) in
 
-    Hashtbl.replace graph id (childs,Some(v_index,new_v_lowlink,true),mb);
+    Hashtbl.replace graph id (childs,Some(v_index,new_v_lowlink,true),mb,t5);
 
     if (new_v_lowlink=v_index) then (
       let comp = pop_until graph stack id IntSet.empty in
@@ -197,10 +198,10 @@ and topo_dfs (id : int) (res : (int list) list) (graph : simple_graph)
 and pop_until (graph : simple_graph) (stack : int Stack.t) (v : int) (res : IntSet.t) : IntSet.t =
   let w = (try Stack.pop stack with Stack.Empty -> failwith "pop_until-1") in
   let temp = (try Hashtbl.find graph w with Not_found -> failwith "pop_until-1") in
-  let (childs,index,lowlink,in_s,mb) = (match temp with
-  | (childs,Some(index,lowlink,in_s),mb) -> (childs,index,lowlink,in_s,mb)
+  let (childs,index,lowlink,in_s,mb,t5) = (match temp with
+  | (childs,Some(index,lowlink,in_s),mb,t5) -> (childs,index,lowlink,in_s,mb,t5)
   | _ -> failwith ("pop_until-2")) in
-  Hashtbl.replace graph w (childs,Some(index,lowlink,false),mb);
+  Hashtbl.replace graph w (childs,Some(index,lowlink,false),mb,t5);
   let res2 = (IntSet.add w res) in
   if (w=v) then res2
   else pop_until graph stack v res2
@@ -213,9 +214,9 @@ let rec build_def_graph_grammar (g : grammar_t) (count : int) : simple_graph = m
   List.iter (fun d -> (match d with
     | ProdDecl(p,Production(p2,None,pat,patl)) -> die_error p2 "production is not named"
     | ProdDecl(p,Production(p2,Some(_,(name,_)),pat,patl)) ->
-      let x = (try let (set,m,is_def) = Hashtbl.find graph name in
-        if is_def then die_error p2 ("multiple definition of '"^(get_symbol name)^"'") else (set,m,is_def)
-        with Not_found -> (IntSet.empty,None,true)) in
+      let x = (try let (set,m,is_def,ps) = Hashtbl.find graph name in
+        if is_def then die_error p2 ("multiple definition of '"^(get_symbol name)^"'") else (set,m,is_def,p2)
+        with Not_found -> (IntSet.empty,None,true,p2)) in
       Hashtbl.replace graph name x;
       List.iter (fun pat -> build_def_graph_pattern pat graph name) (pat::patl)
     | _ -> ())
@@ -233,8 +234,19 @@ and build_def_graph_annot_atom (an : annot_atom_t) (g : simple_graph) (parent : 
 
 and build_def_graph_atom (a : atom_t) (g : simple_graph) (parent : symb) : unit = match a with
 | IdentAtom(p,id) -> 
-  let (set,m,is_def) = (try Hashtbl.find g parent with Not_found -> (IntSet.empty,None,false)) in
-  Hashtbl.replace g parent (IntSet.add id set,m,is_def);
-  let x = (try Hashtbl.find g id with Not_found -> (IntSet.empty,None,false)) in
+  let (set,m,is_def,ps) = (try Hashtbl.find g parent with Not_found -> (IntSet.empty,None,false,p)) in
+  Hashtbl.replace g parent (IntSet.add id set,m,is_def,ps);
+  let x = (try Hashtbl.find g id with Not_found -> (IntSet.empty,None,false,p)) in
   Hashtbl.replace g id x;
 | _ -> ()
+
+let get_sorted_defs (result : grammar_t) (count : int) : (symb list) =
+  let graph = build_def_graph_grammar result count in
+  let comps = topo_sort graph in
+  let x = List.rev_map (fun comp -> match comp with
+  | [] -> failwith "topological sort returned empty connected component"
+  | [x] -> x
+  | a::more ->
+    let (_,_,_,ps) = (try Hashtbl.find graph a with Not_found -> (IntSet.empty,None,false,NoPos)) in
+    die_error ps ("cyclic defintion: "^(str_x_list get_symbol comp ", "))) comps in
+  x
