@@ -12,6 +12,18 @@
 */
 
 {
+   type rule_type = Parser | Lexer | Ast
+   let eq_rule_type a b = ((compare a b)=0)
+   let str_rule_type s = match s with
+   | Parser -> "parser"
+   | Lexer -> "lexer"
+   | Ast -> "ast"
+   let str_to_rule_type p s = match s with
+   | "parser" | "parse" -> Parser
+   | "lexer" | "lex" -> Lexer
+   | "ast" -> Ast
+   | _ -> die_error p ("production type '"^s^"' does not exist")
+
    type code = EmptyCode of pos_t (**
            Empty code having given
            position *)
@@ -122,15 +134,15 @@ CodeBlock ->
 ;
 
 Production ->
-  ProdType?<:(((string option)*(symb*(opt_t list))) option)
+  ProdType?<:(((rule_type option)*(symb*(opt_t list))) option)
     @{str_option (fun s -> let (x,(y,z))=s in match x with
         None -> "<"^(get_symbol y)^(str_list (fun x -> " "^(str_opt_t x)) z)^"> "
-      | Some(x) -> x^" "^(get_symbol y)^(str_list (fun x -> " "^(str_opt_t x)) z)^" = ") s}>
+      | Some(x) -> (str_rule_type x)^" "^(get_symbol y)^(str_list (fun x -> " "^(str_opt_t x)) z)^" = ") s}>
   Pattern<@{"\n"^(str_pattern_t s)^"\n"}> BarPattern<:(pattern_t list)
     @{str_list (fun x -> "| "^(str_pattern_t x)^"\n") s}> ;
 
 ProdType ->
-  ProdKw<:string@{s^" "}> XIdent<:symb> OptList<:(opt_t list)> Eq : { (Some($1),($2,$3)) }
+  ProdKw<:rule_type> XIdent<:symb> OptList<:(opt_t list)> Eq : { (Some($1),($2,$3)) }
 | '<' XIdent<:symb> OptList<:(opt_t list)> '>' Eq? : { (None,($2,$3)) }
 ;
 
@@ -139,7 +151,7 @@ BarPattern ->
 | '|' Pattern BarPattern : { $2::$3 }
 ;
 
-ProdKw -> ("parse" | "parser" | "lex" | "lexer" | "ast")<:string> : { $1 } ;
+ProdKw -> ("parse" | "parser" | "lex" | "lexer" | "ast")<:string> : { Parser } ;
 
 SemiDecl -> Decl ';' : { $1 } ;
 
