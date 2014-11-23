@@ -52,8 +52,8 @@ let (l2,prods,_) = List.fold_left (fun (l2,prods,index) x ->
 (List.rev l2, List.rev prods)
 
 let flatten_opt_list (p : pos_t) (ol : opt_t list) (deftyp : rule_type option) (nesting : int list) (code_table : (symb,pos_t*(symb option*code) list) Hashtbl.t) : opt_t list =
-  if List.length nesting > 1 (*TODO XXX*) && List.length ol > 0 && ((deftyp=Some(Lexer)) || (deftyp=None && !Flags.def_prod_type=Lexer)) then
-    die_error p "lexer productions can only contain annotations on the left-hand-side (i.e. applied to the entire production)";
+  if List.length nesting > 1 && ((deftyp=Some(Lexer)) || (deftyp=None && !Flags.def_prod_type=Lexer)) then
+    die_error p "nested lexer productions cannot have names or annotations";
   let result = List.rev_map (fun o ->
     let new_opts = (match o with 
     | CodeNameOption(p,s) ->
