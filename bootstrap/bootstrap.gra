@@ -103,7 +103,8 @@ Decl ->
 | TokenKws<:()@{"token "}> XIdent+<:(string*(string list))> : TokenDecl
 | KeywordKws<:()@{"keyword "}> XIdent<:string> Eq<:()@{" = "}> StringQuot<:string> : KeywordDecl
 | "code"<:()@{"code "}> XIdent<:string> Eq<:()@{" ="}>
-    NamedCode+<:(((string option)*code)*(((string option)*code) list))@{let (x,y) = s in str_list (fun (so,c) -> " "^(str_option (fun x -> x^" ") so)^(str_code c)) (x::y)}> : CodeDecl
+    NamedCode+<:(((string option)*code)*(((string option)*code) list))
+    @{let (x,y) = s in str_list (fun (so,c) -> " "^(str_option (fun x -> x^"") so)^(str_code c)) (x::y)}> : CodeDecl
 | PropKws<:()@{"property "}> XIdent<:string> Eq<:()@{" = "}> Value : PropDecl
  ; 
 
@@ -151,9 +152,12 @@ Opt ->
   ':'<:()> Typ                            : TypeOption
 | Int<:int>                               : PrecOption
 | Assoc                                   : AssocOption
-| CodeLit<:code>                          : CodeOption
-| '@'<:()> XIdent<:string> CodeLit<:code> : FnOption
-| '@'<:()> '$'<:()> XIdent<:string>       : FnNameOption
+| FnName?<:(string option)> CodeLit<:code> : CodeOption
+| '@'<:()> '$'<:()> XIdent<:string>       : CodeNameOption
+;
+
+FnName -> 
+  '@'<:()> XIdent<:string> : { $2 }
 ;
 
 TokenKw -> "token" : ;
