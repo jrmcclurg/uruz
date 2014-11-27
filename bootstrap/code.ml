@@ -1,4 +1,6 @@
 (* TODO XXX - pretty-printing of string/char literals needs to print the quotes *)
+(* TODO XXX - emit normalize_ and get_pos_ functions *)
+(* TODO XXX - maybe disallow "_" in identifiers *)
 
 open Bootstrap_ast
 open Bootstrap_utils
@@ -83,7 +85,7 @@ and flatten_decl (d : decl_t) (defname : symb option) (deftyp : rule_type option
 | _ -> (d,[])
 
 and flatten_production (p : production_t) (defname : symb option) (deftyp : rule_type option) (nesting : int list) (code_table : (symb,pos_t*(symb option*code) list) Hashtbl.t) : (production_t*decl_t list) = match p with
-| Production(ps,o,pat,patl) ->
+| Production(ps,o,patl) ->
   let nesting_old = nesting in
   let (defname,deftyp,nesting) = (match o with
     | Some(kwo,(name,ol)) -> (Some(name),kwo,[])
@@ -94,13 +96,13 @@ and flatten_production (p : production_t) (defname : symb option) (deftyp : rule
   | Some(None,(x,y)) -> Some(Some(get_def_prod_type deftyp),(x,flatten_opt_list ps y deftyp nesting_old code_table))
   | Some(x,(y,ol)) -> Some(x,(y,flatten_opt_list ps ol deftyp nesting_old code_table))
   ) in
-  let (patl2,prods) = flatten_list flatten_pattern (pat::patl) defname deftyp nesting code_table in
-  (Production(ps,o2,List.hd patl2,List.tl patl2),prods)
+  let (patl2,prods) = flatten_list flatten_pattern patl defname deftyp nesting code_table in
+  (Production(ps,o2,patl2),prods)
 
 and flatten_pattern (p : pattern_t) (defname : symb option) (deftyp : rule_type option) (nesting : int list) (code_table : (symb,pos_t*(symb option*code) list) Hashtbl.t) : (pattern_t*decl_t list) = match p with
-| Pattern(p,(a,al),eof) ->
-  let (al2,prods) = flatten_list flatten_annot_atom (a::al) defname deftyp nesting code_table in
-  (Pattern(p,(List.hd al2,List.tl al2),eof),prods)
+| Pattern(p,al,eof) ->
+  let (al2,prods) = flatten_list flatten_annot_atom al defname deftyp nesting code_table in
+  (Pattern(p,al2,eof),prods)
 
 and flatten_annot_atom (an : annot_atom_t) (defname : symb option) (deftyp : rule_type option) (nesting : int list) (code_table : (symb,pos_t*(symb option*code) list) Hashtbl.t) : (annot_atom_t*decl_t list) = match an with
 | SingletonAnnotAtom(p,a) -> let (a2,prods) = flatten_atom a defname deftyp nesting code_table in (SingletonAnnotAtom(p,a2),prods)
@@ -122,15 +124,15 @@ and flatten_atom (a : atom_t) (defname : symb option) (deftyp : rule_type option
   if is_processing_lexer deftyp then
     die_error p "lexer productions cannot reference other productions";
   (a,[])
-| ProdAtom(p,Production(p2,None,pat,patl)) ->
+| ProdAtom(p,Production(p2,None,patl)) ->
   let name = Flags.get_def_prod_name defname nesting in
-  let (patl2,prods) = flatten_list flatten_pattern (pat::patl) defname deftyp nesting code_table in
+  let (patl2,prods) = flatten_list flatten_pattern patl defname deftyp nesting code_table in
   if is_processing_lexer deftyp then (a,[])
-  else (IdentAtom(p,name),(ProdDecl(p2,Production(p2,Some(Some(Flags.get_def_prod_type deftyp),(name,[])),List.hd patl2,List.tl patl2)))::prods)
-| ProdAtom(p,Production(p2,Some(kwo,(name,ol)),pat,patl)) -> 
-  let (patl2,prods) = flatten_list flatten_pattern (pat::patl) (Some(name)) kwo [] code_table in
+  else (IdentAtom(p,name),(ProdDecl(p2,Production(p2,Some(Some(Flags.get_def_prod_type deftyp),(name,[])),patl2)))::prods)
+| ProdAtom(p,Production(p2,Some(kwo,(name,ol)),patl)) -> 
+  let (patl2,prods) = flatten_list flatten_pattern patl (Some(name)) kwo [] code_table in
   if is_processing_lexer deftyp then (a,[])
-  else (IdentAtom(p,name),(ProdDecl(p2,Production(p2,Some((match kwo with None -> Some(Flags.get_def_prod_type deftyp) | _ -> kwo),(name,flatten_opt_list p2 ol deftyp nesting code_table)),List.hd patl2,List.tl patl2)))::prods)
+  else (IdentAtom(p,name),(ProdDecl(p2,Production(p2,Some((match kwo with None -> Some(Flags.get_def_prod_type deftyp) | _ -> kwo),(name,flatten_opt_list p2 ol deftyp nesting code_table)),patl2)))::prods)
 | _ -> (a,[])
 
 (*********************************************************)
@@ -225,20 +227,20 @@ let rec build_def_graph_grammar (g : grammar_t) (count : int) : simple_graph = m
 | Grammar(pos,code1,(d,dl),code2) ->
   let graph = (Hashtbl.create (10*count)(*TODO XXX - num?*) : simple_graph) in
   List.iter (fun d -> (match d with
-    | ProdDecl(p,Production(p2,None,pat,patl)) -> die_error p2 "production is not named"
-    | ProdDecl(p,Production(p2,Some(_,(name,_)),pat,patl)) ->
+    | ProdDecl(p,Production(p2,None,patl)) -> die_error p2 "production is not named"
+    | ProdDecl(p,Production(p2,Some(_,(name,_)),patl)) ->
       let x = (try let (set,m,is_def,ps) = Hashtbl.find graph name in
         if is_def then die_error p2 ("multiple definition of '"^(get_symbol name)^"'") else (set,m,is_def,p2)
         with Not_found -> (IntSet.empty,None,true,p2)) in
       Hashtbl.replace graph name x;
-      List.iter (fun pat -> build_def_graph_pattern pat graph name) (pat::patl)
+      List.iter (fun pat -> build_def_graph_pattern pat graph name) patl
     | _ -> ())
   ) (d::dl);
   graph
 
 and build_def_graph_pattern (p : pattern_t) (g : simple_graph) (parent : symb) : unit = match p with
-| Pattern(p,(an,anl),b) ->
-  List.iter (fun an -> build_def_graph_annot_atom an g parent) (an::anl)
+| Pattern(p,anl,b) ->
+  List.iter (fun an -> build_def_graph_annot_atom an g parent) anl
 
 and build_def_graph_annot_atom (an : annot_atom_t) (g : simple_graph) (parent : symb) : unit = match an with
 | SingletonAnnotAtom(p,a) -> build_def_graph_atom a g parent
