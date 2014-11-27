@@ -9,24 +9,28 @@ open Flags
 (* HANDLE PROPERTIES *)
 
 let rec handle_props (g : grammar_t) : (grammar_t*int) = match g with
-| Grammar(pos,code1,(d,dl),code2) ->
+| Grammar(pos,(d,dl)) ->
   let (dl2,count) = List.fold_left (fun (acc,index) d -> (match d with
     | PropDecl(p,name,value) -> (
       match (get_symbol name,value) with
       | ("default_production_type",StringVal(p,s)) -> Flags.def_prod_type := str_to_rule_type p s
       | ("default_production_name",StringVal(p,s)) -> Flags.def_prod_name := s
+      | ("parser_code",CodeVal(p,(c,cl))) -> () (* TODO XXX *)
+      | ("lexer_code",CodeVal(p,(c,cl))) -> () (* TODO XXX *)
+      | ("ast_code",CodeVal(p,(c,cl))) -> () (* TODO XXX *)
+      | ("util_code",CodeVal(p,(c,cl))) -> () (* TODO XXX *)
       | _ -> die_error p "invalid property name or type"
       );
       acc
     | _ -> (d::acc)), index+1
   ) ([],0) (d::dl) in
   let dl2 = List.rev dl2 in
-  (Grammar(pos,code1,(List.hd dl2,List.tl dl2),code2),count)
+  (Grammar(pos,(List.hd dl2,List.tl dl2)),count)
 
 (* COLLECT NAMED CODE *)
 
 let collect_named_code (g : grammar_t) (count : int) : (grammar_t * ((symb,pos_t*(symb option*code) list) Hashtbl.t)) = match g with
-| Grammar(pos,code1,(d,dl),code2) ->
+| Grammar(pos,(d,dl)) ->
   let code_table = (Hashtbl.create count : (symb,pos_t*(symb option*code) list) Hashtbl.t) in
   let dl2 = List.fold_left (fun (acc) d -> (match d with
     | CodeDecl(p,name,(c,cl)) ->
@@ -36,7 +40,7 @@ let collect_named_code (g : grammar_t) (count : int) : (grammar_t * ((symb,pos_t
     | _ -> (d::acc))
   ) ([]) (d::dl) in
   let dl2 = List.rev dl2 in
-  (Grammar(pos,code1,(List.hd dl2,List.tl dl2),code2),code_table)
+  (Grammar(pos,(List.hd dl2,List.tl dl2)),code_table)
 
 (* FLATTEN PRODUCTIONS (AND INLINE NAMED CODE) *)
 
@@ -70,13 +74,13 @@ let flatten_opt_list (p : pos_t) (ol : opt_t list) (deftyp : rule_type option) (
   rev_flatten result
 
 let rec flatten_grammar (g : grammar_t) (code_table : (symb,pos_t*(symb option*code) list) Hashtbl.t) : grammar_t = match g with
-| Grammar(pos,code1,(d,dl),code2) ->
+| Grammar(pos,(d,dl)) ->
   (*let dl2 = List.rev_map (fun d -> let (x,y) = flatten_decl d in List.rev (x::y)) (d::dl) in
   let l = rev_flatten dl2 in*)
   let the_list = (d::dl) in
   let (dl2,_) = List.fold_left (fun (acc,index) d -> let (x,y) = flatten_decl d None None [index] code_table in (List.rev_append (x::y) acc, index+1)) ([],!Flags.def_prod_index) the_list in
   let l = List.rev dl2 in
-  Grammar(pos,code1,(List.hd l,List.tl l),code2)
+  Grammar(pos,(List.hd l,List.tl l))
 
 and flatten_decl (d : decl_t) (defname : symb option) (deftyp : rule_type option) (nesting : int list) (code_table : (symb,pos_t*(symb option*code) list) Hashtbl.t) : (decl_t*decl_t list) = match d with
 | ProdDecl(p,prod) ->
@@ -224,7 +228,7 @@ and pop_until (graph : simple_graph) (stack : int Stack.t) (v : int) (res : IntS
 (* BUILD DEFINITION GRAPH *)
 
 let rec build_def_graph_grammar (g : grammar_t) (count : int) : simple_graph = match g with
-| Grammar(pos,code1,(d,dl),code2) ->
+| Grammar(pos,(d,dl)) ->
   let graph = (Hashtbl.create (10*count)(*TODO XXX - num?*) : simple_graph) in
   List.iter (fun d -> (match d with
     | ProdDecl(p,Production(p2,None,patl)) -> die_error p2 "production is not named"

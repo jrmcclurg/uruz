@@ -124,13 +124,7 @@
 }
 
 Grammar ->
-  CodeBlock<:(code option)@{(str_option str_code s)^"\n"}>
   SemiDecl+<:(decl_t*(decl_t list))@{let (x,y)=s in (str_decl_t x)^"\n;"^(str_list (fun y -> "\n\n"^(str_decl_t y)^"\n;") y)}>
-  CodeBlock<:(code option)@{"\n"^(str_option str_code s)}>
-;
-CodeBlock -> 
-                 : { None }
-| CodeLit<:code> : { Some($1) }
 ;
 
 Production ->
@@ -143,7 +137,7 @@ Production ->
 
 ProdType ->
   ProdKw<:rule_type> XIdent<:symb> OptList<:(opt_t list)> Eq : { (Some($1),($2,$3)) }
-| '<' XIdent<:symb> OptList<:(opt_t list)> '>' Eq? : { (None,($2,$3)) }
+| '<'<:()@{"<"}> XIdent<:symb> '>'<:()@{">"}> OptList<:(opt_t list)> Eq? : { (None,($2,$4)) }
 ;
 
 BarPattern ->
@@ -178,6 +172,8 @@ Value ->
 | Int<:int>           : IntVal
 | StringQuot<:string> : StringVal
 | CharQuot<:string>   : CharVal
+|    NamedCode+<:(((symb option)*code)*(((symb option)*code) list))
+    @{let (x,y) = s in str_list (fun (so,c) -> " "^(str_option (fun x -> (get_symbol x)^"") so)^(str_code c)) (x::y)}> : CodeVal
 ;
 
 Eq -> '='<@{" = "}> : ;
@@ -315,9 +311,4 @@ Newlines -> '\n' <{do_newline lexbuf}:()> : {};
 
 {
    (* this is the trailer *)
-
-   let is_pattern_empty p = match p with
-   | Pattern(ps,[],b) -> not b
-   | Pattern(ps,a::more,b) -> false
-
 }
