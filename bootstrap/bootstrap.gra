@@ -137,12 +137,12 @@ Production ->
 
 ProdType ->
   ProdKw<:rule_type> XIdent<:symb> OptList<:(opt_t list)> Eq : { (Some($1),($2,$3)) }
-| '<'<:()@{"<"}> XIdent<:symb> '>'<:()@{">"}> OptList<:(opt_t list)> Eq? : { (None,($2,$4)) }
+| '<'<:()@{"<"}> XIdent<:symb> OptList<:(opt_t list)> '>'<:()@{">"}> Eq? : { (None,($2,$3)) }
 ;
 
 BarPattern ->
-  Pattern                : { if (match $1 with Pattern(_,[],b) -> not b | _ -> false) then [] else [$1] }
-| Pattern '|' BarPattern : { if (match $1 with Pattern(_,[],b) -> not b | _ -> false) then $3 else ($1::$3) }
+  Pattern                : { if (match $1 with Pattern(_,_,[],b) -> not b | _ -> false) then [] else [$1] }
+| Pattern '|' BarPattern : { if (match $1 with Pattern(_,_,[],b) -> not b | _ -> false) then $3 else ($1::$3) }
 ;
 
 ProdKw -> ("parse" | "parser" | "lex" | "lexer" | "ast")<:string> : { str_to_rule_type (get_current_pos ()) $1 } ;
@@ -179,8 +179,9 @@ Value ->
 Eq -> '='<@{" = "}> : ;
 
 Pattern ->
-  AnnotAtom* <@{str_x_list str_annot_atom_t s " "}>
-  EofOp<:bool@{if s then " eof" else ""}>
+  OptList<:(opt_t list)@{str_list (fun x -> (str_opt_t x)^" ") s}>
+  AnnotAtom* <@{str_list (fun x -> (str_annot_atom_t x)^" ") s}>
+  EofOp<:bool@{if s then "eof" else ""}>
 ;
 EofOp ->
         : { false }

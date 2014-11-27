@@ -104,9 +104,9 @@ and flatten_production (p : production_t) (defname : symb option) (deftyp : rule
   (Production(ps,o2,patl2),prods)
 
 and flatten_pattern (p : pattern_t) (defname : symb option) (deftyp : rule_type option) (nesting : int list) (code_table : (symb,pos_t*(symb option*code) list) Hashtbl.t) : (pattern_t*decl_t list) = match p with
-| Pattern(p,al,eof) ->
+| Pattern(p,opts,al,eof) ->
   let (al2,prods) = flatten_list flatten_annot_atom al defname deftyp nesting code_table in
-  (Pattern(p,al2,eof),prods)
+  (Pattern(p,opts,al2,eof),prods)
 
 and flatten_annot_atom (an : annot_atom_t) (defname : symb option) (deftyp : rule_type option) (nesting : int list) (code_table : (symb,pos_t*(symb option*code) list) Hashtbl.t) : (annot_atom_t*decl_t list) = match an with
 | SingletonAnnotAtom(p,a) -> let (a2,prods) = flatten_atom a defname deftyp nesting code_table in (SingletonAnnotAtom(p,a2),prods)
@@ -233,8 +233,9 @@ let rec build_def_graph_grammar (g : grammar_t) (count : int) : simple_graph = m
   List.iter (fun d -> (match d with
     | ProdDecl(p,Production(p2,None,patl)) -> die_error p2 "production is not named"
     | ProdDecl(p,Production(p2,Some(_,(name,_)),patl)) ->
+      Printf.printf ">>> processing name: '%s'\n%!" (get_symbol name);
       let x = (try let (set,m,is_def,ps) = Hashtbl.find graph name in
-        if is_def then die_error p2 ("multiple definition of '"^(get_symbol name)^"'") else (set,m,is_def,p2)
+        if is_def then die_error p2 ("multiple definition of '"^(get_symbol name)^"'") else (set,m,true,p2)
         with Not_found -> (IntSet.empty,None,true,p2)) in
       Hashtbl.replace graph name x;
       List.iter (fun pat -> build_def_graph_pattern pat graph name) patl
@@ -243,7 +244,7 @@ let rec build_def_graph_grammar (g : grammar_t) (count : int) : simple_graph = m
   graph
 
 and build_def_graph_pattern (p : pattern_t) (g : simple_graph) (parent : symb) : unit = match p with
-| Pattern(p,anl,b) ->
+| Pattern(p,opts,anl,b) ->
   List.iter (fun an -> build_def_graph_annot_atom an g parent) anl
 
 and build_def_graph_annot_atom (an : annot_atom_t) (g : simple_graph) (parent : symb) : unit = match an with
