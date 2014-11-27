@@ -1,15 +1,15 @@
-{
+property parser_code = {
 (*module IntSet = Set.Make(
 struct
   type t = int
   let compare = (Pervasives.compare : (int -> int -> int))
 end);;*)
 this is some code
-}
+} ;
 
 
 
-parser Model:int = (<Model> Empty:bool ElementSemi* 
+parser Model1:int = (<Model> Empty:bool ElementSemi* 
 :(element_t list) @str{
   fst (List.fold_left (fun (res,flag) e ->
     (res^(if flag then "\n" else "")^(str_element_t e),true)) ("",false) s)}
@@ -36,7 +36,7 @@ eof)
 parser Empty = "" { false } ;
 parser Empty2 = Empty { false } 123 ;
 
-parser ElementSemi = (Element (<OptSemi> ~ | ';')) { $1 };
+parser ElementSemi = (Element (<OptSemi1> ~ | ';')) { $1 };
 parser OptSemi =
   ~
 | ';'
@@ -126,16 +126,16 @@ parser Rules =
 parser MyTest = "one" : token;
 parser MyTest2 = "foobar" : (string of string * int) ;
 parser MyTest3 = "test" : (((int,int*bool) Hashtbl.t) list list list * string) ;
-parser MyTest3 = "test" : ((int*int) Hashtbl.t) ;
-parser MyTest3 123 = ("test" : ((int,int) Hashtbl.t)):int 124 ;
-parser MyTest3 @$foobar = "test" : (_ of int * string) ;
-parser MyTest3 = "test" @str{blah} @$foobar : (Foo of ((int) * string)) ;
+parser MyTest31 = "test" : ((int*int) Hashtbl.t) ;
+parser MyTest32 123 = ("test" : ((int,int) Hashtbl.t)):int 124 ;
+parser MyTest33 @$foobar = "test" : (_ of int * string) ;
+parser MyTest34 = "test" @str{blah} @$foobar : (Foo of ((int) * string)) ;
 
 code foobar = str{this is code} ;
 
-ast MyTest3 1 2 3   4 5 = ~:(Foo of ((int) * string)) | ~:(Bar of int) ;
+ast MyTest35 1 2 3   4 5 = ~:(Foo of ((int) * string)) | ~:(Bar of int) ;
 
-ast MyTest3 = (<One> MyTest4 MyTest5*) | (<Two> MyTest2) ;
+ast MyTest36 = (<One> MyTest4 MyTest5*) | (<Two> MyTest2) ;
 
 /*
 parser Rule ->
@@ -236,21 +236,21 @@ Newlines -> '\n' <{do_newline lexbuf}:()> : {};
 
 
 parser SingleComm = ("//" [^\n]*) {}:() {};  /* throw away single-line comments */
-lexer MultiComm  = "/*" .. "*/" {}:() {};
+lexer MultiComm :~  = "/*" .. "*/" ;
 lexer Multi  = "one" | "two" | "three";
 parser Temp = One | Two | Three (Five Six)*? Four ;
 "one" | "two" | "three";
 token One Two THree ;
-property foo = "true" ;
-property foo = false ;
+//property foo = "true" ;
+//property foo = false ;
 
 keyword MyKeyword = "test" ;
 parser Test = [abc] / [123] : (string foo list bar * foo bar list) ;
-parser Test = "foo" : one.two ;
-parser Test = "foo" : ((int,string*int) Hashtbl.t) ;
-parser Test = "foo" : (_ of int * string * bool) ;
+parser Test1 = "foo" : one.two ;
+parser Test2 = "foo" : ((int,string*int) Hashtbl.t) ;
+parser Test3 = "foo" : (_ of int * string * bool) ;
 /* ^^ throw away recursive multiline comments */
 
-{
+property parser_code = {
 let tokens = ((Hashtbl.create 100) : ((string,token) Hashtbl.t)) ;;
-}
+} ;

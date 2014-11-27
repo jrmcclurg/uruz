@@ -135,7 +135,7 @@ and flatten_atom (a : atom_t) (defname : symb option) (deftyp : rule_type option
   else (IdentAtom(p,name),(ProdDecl(p2,Production(p2,Some(Some(Flags.get_def_prod_type deftyp),(name,[])),patl2)))::prods)
 | ProdAtom(p,Production(p2,Some(kwo,(name,ol)),patl)) -> 
   let (patl2,prods) = flatten_list flatten_pattern patl (Some(name)) kwo [] code_table in
-  if is_processing_lexer deftyp then (a,[])
+  if is_processing_lexer deftyp then die_error p2 "nested lexer productions cannot be named"
   else (IdentAtom(p,name),(ProdDecl(p2,Production(p2,Some((match kwo with None -> Some(Flags.get_def_prod_type deftyp) | _ -> kwo),(name,flatten_opt_list p2 ol deftyp nesting code_table)),patl2)))::prods)
 | _ -> (a,[])
 
@@ -233,7 +233,7 @@ let rec build_def_graph_grammar (g : grammar_t) (count : int) : simple_graph = m
   List.iter (fun d -> (match d with
     | ProdDecl(p,Production(p2,None,patl)) -> die_error p2 "production is not named"
     | ProdDecl(p,Production(p2,Some(_,(name,_)),patl)) ->
-      Printf.printf ">>> processing name: '%s'\n%!" (get_symbol name);
+      (*Printf.printf ">>> processing name: '%s'\n%!" (get_symbol name);*)
       let x = (try let (set,m,is_def,ps) = Hashtbl.find graph name in
         if is_def then die_error p2 ("multiple definition of '"^(get_symbol name)^"'") else (set,m,true,p2)
         with Not_found -> (IntSet.empty,None,true,p2)) in
