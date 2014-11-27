@@ -104,9 +104,9 @@ and flatten_production (p : production_t) (defname : symb option) (deftyp : rule
   (Production(ps,o2,patl2),prods)
 
 and flatten_pattern (p : pattern_t) (defname : symb option) (deftyp : rule_type option) (nesting : int list) (code_table : (symb,pos_t*(symb option*code) list) Hashtbl.t) : (pattern_t*decl_t list) = match p with
-| Pattern(p,opts,al,eof) ->
+| Pattern(p,opts,al) ->
   let (al2,prods) = flatten_list flatten_annot_atom al defname deftyp nesting code_table in
-  (Pattern(p,opts,al2,eof),prods)
+  (Pattern(p,opts,al2),prods)
 
 and flatten_annot_atom (an : annot_atom_t) (defname : symb option) (deftyp : rule_type option) (nesting : int list) (code_table : (symb,pos_t*(symb option*code) list) Hashtbl.t) : (annot_atom_t*decl_t list) = match an with
 | SingletonAnnotAtom(p,a) -> let (a2,prods) = flatten_atom a defname deftyp nesting code_table in (SingletonAnnotAtom(p,a2),prods)
@@ -244,7 +244,7 @@ let rec build_def_graph_grammar (g : grammar_t) (count : int) : simple_graph = m
   graph
 
 and build_def_graph_pattern (p : pattern_t) (g : simple_graph) (parent : symb) : unit = match p with
-| Pattern(p,opts,anl,b) ->
+| Pattern(p,opts,anl) ->
   List.iter (fun an -> build_def_graph_annot_atom an g parent) anl
 
 and build_def_graph_annot_atom (an : annot_atom_t) (g : simple_graph) (parent : symb) : unit = match an with
