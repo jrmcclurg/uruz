@@ -39,7 +39,6 @@
   let symbol_table = ((Hashtbl.create 1000) : (string,int) Hashtbl.t) ;;
   let symbol_table_inv = ((Hashtbl.create 1000) : (int,string) Hashtbl.t) ;;
 
-
   let print_symbol_table () =
     Hashtbl.iter (fun k v ->
       print_string ((string_of_int k)^" --> "^v^"\n")
@@ -74,6 +73,10 @@
     let result = !current_id in
     current_id := result - 1;
     result
+
+  let string_kw = add_symbol "string"
+  let option_kw = add_symbol "option"
+  let list_kw = add_symbol "list"
 
    type symb = int
    let str_symb = get_symbol
