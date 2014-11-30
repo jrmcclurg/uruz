@@ -1,0 +1,39 @@
+/*property default_production_type = "parser" ;
+
+lexer Outer = ("one" | "two" | ("three" | "four")) | "end" ;
+lexer Three : string @$foo = "one" | ("three" | '1' | "four");
+
+parser FooBar @$foo = "one" | (parser MyParser = "three" | ("four")) | "two" (parser Other = "one")+ :int*:string | ("baz") ;
+
+code foo = str{foo} {int_of_string s} eq{=} ;
+property parser_code = {one} str{(*this is a test*)} ;
+
+parser Lang :int =
+| GetInt '+' GetInt { $1 + $3 }
+| GetInt '-' GetInt { $1 - $3 }
+;
+
+parser GetInt :int =
+| "one" { 1 }
+| "two" { 2 }
+;
+
+parser Four :int =
+| |
+| eof { 1 }
+| one two eof {12 }
+| :int {two} :string :one one {test} :int one
+| (<Two:int> two)
+| (<Two1:int> = two)
+| (parser Two2:int = two)
+;
+
+lex one = "one" ;
+lex two = "two" ;
+
+keyword Foo = "test" ;*/
+
+parser TheTest = "one":string @$foo "two"* "three"? "four":int+* {one} {two} {code};
+lexer Outer = ("one" | "two" | ("three" | "four")) | "end" ;
+
+code foo = {test} str{code} ;
