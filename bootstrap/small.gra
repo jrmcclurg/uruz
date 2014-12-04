@@ -34,6 +34,7 @@ lex two = "two" ;
 keyword Foo = "test" ;*/
 
 parser TheTest = "one":string @$foo "two"* "three"? "four":int+* {one} {two} @{code} (parser = "test" | ("two" | "three")):foo;
-//lexer Outer = ("one" | "two" | ("three" | "four")) | "end" ;
+//lexer Outer = ("one" | "two" | ("three" | "four")) | "end" | 'a' | [1-2a-z];
+parser = "foobar" .. '\063' "":int ~:~;
 
 code foo = {test} str{code} ;

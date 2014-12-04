@@ -294,7 +294,7 @@ match a with
 | SingletonAnnotAtom(p,IdentAtom(p2,name)) ->
   let typo = (try let (_,x) = Hashtbl.find prod_table name in x with Not_found -> None) in
   ((match typo with None -> SimpleType(p2,AnyType(p2)) | Some(t) -> t),None) (* TODO XXX *)
-| SingletonAnnotAtom(p,CharsetsAtom(p2,cs)) -> (SimpleType(p2,IdentType(p2,[string_kw])),None)
+| SingletonAnnotAtom(p,CharsetAtom(p2,cs,cso)) -> (SimpleType(p2,IdentType(p2,[string_kw])),None)
 | SingletonAnnotAtom(p,RecurAtom(p2,s1,s2)) -> (SimpleType(p2,IdentType(p2,[string_kw])),None)
 | SingletonAnnotAtom(p,ProdAtom(p2,_)) -> die_error p2 "production not flattened properly"
 | QuantAnnotAtom(p,a,StarQuant(p2)) ->
@@ -328,3 +328,13 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : unit =
     Printf.printf "processing:\ntype = %s\n%s\n\n%!" (str_x_list (fun (Pattern(_,_,al)) -> str_x_list (str_pair str_typ_t (str_option str_code)) (List.map (fun x -> get_type x prod_table) al) ", ") pl "; ") (str_production_t prod)
   ) comps
   (* TODO XXX *)
+
+(*
+let rec get_placeholder_value_production (p : production_t) : value_t =
+
+and get_placeholder_value_pattern (pa : pattern_t) : value_t =
+
+and get_placeholder_value_annot_atom (an : annot_atom_t) : value_t =
+
+and get_placeholder_value_atom (a : atom_t) : value_t =
+*)

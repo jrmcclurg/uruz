@@ -144,14 +144,14 @@ ProdType ->
 ;
 
 ProdTypeO ->
-                                                               { (None,(None,[])) }
-| ProdType<:((rule_type option)*((symb option)*(opt_t list)))> { $1 }
+                                                               : { (None,(None,[])) }
+| ProdType<:((rule_type option)*((symb option)*(opt_t list)))> : { $1 }
 ;
 
 XIdentO -> 
-                { None }
-| '_'<:()>      { None }
-| XIdent<:symb> { Some($1) }
+                : { None }
+| '_'<:()>      : { None }
+| XIdent<:symb> : { Some($1) }
 ;
 
 BarPattern ->
@@ -185,7 +185,7 @@ Value ->
   Bool<:bool>         : BoolVal
 | Int<:int>           : IntVal
 | StringQuot<:string> : StringVal
-| CharQuot<:string>   : CharVal
+| CharQuot<:char>   : CharVal
 |    NamedCode+<:(((symb option)*code)*(((symb option)*code) list))
     @{let (x,y) = s in str_list (fun (so,c) -> " "^(str_option (fun x -> (get_symbol x)^"") so)^(str_code c)) (x::y)}> : CodeVal
 ;
@@ -280,24 +280,21 @@ Quant ->
 ;
 
 Quot ->
-  CharQuot<:string>   : { $1 }
+  CharQuot<:char>   : { String.make 1 $1 }
 | StringQuot<:string> : { $1 }
 ;
 
 Atom ->
-  '~'<:()>                         : EmptyAtom // TODO XXX - empty string "" can also denote an empty atom
+  '~'<:()>                         : EmptyAtom
 | "eof"<:()>                       : EofAtom
-| StringQuot<:string>              : StringAtom
+| StringQuot<:string>              : StringAtom { let p = get_current_pos () in if String.length $1 > 0 then StringAtom(p, $1) else EmptyAtom(p) }
 | XIdent<:symb>                  : IdentAtom
-| Charsets                         : CharsetsAtom
+| Charset CharsetDiffOption<:(charset_t option)
+    @{str_option (fun x -> " / "^(str_charset_t x)) s}>                         : CharsetAtom
 | Quot<:string> ".."<:()@{" .. "}> Quot<:string> : RecurAtom
 | '('<:()> Production ')'<:()>     : ProdAtom
 ;
 
-Charsets ->
-  Charset CharsetDiffOption<:(charset_t option)
-    @{str_option (fun x -> " / "^(str_charset_t x)) s}>
-;
 CharsetDiffOption ->
               : { None }
 | '/' Charset : { Some($2) }
@@ -305,8 +302,8 @@ CharsetDiffOption ->
 
 Charset ->
   '_'<:()>               : WildcardCharset
-| CharQuot<:string> : SingletonCharset
-| Chars<:string>    : ListCharset
+| CharQuot<:char> : SingletonCharset
+| Chars<:string>    : ListCharset // TODO XXX - parse the string
 ;
 
 Bool -> "true" : { true } | "false" : { false } ;
@@ -315,7 +312,7 @@ Chars -> ('[' ([^\\\]]* ('\\' _)*)* ']')<:string> : { $1 } ;
 StringQuot -> ('"' (([^\\\"]* ('\\' _)*)*) '"')<:string> : { Scanf.sscanf $1 "%S" (fun x -> x) };
 CharQuot -> ('\'' (([^\\\'] |
          ('\\' ('\\'|'"'|'\''|'n'|'r'|'t'|'b')) |
-         ('\\' [0-9] [0-9] [0-9]) )) '\'')<:string> : { String.make 1 (Scanf.sscanf $1 "%C" (fun x -> x)) } ;
+         ('\\' [0-9] [0-9] [0-9]) )) '\'')<:string> : { (Scanf.sscanf $1 "%C" (fun x -> x)) } ;
 Int -> ([0-9]+)<:int{int_of_string s}> : { $1 } ;
 CodeLit -> "{" .. "}"<:(Lexing.position*string){let p = Lexing.lexeme_start_p lexbuf in (p,s)}> : { handle_code $1 } ;
 
