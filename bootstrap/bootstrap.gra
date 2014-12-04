@@ -131,16 +131,27 @@ Grammar ->
 ;
 
 Production ->
-  ProdType?<:(((rule_type option)*(symb*(opt_t list))) option)
-    @{str_option (fun s -> let (x,(y,z))=s in match x with
-        None -> "<"^(get_symbol y)^(str_list (fun x -> " "^(str_opt_t x)) z)^"> "
-      | Some(x) -> (str_rule_type x)^" "^(get_symbol y)^(str_list (fun x -> " "^(str_opt_t x)) z)^" = ") s}>
+  ProdTypeO<:((rule_type option)*((symb option)*(opt_t list)))
+    @{let (x,(y,z))=s in let ystr = (match y with Some(y) -> (get_symbol y) | None -> "_") in match x with
+        None -> "<"^ystr^(str_list (fun x -> " "^(str_opt_t x)) z)^"> "
+      | Some(x) -> (str_rule_type x)^" "^ystr^(str_list (fun x -> " "^(str_opt_t x)) z)^" = "}>
   BarPattern<:(pattern_t list)
     @{str_list (fun x -> "\n| "^(str_pattern_t x)^"") s}> ;
 
 ProdType ->
-  ProdKw<:rule_type> XIdent<:symb> OptList<:(opt_t list)> Eq : { (Some($1),($2,$3)) }
-| '<'<:()@{"<"}> XIdent<:symb> OptList<:(opt_t list)> '>'<:()@{">"}> Eq? : { (None,($2,$3)) }
+  ProdKw<:rule_type> XIdentO<:(symb option)> OptList<:(opt_t list)> Eq : { (Some($1),($2,$3)) }
+| '<'<:()@{"<"}> XIdentO<:(symb option)> OptList<:(opt_t list)> '>'<:()@{">"}> Eq? : { (None,($2,$3)) }
+;
+
+ProdTypeO ->
+                                                               { (None,(None,[])) }
+| ProdType<:((rule_type option)*((symb option)*(opt_t list)))> { $1 }
+;
+
+XIdentO -> 
+                { None }
+| '_'<:()>      { None }
+| XIdent<:symb> { Some($1) }
 ;
 
 BarPattern ->
@@ -209,12 +220,13 @@ Opt ->
   ':'<:()> Typ                            : TypeOption
 | Int<:int>                               : PrecOption
 | Assoc                                   : AssocOption
-| FnName?<:(symb option)> CodeLit<:code> : CodeOption
+| FnName<:(symb option)> CodeLit<:code> : CodeOption
 | '@'<:()> '$'<:()> XIdent<:symb>       : CodeNameOption
 ;
 
 FnName -> 
-  '@'<:()> XIdent<:symb> : { $2 }
+                                   : { None }
+| '@'<:()> XIdent?<:(symb option)> : { $2 }
 ;
 
 TokenKw -> "token" : ;

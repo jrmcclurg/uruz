@@ -97,13 +97,14 @@ and flatten_production (p : production_t) (defname : symb option) (deftyp : rule
 | Production(ps,o,patl) ->
   let nesting_old = nesting in
   let (defname,deftyp,nesting) = (match o with
-    | Some(kwo,(name,ol)) -> (Some(name),kwo,[])
+    | (kwo,(Some(name),ol)) -> (Some(name),kwo,[])
     | _ -> (defname,deftyp,nesting)
   ) in
   let o2 = (match o with
-  | None -> Some(Some(get_def_prod_type deftyp),(get_def_prod_name defname nesting,[]))
-  | Some(None,(x,y)) -> Some(Some(get_def_prod_type deftyp),(x,flatten_opt_list ps y deftyp nesting_old code_table false))
-  | Some(x,(y,ol)) -> Some(x,(y,flatten_opt_list ps ol deftyp nesting_old code_table false))
+  | (None,(None,ol)) -> (Some(get_def_prod_type deftyp),(Some(get_def_prod_name defname nesting),[]))
+  | (None,(Some(name),ol)) -> (Some(get_def_prod_type deftyp),(Some(name),flatten_opt_list ps ol deftyp nesting_old code_table false))
+  | (Some(kw),(None,ol)) -> (Some(kw),(Some(get_def_prod_name defname nesting),flatten_opt_list ps ol deftyp nesting_old code_table false))
+  | (Some(kw),(Some(name),ol)) -> (Some(kw),(Some(name),flatten_opt_list ps ol deftyp nesting_old code_table false))
   ) in
   let (patl2,prods) = flatten_list flatten_pattern patl defname deftyp nesting code_table in
   (Production(ps,o2,patl2),prods)
@@ -134,15 +135,15 @@ and flatten_atom (a : atom_t) (defname : symb option) (deftyp : rule_type option
   if is_processing_lexer deftyp then
     die_error p "lexer productions cannot reference other productions";
   (a,[])
-| ProdAtom(p,Production(p2,None,patl)) ->
+| ProdAtom(p,Production(p2,(kwo,(None,ol)),patl)) ->
   let name = Flags.get_def_prod_name defname nesting in
-  let (patl2,prods) = flatten_list flatten_pattern patl defname deftyp nesting code_table in
-  if is_processing_lexer deftyp then (a,[])
-  else (IdentAtom(p,name),(ProdDecl(p2,Production(p2,Some(Some(Flags.get_def_prod_type deftyp),(name,[])),patl2)))::prods)
-| ProdAtom(p,Production(p2,Some(kwo,(name,ol)),patl)) -> 
-  let (patl2,prods) = flatten_list flatten_pattern patl (Some(name)) kwo [] code_table in
+  let (patl2,prods) = flatten_list flatten_pattern patl defname (match kwo with None -> deftyp | _ -> kwo) nesting code_table in
+  if is_processing_lexer deftyp then (ProdAtom(p,Production(p2,(Some(Lexer),(None,ol)),patl2)),[]) (* TODO XXX *)
+  else (IdentAtom(p,name),(ProdDecl(p2,Production(p2,((match kwo with None -> Some(Flags.get_def_prod_type deftyp) | _ -> kwo),(Some(name),[])),patl2)))::prods)
+| ProdAtom(p,Production(p2,(kwo,(Some(name),ol)),patl)) -> 
+  let (patl2,prods) = flatten_list flatten_pattern patl (Some(name)) (match kwo with None -> deftyp | _ -> kwo) [] code_table in
   if is_processing_lexer deftyp then die_error p2 "nested lexer productions cannot have names"
-  else (IdentAtom(p,name),(ProdDecl(p2,Production(p2,Some((match kwo with None -> Some(Flags.get_def_prod_type deftyp) | _ -> kwo),(name,flatten_opt_list p2 ol deftyp nesting code_table false)),patl2)))::prods)
+  else (IdentAtom(p,name),(ProdDecl(p2,Production(p2,((match kwo with None -> Some(Flags.get_def_prod_type deftyp) | _ -> kwo),(Some(name),flatten_opt_list p2 ol deftyp nesting code_table false)),patl2)))::prods)
 | _ -> (a,[])
 
 (*********************************************************)
@@ -237,8 +238,8 @@ let rec build_def_graph_grammar (g : grammar_t) (count : int) : simple_graph = m
 | Grammar(pos,(d,dl)) ->
   let graph = (Hashtbl.create (10*count)(*TODO XXX - num?*) : simple_graph) in
   List.iter (fun d -> (match d with
-    | ProdDecl(p,Production(p2,None,patl)) -> die_error p2 "production is not named"
-    | ProdDecl(p,Production(p2,Some(_,(name,_)),patl)) ->
+    | ProdDecl(p,Production(p2,(_,(None,_)),patl)) -> die_error p2 "production is not named"
+    | ProdDecl(p,Production(p2,(_,(Some(name),_)),patl)) ->
       (*Printf.printf ">>> processing name: '%s'\n%!" (get_symbol name);*)
       let x = (try let (set,m,is_def,ps) = Hashtbl.find graph name in
         if is_def then die_error p2 ("multiple definition of '"^(get_symbol name)^"'") else (set,m,true,p2)
@@ -317,13 +318,13 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : unit =
   List.iter (fun d ->
     match d with
     (* NOTE - all productions should be named at this point *)
-    | ProdDecl(p,(Production(p2,Some(rto,(name,ol)),pl) as prod)) ->
+    | ProdDecl(p,(Production(p2,(rto,(Some(name),ol)),pl) as prod)) ->
       Hashtbl.replace prod_table name (prod,None);
       Printf.printf "processing: %s\n%!" (get_symbol name)
     | _ -> ()
   ) (d::dl);
   List.iter (fun (name,ps) ->
     let ((Production(_,_,pl) as prod),t) = (try Hashtbl.find prod_table name with Not_found -> die_error ps ("could not find production '"^(get_symbol name)^"'")) in
-    (*Printf.printf "processing:\ntype = %s\n%s\n\n%!" (str_x_list (fun (Pattern(_,_,al)) -> str_x_list (str_pair str_typ_t (str_option str_code)) (List.map (fun x -> get_type x prod_table) al) ", ") pl "; ") (str_production_t prod)*)()
+    Printf.printf "processing:\ntype = %s\n%s\n\n%!" (str_x_list (fun (Pattern(_,_,al)) -> str_x_list (str_pair str_typ_t (str_option str_code)) (List.map (fun x -> get_type x prod_table) al) ", ") pl "; ") (str_production_t prod)
   ) comps
   (* TODO XXX *)

@@ -33,7 +33,7 @@ lex two = "two" ;
 
 keyword Foo = "test" ;*/
 
-parser TheTest = "one":string @$foo "two"* "three"? "four":int+* {one} {two} {code};
-lexer Outer = ("one" | "two" | ("three" | "four")) | "end" ;
+parser TheTest = "one":string @$foo "two"* "three"? "four":int+* {one} {two} @{code} (parser = "test" | ("two" | "three")):foo;
+//lexer Outer = ("one" | "two" | ("three" | "four")) | "end" ;
 
 code foo = {test} str{code} ;

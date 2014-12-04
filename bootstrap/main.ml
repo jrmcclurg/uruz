@@ -14,7 +14,7 @@ let (result,code_table) = collect_named_code result count in
 let result = flatten_grammar result code_table in
 let comps = get_sorted_defs result count in
 Bootstrap_ast.print_grammar_t result;
-Printf.printf "comps = %s\n%!" (str_x_list (fun (x,_) -> get_symbol x) comps ", ");
+Printf.printf "\n\ncomps = %s\n%!" (str_x_list (fun (x,_) -> get_symbol x) comps ", ");
 print_newline();
 typecheck result comps count;
 exit 0)
