@@ -24,6 +24,27 @@
    | "ast" -> Ast
    | _ -> die_error p ("production type '"^s^"' does not exist")
 
+   (* TODO XXX - does this need pos information? *)
+   type chars = SingletonChar of char | RangeChar of char * char
+
+   (*let str_chars c = match c with SingletonChar(c) -> "{"^(String.make 1 c)^"}" | RangeChar(c1,c2) -> Printf.sprintf "{%c-%c}" c1 c2*)
+   let str_chars c = match c with SingletonChar(c) -> String.make 1 c | RangeChar(c1,c2) -> Printf.sprintf "%c-%c" c1 c2
+   let eq_chars a b = ((compare a b)=0)
+
+   let rec parse_char_list (cl : char list) : (bool * chars list) = (
+  let (is_neg, csl, mode, range_start) = List.fold_left (fun (is_neg, csl, mode, range_start) c ->
+    match (c,mode,range_start) with
+    | ('^',0,_) -> Printf.printf "x:1\n%!"; (true, csl, 1, None)
+    | (_,2,Some(rs)) -> Printf.printf "x:2\n%!"; (is_neg, (RangeChar(rs,c))::csl, 1, None)
+    | ('-',_,Some(_)) -> Printf.printf "x:3\n%!"; (is_neg, csl, 2, range_start)
+    | (_,_,Some(cx)) -> Printf.printf "x:4\n%!"; (is_neg, (SingletonChar(cx))::csl, 1, Some(c))
+    | (_,_,_) -> Printf.printf "x:5\n%!"; (is_neg, csl, 1, Some(c))
+  ) (false,[],0,None) cl in
+  let extra = (match (range_start,mode) with (Some(c),2) -> ['-';c] | (Some(c),_) -> [c] | _ -> []) in
+  let csl = List.rev_append (List.rev_map (fun c -> SingletonChar(c)) extra) csl in
+  (is_neg, List.rev csl)
+)
+
    type code = EmptyCode of pos_t (**
            Empty code having given
            position *)
@@ -303,8 +324,15 @@ CharsetDiffOption ->
 Charset ->
   '_'<:()>               : WildcardCharset
 | CharQuot<:char> : SingletonCharset
-| Chars<:string>    : ListCharset // TODO XXX - parse the string
+| Chars0<:(bool*(chars list))
+  @{let (is_neg,cl)=s in Printf.sprintf "[%s%s]" (if is_neg then "^" else "") (str_list str_chars cl)}>    : ListCharset
 ;
+
+Chars0 -> Chars<:string> : {
+  let ib = Scanf.Scanning.from_string ("\""^(String.sub $1 1 ((String.length $1)-2))^"\"") in
+  let cl = string_explode (Scanf.bscanf ib "%S" (fun x -> x)) in
+  parse_char_list cl
+} ;
 
 Bool -> "true" : { true } | "false" : { false } ;
 XIdent -> ([a-zA-Z] [a-zA-Z0-9_]*)<:string> : { add_symbol $1 } ; // TODO XXX - make sure this works with the ident translator
