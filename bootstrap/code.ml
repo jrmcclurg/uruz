@@ -311,6 +311,40 @@ match a with
 | OptAnnotAtom(p,a,CodeOption(p2,so,c)) -> let (old_type,old_code) = get_type a prod_table in (old_type,Some(c))
 | OptAnnotAtom(p,a,_) -> get_type a prod_table
 
+let placeholder_char = '*'
+
+let rec get_placeholder_value_production (p : production_t) : value_t = match p with
+| Production(ps,(rto,(nameo,ol)),[]) ->
+  die_error ps "unexpected empty production"
+| Production(ps,(rto,(nameo,ol)),pl) -> (* NOTE - pl is non-empty here *)
+  List.fold_left (fun res pa ->
+    let v = get_placeholder_value_pattern pa in
+    match (v,res) with
+    | (StringVal(ps1,s1),StringVal(ps2,s2)) -> if (String.length s1)>(String.length s2) then v else res
+    | (StringVal(ps1,_),CharVal(ps2,_)) -> v
+    | (CharVal(ps1,_),StringVal(ps2,_)) -> res
+    | (_,_) -> res
+  ) (CharVal(ps,placeholder_char)) pl
+
+and get_placeholder_value_pattern (pa : pattern_t) : value_t = match pa with
+| Pattern(ps,ol,an::[]) ->
+  get_placeholder_value_annot_atom an
+| Pattern(ps,ol,anl) -> StringVal(ps,String.make 2 placeholder_char)
+
+and get_placeholder_value_annot_atom (an : annot_atom_t) : value_t = match an with
+| SingletonAnnotAtom(ps,a) -> get_placeholder_value_atom a
+| QuantAnnotAtom(ps,an,q) -> StringVal(ps,String.make 2 placeholder_char)
+| OptAnnotAtom(ps,an,opt) -> get_placeholder_value_annot_atom an
+
+and get_placeholder_value_atom (a : atom_t) : value_t = match a with
+| EmptyAtom(ps) -> StringVal(ps,String.make 2 placeholder_char)
+| EofAtom(ps) -> StringVal(ps,String.make 2 placeholder_char)
+| StringAtom(ps,str) -> StringVal(ps,String.make (if (String.length str)=1 then 1 else 2) placeholder_char)
+| IdentAtom(ps,s) -> die_error ps ("production name '"^(get_symbol s)^"' should not appear in a lexer production")
+| CharsetAtom(ps,c1,c2o) -> CharVal(ps,placeholder_char)
+| RecurAtom(ps,s1,s2) -> StringVal(ps,String.make 2 placeholder_char)
+| ProdAtom(ps,pr) -> get_placeholder_value_production pr
+
 let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : unit = match g with
 | Grammar(pos,(d,dl)) ->
   let prod_table = (Hashtbl.create count : prod_hashtbl) in
@@ -324,17 +358,10 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : unit =
     | _ -> ()
   ) (d::dl);
   List.iter (fun (name,ps) ->
-    let ((Production(_,_,pl) as prod),t) = (try Hashtbl.find prod_table name with Not_found -> die_error ps ("could not find production '"^(get_symbol name)^"'")) in
-    Printf.printf "processing:\ntype = %s\n%s\n\n%!" (str_x_list (fun (Pattern(_,_,al)) -> str_x_list (str_pair str_typ_t (str_option str_code)) (List.map (fun x -> get_type x prod_table) al) ", ") pl "; ") (str_production_t prod)
+    let ((Production(_,(rt,_),pl) as prod),t) = (try Hashtbl.find prod_table name with Not_found -> die_error ps ("could not find production '"^(get_symbol name)^"'")) in
+    let is_lexer = (match rt with (Some(Lexer)) -> true | _ -> false) in
+    Printf.printf "processing:\nplaceholder = %s\ntype = %s\n%s\n\n%!"
+      (match rt with (Some(Lexer)) -> (str_value_t (get_placeholder_value_production prod)) | _ -> "[not lexer]")
+      (str_x_list (fun (Pattern(_,_,al)) -> str_x_list (str_pair str_typ_t (str_option str_code)) (List.map (fun x -> (if (not is_lexer) then get_type x prod_table else (SimpleType(NoPos,NoType(NoPos)),None))) al) ", ") pl "; ") (str_production_t prod)
   ) comps
   (* TODO XXX *)
-
-(*
-let rec get_placeholder_value_production (p : production_t) : value_t =
-
-and get_placeholder_value_pattern (pa : pattern_t) : value_t =
-
-and get_placeholder_value_annot_atom (an : annot_atom_t) : value_t =
-
-and get_placeholder_value_atom (a : atom_t) : value_t =
-*)
