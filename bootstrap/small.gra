@@ -33,14 +33,17 @@ lex two = "two" ;
 
 keyword Foo = "test" ;*/
 
-parser TheTest = "one":string @$foo "two"* "three"? "four":int+* {one} {two} @{code} (parser = "test" | ("two" | "three")):foo;
-parser {code} = {code} "foobar" .. '\063' "":int ~:~ | {code2} Brackets;
-parser Brackets = [^^-^a-zA-Z0-9^-s] ;
+//parser TheTest = "one":string @$foo "two"* "three"? "four":int+* {one} {two} @{code} (parser = "test" | ("two" | "three")):foo;
+//parser {code} = {code} "foobar" .. '\063' "":int ~:~ | {code2} Brackets;
+//parser Brackets = [^^-^a-zA-Z0-9^-s] ;
 
-code foo = {test} str{code} ;
+//code foo = {test} str{code} ;
 
 
-lexer Outer = ("one" | "two" | ("three" | "four")) | "end" | 'a' | [1-2a-z];
-lexer Small = "one" ;
-lexer Small2 = "o" ;
-lexer Small3 = 'o' ;
+//lexer Outer = ("one" | "two" | ("three" | "four")) | "end" | 'a' | [1-2a-z];
+//lexer Small = "one" ;
+//lexer Small2 = "o" ;
+//lexer Small3 = 'o' ;
+
+//parser TheTest2 = "one"* ("two" | "three")+;
+parser TheTest3 = || "one" | "two" ||| "three" | | | | ~ ;
