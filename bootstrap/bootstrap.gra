@@ -189,7 +189,7 @@ SemiDecl -> Decl ';' : { $1 } ;
 Decl -> 
   Production : ProdDecl
 | TokenKws<:()@{"token "}> XIdent+<:(symb*(symb list))> : TokenDecl
-| KeywordKws<:()@{"keyword "}> XIdent<:symb> Eq<:()@{" = "}> StringQuot<:string> : KeywordDecl
+| KeywordKws<:()@{"keyword "}> XIdent<:symb> Eq<:()@{" = "}> StringQuot<:string@{Printf.sprintf "%S" s}> : KeywordDecl
 | "code"<:()@{"code "}> XIdent<:symb> Eq<:()@{" ="}>
     NamedCode+<:(((symb option)*code)*(((symb option)*code) list))
     @{let (x,y) = s in str_list (fun (so,c) -> " "^(str_option (fun x -> (get_symbol x)^"") so)^(str_code c)) (x::y)}> : CodeDecl
@@ -207,8 +207,8 @@ PropKws -> "property" : | "prop" : ;
 Value ->
   Bool<:bool>         : BoolVal
 | Int<:int>           : IntVal
-| StringQuot<:string> : StringVal
-| CharQuot<:char>   : CharVal
+| StringQuot<:string@{Printf.sprintf "%S" s}> : StringVal
+| CharQuot<:char@{Printf.sprintf "%C" s}>   : CharVal
 |    NamedCode+<:(((symb option)*code)*(((symb option)*code) list))
     @{let (x,y) = s in str_list (fun (so,c) -> " "^(str_option (fun x -> (get_symbol x)^"") so)^(str_code c)) (x::y)}> : CodeVal
 ;
@@ -313,11 +313,11 @@ Quot ->
 Atom ->
   '~'<:()>                         : EmptyAtom
 | "eof"<:()>                       : EofAtom
-| StringQuot<:string>              : StringAtom { let p = get_current_pos () in if String.length $1 > 0 then StringAtom(p, $1) else EmptyAtom(p) }
+| StringQuot<:string@{Printf.sprintf "%S" s}>              : StringAtom { let p = get_current_pos () in if String.length $1 > 0 then StringAtom(p, $1) else EmptyAtom(p) }
 | XIdent<:symb>                  : IdentAtom
 | Charset CharsetDiffOption<:(charset_t option)
     @{str_option (fun x -> " / "^(str_charset_t x)) s}>                         : CharsetAtom
-| Quot<:string> ".."<:()@{" .. "}> Quot<:string> : RecurAtom
+| Quot<:string@{Printf.sprintf "%S" s}> ".."<:()@{" .. "}> Quot<:string@{Printf.sprintf "%S" s}> : RecurAtom
 | '('<:()> Production ')'<:()>     : ProdAtom
 ;
 
@@ -328,7 +328,7 @@ CharsetDiffOption ->
 
 Charset ->
   '_'<:()>               : WildcardCharset
-| CharQuot<:char> : SingletonCharset
+| CharQuot<:char@{Printf.sprintf "%C" s}> : SingletonCharset
 | Chars0<:(bool*(chars list))
   @{let (is_neg,cl)=s in Printf.sprintf "[%s%s]" (if is_neg then "^" else "") (str_list str_chars cl)}>    : ListCharset
 ;

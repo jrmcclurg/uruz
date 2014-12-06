@@ -45,5 +45,5 @@ keyword Foo = "test" ;*/
 //lexer Small2 = "o" ;
 //lexer Small3 = 'o' ;
 
-//parser TheTest2 = "one"* ("two" | "three")+;
-parser TheTest3 = || "one" | "two" ||| "three" | | | | ~ ;
+parser TheTest2 = 'x' '\r' "one\n"* ("two" | "three")+;
+//parser TheTest3 = || "one" | "two" ||| "three" | | | | ~ ;
