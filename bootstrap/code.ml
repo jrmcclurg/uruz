@@ -280,37 +280,8 @@ let get_sorted_defs (result : grammar_t) (count : int) : ((symb*pos_t) list) =
   x
 
 (*******************************************)
-(** TYPECHECKING                          **)
+(** ????????????                          **)
 (*******************************************)
-
-type prod_hashtbl = (symb,production_t * typ_t option) Hashtbl.t
-
-let typecast (old_type : typ_t) (new_type : typ_t) : code = EmptyCode(NoPos) (* TODO XXX *)
-
-let rec get_type (a : annot_atom_t) (prod_table : prod_hashtbl) : (typ_t*code option) =
-match a with
-| SingletonAnnotAtom(p,EmptyAtom(p2)) -> (SimpleType(p2,NoType(p2)),None)
-| SingletonAnnotAtom(p,EofAtom(p2)) -> (SimpleType(p2,NoType(p2)),None)
-| SingletonAnnotAtom(p,StringAtom(p2,s)) -> (SimpleType(p2,IdentType(p2,[string_kw])),None)
-| SingletonAnnotAtom(p,IdentAtom(p2,name)) ->
-  let typo = (try let (_,x) = Hashtbl.find prod_table name in x with Not_found -> None) in
-  ((match typo with None -> SimpleType(p2,AnyType(p2)) | Some(t) -> t),None) (* TODO XXX *)
-| SingletonAnnotAtom(p,CharsetAtom(p2,cs,cso)) -> (SimpleType(p2,IdentType(p2,[string_kw])),None)
-| SingletonAnnotAtom(p,RecurAtom(p2,s1,s2)) -> (SimpleType(p2,IdentType(p2,[string_kw])),None)
-| SingletonAnnotAtom(p,ProdAtom(p2,_)) -> die_error p2 "production not flattened properly"
-| QuantAnnotAtom(p,a,StarQuant(p2)) ->
-  let (old_type,old_code) = get_type a prod_table in
-  (CompoundType(p,CommaType(p,[[InstConstrType(p,SingletonConstrType(p,old_type),[list_kw])]])),old_code)
-| QuantAnnotAtom(p,a,PlusQuant(p2)) ->
-  let (old_type,old_code) = get_type a prod_table in
-  let x = SingletonConstrType(p,old_type) in
-  (CompoundType(p,CommaType(p,[[x;InstConstrType(p,x,[list_kw])]])),old_code)
-| QuantAnnotAtom(p,a,QuestionQuant(p2)) ->
-  let (old_type,old_code) = get_type a prod_table in
-  (CompoundType(p,CommaType(p,[[InstConstrType(p,SingletonConstrType(p,old_type),[option_kw])]])),None)
-| OptAnnotAtom(p,a,TypeOption(p2,t)) -> let (old_type,old_code) = get_type a prod_table in (t,old_code) (* TODO XXX - do the cast here? *)
-| OptAnnotAtom(p,a,CodeOption(p2,so,c)) -> let (old_type,old_code) = get_type a prod_table in (old_type,Some(c))
-| OptAnnotAtom(p,a,_) -> get_type a prod_table
 
 let placeholder_char = '*'
 
@@ -345,6 +316,62 @@ and get_placeholder_value_atom (a : atom_t) : value_t = match a with
 | CharsetAtom(ps,c1,c2o) -> CharVal(ps,placeholder_char)
 | RecurAtom(ps,s1,s2) -> StringVal(ps,String.make 2 placeholder_char)
 | ProdAtom(ps,pr) -> get_placeholder_value_production pr
+
+let val_to_atom (v : value_t) : atom_t = match v with
+| StringVal(ps,str) -> StringAtom(ps,str)
+| CharVal(ps,c) -> CharsetAtom(ps,SingletonCharset(ps,c),None)
+| _ -> failwith ("could not convert value '"^(str_value_t v)^"' to atom")
+
+let rec strip_lexer_grammar (g : grammar_t) (count : int) : (grammar_t * (symb,production_t) Hashtbl.t) = match g with
+| Grammar(pos,(d,dl)) ->
+  let the_list = (d::dl) in
+  let table = Hashtbl.create count in
+  let dl2 = List.rev_map (fun x -> strip_lexer_decl x table) the_list in
+  let l = List.rev dl2 in
+  (Grammar(pos,(List.hd l,List.tl l)), table)
+
+and strip_lexer_decl (d : decl_t) (table : (symb,production_t) Hashtbl.t) : decl_t = match d with
+| ProdDecl(p,(Production(p2,((Some(Lexer),(so,ol)) as name),pl) as prod)) ->
+  let sym = (match so with
+  | Some(s) -> s
+  | None -> die_error p2 "un-named lexer production") in
+  Hashtbl.replace table sym prod;
+  let v = val_to_atom (get_placeholder_value_production prod) in
+  ProdDecl(p,Production(p2,name,[Pattern(p2,[],[SingletonAnnotAtom(p2,v)])]))
+| _ -> d
+
+(*******************************************)
+(** TYPECHECKING                          **)
+(*******************************************)
+
+type prod_hashtbl = (symb,production_t * typ_t option) Hashtbl.t
+
+let typecast (old_type : typ_t) (new_type : typ_t) : code = EmptyCode(NoPos) (* TODO XXX *)
+
+let rec get_type (a : annot_atom_t) (prod_table : prod_hashtbl) : (typ_t*code option) =
+match a with
+| SingletonAnnotAtom(p,EmptyAtom(p2)) -> (SimpleType(p2,NoType(p2)),None)
+| SingletonAnnotAtom(p,EofAtom(p2)) -> (SimpleType(p2,NoType(p2)),None)
+| SingletonAnnotAtom(p,StringAtom(p2,s)) -> (SimpleType(p2,IdentType(p2,[string_kw])),None)
+| SingletonAnnotAtom(p,IdentAtom(p2,name)) ->
+  let typo = (try let (_,x) = Hashtbl.find prod_table name in x with Not_found -> None) in
+  ((match typo with None -> SimpleType(p2,AnyType(p2)) | Some(t) -> t),None) (* TODO XXX *)
+| SingletonAnnotAtom(p,CharsetAtom(p2,cs,cso)) -> (SimpleType(p2,IdentType(p2,[string_kw])),None)
+| SingletonAnnotAtom(p,RecurAtom(p2,s1,s2)) -> (SimpleType(p2,IdentType(p2,[string_kw])),None)
+| SingletonAnnotAtom(p,ProdAtom(p2,_)) -> die_error p2 "production not flattened properly"
+| QuantAnnotAtom(p,a,StarQuant(p2)) ->
+  let (old_type,old_code) = get_type a prod_table in
+  (CompoundType(p,CommaType(p,[[InstConstrType(p,SingletonConstrType(p,old_type),[list_kw])]])),old_code)
+| QuantAnnotAtom(p,a,PlusQuant(p2)) ->
+  let (old_type,old_code) = get_type a prod_table in
+  let x = SingletonConstrType(p,old_type) in
+  (CompoundType(p,CommaType(p,[[x;InstConstrType(p,x,[list_kw])]])),old_code)
+| QuantAnnotAtom(p,a,QuestionQuant(p2)) ->
+  let (old_type,old_code) = get_type a prod_table in
+  (CompoundType(p,CommaType(p,[[InstConstrType(p,SingletonConstrType(p,old_type),[option_kw])]])),None)
+| OptAnnotAtom(p,a,TypeOption(p2,t)) -> let (old_type,old_code) = get_type a prod_table in (t,old_code) (* TODO XXX - do the cast here? *)
+| OptAnnotAtom(p,a,CodeOption(p2,so,c)) -> let (old_type,old_code) = get_type a prod_table in (old_type,Some(c))
+| OptAnnotAtom(p,a,_) -> get_type a prod_table
 
 let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : unit = match g with
 | Grammar(pos,(d,dl)) ->
