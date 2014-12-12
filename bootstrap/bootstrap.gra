@@ -152,23 +152,23 @@ Grammar ->
 ;
 
 Production ->
-  ProdTypeO<:((rule_type option)*((symb option)*(opt_t list)))
+  ProdTypeO<:((rule_type option)*((symb option)*((opt_t list)*(typ_t option))))
     @{let (x,(y,z))=s in let ystr = (match y with Some(y) -> (get_symbol y) | None -> "_") in match x with
-        None -> "<"^ystr^(str_list (fun x -> " "^(str_opt_t x)) z)^"> "
-      | Some(x) -> (str_rule_type x)^" "^ystr^(str_list (fun x -> " "^(str_opt_t x)) z)^" = "}>
+        None -> "<"^ystr^(str_pair (str_list (fun x -> " "^(str_opt_t x))) (str_option (fun t -> ":"^(str_typ_t t))) z)^"> "
+      | Some(x) -> (str_rule_type x)^" "^ystr^(str_pair (str_list (fun x -> " "^(str_opt_t x))) (str_option (fun t -> ":"^(str_typ_t t))) z)^" = "}>
   BarPattern<:(pattern_t list)
     @{str_list (fun x -> "\n| "^(str_pattern_t x)^"") s}> ;
 
 BarPattern -> BarPattern0<:(pattern_t list)> : { List.rev $1 } ;
 
 ProdType ->
-  ProdKw<:rule_type> XIdentO<:(symb option)> OptList<:(opt_t list)> Eq : { (Some($1),($2,$3)) }
-| '<'<:()@{"<"}> XIdentO<:(symb option)> OptList<:(opt_t list)> '>'<:()@{">"}> Eq? : { (None,($2,$3)) }
+  ProdKw<:rule_type> XIdentO<:(symb option)> OptList<:((opt_t list)*(typ_t option))> Eq : { (Some($1),($2,$3)) }
+| '<'<:()@{"<"}> XIdentO<:(symb option)> OptList<:((opt_t list)*(typ_t option))> '>'<:()@{">"}> Eq? : { (None,($2,$3)) }
 ;
 
 ProdTypeO ->
-                                                               : { (None,(None,[])) }
-| ProdType<:((rule_type option)*((symb option)*(opt_t list)))> : { $1 }
+                                                               : { (None,(None,([],None))) }
+| ProdType<:((rule_type option)*((symb option)*((opt_t list)*(typ_t option))))> : { $1 }
 ;
 
 XIdentO -> 
@@ -216,34 +216,32 @@ Value ->
 Eq -> '='<@{" = "}> : ;
 
 Pattern ->
-  OptList<:(opt_t list)@{str_list (fun x -> (str_opt_t x)^" ") s}>
+  OptList<:((opt_t list)*(typ_t option))@{str_pair (str_list (fun x -> (str_opt_t x)^" ")) (str_option (fun t -> ":"^(str_typ_t t))) s}>
   AnnotAtom* <@{str_list (fun x -> (str_annot_atom_t x)^" ") s}>
-  //EofOp<:bool@{if s then "eof" else ""}>
 ;
-/*EofOp ->
-        : { false }
-| "eof" : { true}
-;*/
 
-Assoc ->
+/*Assoc ->
   "left"<:()>     : LeftAssoc
 | "right"<:()>    : RightAssoc
 | "nonassoc"<:()> : NonAssoc
-;
+;*/
 
 AnnotAtom ->
-  Atom                                : SingletonAnnotAtom
-| AnnotAtom Quant                     : QuantAnnotAtom
-| AnnotAtom Opt<@{" "^(str_opt_t s)}> : OptAnnotAtom
+  Atom OptList<:((opt_t list)*(typ_t option))>            : SingletonAnnotAtom
+| AnnotAtom Quant OptList<:((opt_t list)*(typ_t option))> : QuantAnnotAtom
 ;
 
-OptList -> Opt*<:(opt_t list)> : { $1 } ;
+OptList -> Opt*<:(opt_t list)> OptType<:(typ_t option)> : { ($1,$2) } ;
+
+OptType ->
+                                            : { None }
+|  ':'<:()> Typ                            : { Some($2) }
+;
 
 Opt ->
-  ':'<:()> Typ                            : TypeOption
 //| Int<:int>                               : PrecOption
 //| Assoc                                   : AssocOption
-| FnName<:(symb option)> CodeLit<:code> : CodeOption
+ FnName<:(symb option)> CodeLit<:code> : CodeOption
 | '@'<:()> '$'<:()> XIdent<:symb>       : CodeNameOption
 ;
 

@@ -73,17 +73,14 @@ and inline_decl (code_table : code_hashtbl) (d : decl_t) : decl_t = match d with
 | _ -> d
 
 and inline_production (code_table : code_hashtbl) (p : production_t) : production_t = match p with
-| Production(ps,(x1,(x2,opts)),patl) -> Production(ps,(x1,(x2,inline_opt_list opts code_table)),List.rev (List.rev_map (inline_pattern code_table) patl))
+| Production(ps,(x1,(x2,(opts,ty))),patl) -> Production(ps,(x1,(x2,(inline_opt_list opts code_table,ty))),List.rev (List.rev_map (inline_pattern code_table) patl))
 
 and inline_pattern (code_table : code_hashtbl) (p : pattern_t) : pattern_t = match p with
-| Pattern(p,opts,al) -> Pattern(p,inline_opt_list opts code_table,List.rev (List.rev_map (inline_annot_atom code_table) al))
+| Pattern(p,(opts,ty),al) -> Pattern(p,(inline_opt_list opts code_table,ty),List.rev (List.rev_map (inline_annot_atom code_table) al))
 
 and inline_annot_atom (code_table : code_hashtbl) (an : annot_atom_t) : annot_atom_t = match an with
-| SingletonAnnotAtom(p,a) -> SingletonAnnotAtom(p,inline_atom code_table a)
-| QuantAnnotAtom(p,an,q) -> QuantAnnotAtom(p,inline_annot_atom code_table an,q)
-| OptAnnotAtom(p,an,o) ->
-  let a2 = inline_annot_atom code_table an in
-  List.fold_left (fun acc o -> OptAnnotAtom(p,acc,o)) a2 (inline_opt code_table o)
+| SingletonAnnotAtom(p,a,(opts,ty)) -> SingletonAnnotAtom(p,inline_atom code_table a,(inline_opt_list opts code_table,ty))
+| QuantAnnotAtom(p,an,q,(opts,ty)) -> QuantAnnotAtom(p,inline_annot_atom code_table an,q,(inline_opt_list opts code_table,ty))
 
 and inline_atom (code_table : code_hashtbl) (a : atom_t) : atom_t = match a with
 | ProdAtom(p,prod) -> ProdAtom(p,inline_production code_table prod)
@@ -99,13 +96,13 @@ let (l2,prods,_) = List.fold_left (fun (l2,prods,index) x ->
 ) ([],[], !Flags.def_prod_index) l in
 (List.rev l2, List.rev prods)
 
-let flatten_opt_list (p : pos_t) (ol : opt_t list) (deftyp : rule_type option) (nesting : int list)
-(code_table : code_hashtbl) (check_len : bool) : opt_t list =
+let flatten_opt_list (p : pos_t) ((ol,tyo) : (opt_t list*typ_t option)) (deftyp : rule_type option) (nesting : int list)
+(code_table : code_hashtbl) (check_len : bool) : (opt_t list*typ_t option) =
   let nesting_len = List.length nesting in
-  let ol_len = List.length ol in
+  let ol_len = (List.length ol)+(match tyo with None -> 0 | _ -> 1) in
   if (if check_len then ol_len else nesting_len) > (if check_len then 0 else 1) && is_processing_lexer deftyp then
     die_error p "nested lexer productions cannot have names or annotations";
-  ol
+  (ol,tyo)
 
 let rec flatten_grammar (g : grammar_t) (code_table : code_hashtbl) : grammar_t = match g with
 | Grammar(pos,(d,dl)) ->
@@ -131,7 +128,7 @@ and flatten_production (p : production_t) (defname : symb option) (deftyp : rule
     | _ -> (defname,deftyp,nesting)
   ) in
   let o2 = (match o with
-  | (None,(None,ol)) -> (Some(get_def_prod_type deftyp),(Some(get_def_prod_name defname nesting),[]))
+  | (None,(None,ol)) -> (Some(get_def_prod_type deftyp),(Some(get_def_prod_name defname nesting),([],None)))
   | (None,(Some(name),ol)) -> (Some(get_def_prod_type deftyp),(Some(name),flatten_opt_list ps ol deftyp nesting_old code_table false))
   | (Some(kw),(None,ol)) -> (Some(kw),(Some(get_def_prod_name defname nesting),flatten_opt_list ps ol deftyp nesting_old code_table false))
   | (Some(kw),(Some(name),ol)) -> (Some(kw),(Some(name),flatten_opt_list ps ol deftyp nesting_old code_table false))
@@ -145,6 +142,7 @@ and flatten_pattern (p : pattern_t) (defname : symb option) (deftyp : rule_type 
   let (al2,prods) = flatten_list flatten_annot_atom al defname deftyp nesting code_table in
   (Pattern(p,opts2,al2),prods)
 
+(* TODO XXX - fix this *)
 and flatten_annot_atom (an : annot_atom_t) (defname : symb option) (deftyp : rule_type option) (nesting : int list) (code_table : code_hashtbl) (is_singleton : bool) : (annot_atom_t*decl_t list) = match an with
 | SingletonAnnotAtom(p,a) -> let (a2,prods) = flatten_atom a defname deftyp nesting code_table is_singleton in (SingletonAnnotAtom(p,a2),prods)
 | QuantAnnotAtom(p,an,q) ->
@@ -175,7 +173,7 @@ and flatten_atom (a : atom_t) (defname : symb option) (deftyp : rule_type option
   let name = Flags.get_def_prod_name defname nesting in
   let (patl2,prods) = flatten_list flatten_pattern patl defname (match kwo with None -> deftyp | _ -> kwo) nesting code_table in
   if is_processing_lexer deftyp then (ProdAtom(p,Production(p2,(Some(Lexer),(None,ol)),patl2)),[]) (* TODO XXX *)
-  else (IdentAtom(p,name),(ProdDecl(p2,Production(p2,((match kwo with None -> Some(Flags.get_def_prod_type deftyp) | _ -> kwo),(Some(name),[])),patl2)))::prods)
+  else (IdentAtom(p,name),(ProdDecl(p2,Production(p2,((match kwo with None -> Some(Flags.get_def_prod_type deftyp) | _ -> kwo),(Some(name),([],None))),patl2)))::prods)
 | ProdAtom(p,Production(p2,(kwo,(Some(name),ol)),patl)) -> 
   let (patl2,prods) = flatten_list flatten_pattern patl (Some(name)) (match kwo with None -> deftyp | _ -> kwo) [] code_table in
   if is_processing_lexer deftyp then die_error p2 "nested lexer productions cannot have names"
@@ -291,9 +289,8 @@ and build_def_graph_pattern (p : pattern_t) (g : simple_graph) (parent : symb) :
   List.iter (fun an -> build_def_graph_annot_atom an g parent) anl
 
 and build_def_graph_annot_atom (an : annot_atom_t) (g : simple_graph) (parent : symb) : unit = match an with
-| SingletonAnnotAtom(p,a) -> build_def_graph_atom a g parent
-| QuantAnnotAtom(p,an,q) -> build_def_graph_annot_atom an g parent
-| OptAnnotAtom(p,an,o) -> build_def_graph_annot_atom an g parent
+| SingletonAnnotAtom(p,a,o) -> build_def_graph_atom a g parent
+| QuantAnnotAtom(p,an,q,o) -> build_def_graph_annot_atom an g parent
 
 and build_def_graph_atom (a : atom_t) (g : simple_graph) (parent : symb) : unit = match a with
 | IdentAtom(p,id) -> 
@@ -339,9 +336,8 @@ and get_placeholder_value_pattern (pa : pattern_t) : value_t = match pa with
 | Pattern(ps,ol,anl) -> StringVal(ps,String.make 2 placeholder_char)
 
 and get_placeholder_value_annot_atom (an : annot_atom_t) : value_t = match an with
-| SingletonAnnotAtom(ps,a) -> get_placeholder_value_atom a
-| QuantAnnotAtom(ps,an,q) -> StringVal(ps,String.make 2 placeholder_char)
-| OptAnnotAtom(ps,an,opt) -> get_placeholder_value_annot_atom an
+| SingletonAnnotAtom(ps,a,o) -> get_placeholder_value_atom a
+| QuantAnnotAtom(ps,an,q,o) -> StringVal(ps,String.make 2 placeholder_char)
 
 and get_placeholder_value_atom (a : atom_t) : value_t = match a with
 | EmptyAtom(ps) -> StringVal(ps,String.make 2 placeholder_char)
@@ -372,14 +368,14 @@ and strip_lexer_decl (d : decl_t) (table : (symb,production_t) Hashtbl.t) : decl
   | None -> die_error p2 "un-named lexer production") in
   Hashtbl.replace table sym prod;
   let v = val_to_atom (get_placeholder_value_production prod) in
-  ProdDecl(p,Production(p2,name,[Pattern(p2,[],[SingletonAnnotAtom(p2,v)])]))
+  ProdDecl(p,Production(p2,name,[Pattern(p2,([],None),[SingletonAnnotAtom(p2,v,([],None))])]))
 | _ -> d
 
 (*******************************************)
 (** TYPECHECKING                          **)
 (*******************************************)
 
-type prod_hashtbl = (symb,production_t * typ_t option) Hashtbl.t
+(*type prod_hashtbl = (symb,production_t * typ_t option) Hashtbl.t
 
 let typecast (old_type : typ_t) (new_type : typ_t) : code = EmptyCode(NoPos) (* TODO XXX *)
 
@@ -428,3 +424,4 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : unit =
       (str_x_list (fun (Pattern(_,_,al)) -> str_x_list (str_pair str_typ_t (str_option str_code)) (List.map (fun x -> (if (not is_lexer) then get_type x prod_table else (SimpleType(NoPos,NoType(NoPos)),None))) al) ", ") pl "; ") (str_production_t prod)
   ) comps
   (* TODO XXX *)
+  *)
