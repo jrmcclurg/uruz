@@ -40,10 +40,10 @@ keyword Foo = "test" ;*/
 //code foo = {test} str{code} ;
 
 
-lexer Outer = ("one" | "two" | ("three" | "four")) | "end" | 'a' | [1-2a-z];
-lexer Small = "one" ;
-lexer Small2 = "o" ;
-lexer Small3 = 'o' ;
+//lexer Outer = ("one" | "two" | ("three" | "four")) | "end" | 'a' | [1-2a-z];
+//lexer Small = "one" ;
+//lexer Small2 = "o" ;
+//lexer Small3 = 'o' ;
 
-parser TheTest2 = 'x' '\r' "one\n"* ("two" | ("three" | "four"))+*{one}{two};
+ast TheTests = 'x' '\r' "one\n"* (parser Foo = "two" | ("three" | "four"))+*?*++{one}{two};
 //parser TheTest3 = || "one" | "two" ||| "three" | | | | ~ ;
