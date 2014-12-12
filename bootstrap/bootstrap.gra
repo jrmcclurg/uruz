@@ -241,8 +241,8 @@ OptList -> Opt*<:(opt_t list)> : { $1 } ;
 
 Opt ->
   ':'<:()> Typ                            : TypeOption
-| Int<:int>                               : PrecOption
-| Assoc                                   : AssocOption
+//| Int<:int>                               : PrecOption
+//| Assoc                                   : AssocOption
 | FnName<:(symb option)> CodeLit<:code> : CodeOption
 | '@'<:()> '$'<:()> XIdent<:symb>       : CodeNameOption
 ;

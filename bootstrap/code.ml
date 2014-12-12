@@ -6,6 +6,14 @@ open Bootstrap_ast
 open Bootstrap_utils
 open Flags
 
+let rev_flatten (l : 'a list list) : 'a list =
+  List.fold_left (fun acc l2 ->
+    List.rev_append l2 acc
+  ) [] l
+
+let tail_flatten (l : 'a list list) : 'a list =
+  List.rev (rev_flatten l)
+
 (* HANDLE PROPERTIES *)
 
 let rec handle_props (g : grammar_t) : (grammar_t*int) = match g with
@@ -44,15 +52,44 @@ let collect_named_code (g : grammar_t) (count : int) : (grammar_t * code_hashtbl
   let dl2 = List.rev dl2 in
   (Grammar(pos,(List.hd dl2,List.tl dl2)),code_table)
 
-(* FLATTEN PRODUCTIONS (AND INLINE NAMED CODE) *)
+(* INLINE NAMED CODE *)
 
-let rev_flatten (l : 'a list list) : 'a list =
-  List.fold_left (fun acc l2 ->
-    List.rev_append l2 acc
-  ) [] l
+let inline_opt (code_table : code_hashtbl) (o : opt_t) : opt_t list = 
+(match o with 
+  | CodeNameOption(p,s) ->
+    let (p2,codes) = (try Hashtbl.find code_table s with Not_found -> die_error p ("could not find code declaration named '"^(get_symbol s)^"'")) in
+    let o2 = List.rev (List.rev_map (fun (x,y) -> CodeOption(p2,x,y)) codes) in
+    o2
+  | _ -> [o])
 
-let tail_flatten (l : 'a list list) : 'a list =
-  List.rev (rev_flatten l)
+let inline_opt_list (ol : opt_t list) (code_table : code_hashtbl) : opt_t list = 
+rev_flatten (List.rev_map (inline_opt code_table) ol)
+
+let rec inline_grammar (g : grammar_t) (code_table : code_hashtbl) : grammar_t = match g with
+| Grammar(pos,(d,dl)) -> Grammar(pos,(inline_decl code_table d, List.rev (List.rev_map (inline_decl code_table) dl)))
+
+and inline_decl (code_table : code_hashtbl) (d : decl_t) : decl_t = match d with
+| ProdDecl(p,prod) -> ProdDecl(p,inline_production code_table prod)
+| _ -> d
+
+and inline_production (code_table : code_hashtbl) (p : production_t) : production_t = match p with
+| Production(ps,(x1,(x2,opts)),patl) -> Production(ps,(x1,(x2,inline_opt_list opts code_table)),List.rev (List.rev_map (inline_pattern code_table) patl))
+
+and inline_pattern (code_table : code_hashtbl) (p : pattern_t) : pattern_t = match p with
+| Pattern(p,opts,al) -> Pattern(p,inline_opt_list opts code_table,List.rev (List.rev_map (inline_annot_atom code_table) al))
+
+and inline_annot_atom (code_table : code_hashtbl) (an : annot_atom_t) : annot_atom_t = match an with
+| SingletonAnnotAtom(p,a) -> SingletonAnnotAtom(p,inline_atom code_table a)
+| QuantAnnotAtom(p,an,q) -> QuantAnnotAtom(p,inline_annot_atom code_table an,q)
+| OptAnnotAtom(p,an,o) ->
+  let a2 = inline_annot_atom code_table an in
+  List.fold_left (fun acc o -> OptAnnotAtom(p,acc,o)) a2 (inline_opt code_table o)
+
+and inline_atom (code_table : code_hashtbl) (a : atom_t) : atom_t = match a with
+| ProdAtom(p,prod) -> ProdAtom(p,inline_production code_table prod)
+| _ -> a
+
+(* FLATTEN PRODUCTIONS *)
 
 let flatten_list f l defname deftyp nesting code_table =
 let len = List.length l in
@@ -68,16 +105,7 @@ let flatten_opt_list (p : pos_t) (ol : opt_t list) (deftyp : rule_type option) (
   let ol_len = List.length ol in
   if (if check_len then ol_len else nesting_len) > (if check_len then 0 else 1) && is_processing_lexer deftyp then
     die_error p "nested lexer productions cannot have names or annotations";
-  let result = List.rev_map (fun o ->
-    let new_opts = (match o with 
-    | CodeNameOption(p,s) ->
-      let (p2,codes) = (try Hashtbl.find code_table s with Not_found -> die_error p ("could not find code declaration named '"^(get_symbol s)^"'")) in
-      let o2 = (List.rev_map (fun (x,y) -> CodeOption(p2,x,y)) codes) in
-      o2
-    | _ -> [o]) in
-    new_opts
-  ) ol in
-  rev_flatten result
+  ol
 
 let rec flatten_grammar (g : grammar_t) (code_table : code_hashtbl) : grammar_t = match g with
 | Grammar(pos,(d,dl)) ->
@@ -120,7 +148,7 @@ and flatten_pattern (p : pattern_t) (defname : symb option) (deftyp : rule_type 
 and flatten_annot_atom (an : annot_atom_t) (defname : symb option) (deftyp : rule_type option) (nesting : int list) (code_table : code_hashtbl) (is_singleton : bool) : (annot_atom_t*decl_t list) = match an with
 | SingletonAnnotAtom(p,a) -> let (a2,prods) = flatten_atom a defname deftyp nesting code_table is_singleton in (SingletonAnnotAtom(p,a2),prods)
 | QuantAnnotAtom(p,an,q) ->
-  let (a2,prods) = flatten_annot_atom an defname deftyp (!Flags.def_prod_index::nesting) code_table false in
+  let (a2,prods) = flatten_annot_atom an defname deftyp (if is_singleton then nesting else (!Flags.def_prod_index::nesting)) code_table false in
   if is_singleton then (QuantAnnotAtom(p,a2,q),prods)
   else
     let name = Flags.get_def_prod_name defname nesting in
@@ -130,14 +158,13 @@ and flatten_annot_atom (an : annot_atom_t) (defname : symb option) (deftyp : rul
 | OptAnnotAtom(p,an,o) ->
   if is_processing_lexer deftyp then
     die_error p "lexer productions can only contain annotations on the left-hand-side (i.e. applied to the entire production)";
-  let new_opts = (match o with 
-  | CodeNameOption(p,s) ->
-    let (p2,codes) = (try Hashtbl.find code_table s with Not_found -> die_error p ("could not find code declaration named '"^(get_symbol s)^"'")) in
-    let o2 = List.rev (List.rev_map (fun (x,y) -> CodeOption(p2,x,y)) codes) in
-    o2
-  | _ -> [o]) in
-  let (a2,prods) = flatten_annot_atom an defname deftyp nesting code_table is_singleton in
-  (List.fold_left (fun acc o -> OptAnnotAtom(p,acc,o)) a2 new_opts,prods)
+  let is_singleton = (match o with CodeOption(_,Some(_),_) -> true | _ -> is_singleton) in
+  let (a2,prods) = flatten_annot_atom an defname deftyp (if is_singleton then nesting else (!Flags.def_prod_index::nesting)) code_table false in
+  if is_singleton then (OptAnnotAtom(p,a2,o),prods)
+  else
+    let name = Flags.get_def_prod_name defname nesting in
+    (SingletonAnnotAtom(p,IdentAtom(p,name)),(ProdDecl(p,Production(p,((Some(Flags.get_def_prod_type deftyp)),(Some(name),[])),
+      [Pattern(p,[],[OptAnnotAtom(p,a2,o)])])))::prods)
 
 and flatten_atom (a : atom_t) (defname : symb option) (deftyp : rule_type option) (nesting : int list) (code_table : code_hashtbl) (is_singleton : bool) : (atom_t*decl_t list) = match a with
 | IdentAtom(p,_) ->

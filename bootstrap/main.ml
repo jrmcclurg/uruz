@@ -10,6 +10,7 @@ let result = get_ast i in
 (* set defaults based on the poperties in input file *)
 let (result,count) = handle_props result in
 let (result,code_table) = collect_named_code result count in
+let result = inline_grammar result code_table in
 (* flatten the grammar *)
 let result = flatten_grammar result code_table in
 let (result,lexer_prods) = strip_lexer_grammar result count in
