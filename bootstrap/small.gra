@@ -45,6 +45,8 @@ keyword Foo = "test" ;*/
 //lexer Small2 = "o" ;
 //lexer Small3 = 'o' ;
 
-ast TheTests = 'x' '\r' "one\n"* (parser Foo @$foo = "two" | ("three" | "four" @str{test}))+*{do}:(something list)?*+{x}+{one}:int:string@str{x}@eq{y}:foo{two}?:int;
+//lexer Small =  ;
+//ast TheTests = 'x' '\r' "one\n"* (parser Foo @$foo = "two" | ("three" | "four" @str{test}))+*{do}:(something list)?*+{x}+{one}:int?:int;
+parser TheTest = "one" : string * {two} : int  ; // TODO XXX - this is a bug
 code foo = str{test};
 //parser TheTest3 = || "one" | "two" ||| "three" | | | | ~ ;

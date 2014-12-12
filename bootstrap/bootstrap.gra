@@ -216,7 +216,8 @@ Value ->
 Eq -> '='<@{" = "}> : ;
 
 Pattern ->
-  OptList<:((opt_t list)*(typ_t option))@{str_pair (str_list (fun x -> (str_opt_t x)^" ")) (str_option (fun t -> ":"^(str_typ_t t))) s}>
+  OptList<:((opt_t list)*(typ_t option))
+  @{str_pair (str_list (fun x -> (str_opt_t x)^" ")) (str_option (fun t -> ":"^(str_typ_t t))) s}>
   AnnotAtom* <@{str_list (fun x -> (str_annot_atom_t x)^" ") s}>
 ;
 
@@ -227,8 +228,12 @@ Pattern ->
 ;*/
 
 AnnotAtom ->
-  Atom OptList<:((opt_t list)*(typ_t option))>            : SingletonAnnotAtom
-| AnnotAtom Quant OptList<:((opt_t list)*(typ_t option))> : QuantAnnotAtom
+  Atom OptList<:((opt_t list)*(typ_t option))
+  @{str_pair (str_list (fun x -> " "^(str_opt_t x))) (str_option (fun t -> " :"^(str_typ_t t))) s}
+  >            : SingletonAnnotAtom
+| AnnotAtom Quant OptList<:((opt_t list)*(typ_t option))
+  @{str_pair (str_list (fun x -> " "^(str_opt_t x))) (str_option (fun t -> " :"^(str_typ_t t))) s}
+> : QuantAnnotAtom
 ;
 
 OptList -> Opt*<:(opt_t list)> OptType<:(typ_t option)> : { ($1,$2) } ;

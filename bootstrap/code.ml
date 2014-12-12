@@ -144,25 +144,14 @@ and flatten_pattern (p : pattern_t) (defname : symb option) (deftyp : rule_type 
 
 (* TODO XXX - fix this *)
 and flatten_annot_atom (an : annot_atom_t) (defname : symb option) (deftyp : rule_type option) (nesting : int list) (code_table : code_hashtbl) (is_singleton : bool) : (annot_atom_t*decl_t list) = match an with
-| SingletonAnnotAtom(p,a) -> let (a2,prods) = flatten_atom a defname deftyp nesting code_table is_singleton in (SingletonAnnotAtom(p,a2),prods)
-| QuantAnnotAtom(p,an,q) ->
+| SingletonAnnotAtom(p,a,opts) -> let (a2,prods) = flatten_atom a defname deftyp nesting code_table is_singleton in (SingletonAnnotAtom(p,a2,(flatten_opt_list p opts deftyp nesting code_table true)),prods)
+| QuantAnnotAtom(p,an,q,opts) ->
   let (a2,prods) = flatten_annot_atom an defname deftyp (if is_singleton then nesting else (!Flags.def_prod_index::nesting)) code_table false in
-  if is_singleton then (QuantAnnotAtom(p,a2,q),prods)
+  if is_singleton then (QuantAnnotAtom(p,a2,q,flatten_opt_list p opts deftyp nesting code_table true),prods)
   else
     let name = Flags.get_def_prod_name defname nesting in
-    (SingletonAnnotAtom(p,IdentAtom(p,name)),(ProdDecl(p,Production(p,((Some(Flags.get_def_prod_type deftyp)),(Some(name),[])),
-      [Pattern(p,[],[QuantAnnotAtom(p,a2,q)])])))::prods)
-(* TODO XXX - need to flatten these as well *)
-| OptAnnotAtom(p,an,o) ->
-  if is_processing_lexer deftyp then
-    die_error p "lexer productions can only contain annotations on the left-hand-side (i.e. applied to the entire production)";
-  let is_singleton = (match o with CodeOption(_,Some(_),_) -> true | _ -> is_singleton) in
-  let (a2,prods) = flatten_annot_atom an defname deftyp (if is_singleton then nesting else (!Flags.def_prod_index::nesting)) code_table false in
-  if is_singleton then (OptAnnotAtom(p,a2,o),prods)
-  else
-    let name = Flags.get_def_prod_name defname nesting in
-    (SingletonAnnotAtom(p,IdentAtom(p,name)),(ProdDecl(p,Production(p,((Some(Flags.get_def_prod_type deftyp)),(Some(name),[])),
-      [Pattern(p,[],[OptAnnotAtom(p,a2,o)])])))::prods)
+    (SingletonAnnotAtom(p,IdentAtom(p,name),([],None)),(ProdDecl(p,Production(p,((Some(Flags.get_def_prod_type deftyp)),(Some(name),([],None))),
+      [Pattern(p,([],None),[QuantAnnotAtom(p,a2,q,(flatten_opt_list p opts deftyp nesting code_table true))])])))::prods)
 
 and flatten_atom (a : atom_t) (defname : symb option) (deftyp : rule_type option) (nesting : int list) (code_table : code_hashtbl) (is_singleton : bool) : (atom_t*decl_t list) = match a with
 | IdentAtom(p,_) ->
