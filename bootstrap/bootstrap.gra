@@ -154,8 +154,8 @@ Grammar ->
 Production ->
   ProdTypeO<:((rule_type option)*((symb option)*((opt_t list)*(typ_t option))))
     @{let (x,(y,z))=s in let ystr = (match y with Some(y) -> (get_symbol y) | None -> "_") in match x with
-        None -> "<"^ystr^(str_pair (str_list (fun x -> " "^(str_opt_t x))) (str_option (fun t -> ":"^(str_typ_t t))) z)^"> "
-      | Some(x) -> (str_rule_type x)^" "^ystr^(str_pair (str_list (fun x -> " "^(str_opt_t x))) (str_option (fun t -> ":"^(str_typ_t t))) z)^" = "}>
+        None -> "<"^ystr^(str_pair (str_list (fun x -> " "^(str_opt_t x))) (str_option (fun t -> " :"^(str_typ_t t))) z)^"> "
+      | Some(x) -> (str_rule_type x)^" "^ystr^(str_pair (str_list (fun x -> " "^(str_opt_t x))) (str_option (fun t -> " :"^(str_typ_t t))) z)^" = "}>
   BarPattern<:(pattern_t list)
     @{str_list (fun x -> "\n| "^(str_pattern_t x)^"") s}> ;
 
@@ -217,7 +217,7 @@ Eq -> '='<@{" = "}> : ;
 
 Pattern ->
   OptList<:((opt_t list)*(typ_t option))
-  @{str_pair (str_list (fun x -> (str_opt_t x)^" ")) (str_option (fun t -> ":"^(str_typ_t t))) s}>
+  @{str_pair (str_list (fun x -> (str_opt_t x)^" ")) (str_option (fun t -> " :"^(str_typ_t t))) s}>
   AnnotAtoms<:(annot_atom_t list)@{str_list (fun x -> (str_annot_atom_t x)^" ") s}>
 ;
 
@@ -229,7 +229,7 @@ Pattern ->
 
 AnnotAtoms ->
   AnnotAtom* : {
-    let restructure_annot_atom an = (
+    (*let restructure_annot_atom an = (
       let rec unpack an = (match an with
       | SingletonAnnotAtom(ps,a,otl) -> [an]
       | QuantAnnotAtom(ps,an,q,otl) -> (QuantAnnotAtom(ps,SingletonAnnotAtom(ps,EmptyAtom(ps),[]),q,otl))::(unpack an)
@@ -242,31 +242,31 @@ AnnotAtoms ->
       ) ([],None,None,List.hd l) (List.tl l) in
       an2 (* TODO XXX *)
     ) in
-    List.rev (List.rev_map restructure_annot_atom $1)
+    List.rev (List.rev_map restructure_annot_atom $1)*)
+    $1
   }
 ;
 
 AnnotAtom ->
-  Atom Opt*<:(opt_t list)
-  @{str_list (fun x -> " "^(str_opt_t x)) s}>
-  : SingletonAnnotAtom
-| AnnotAtom Quant Opt*<:(opt_t list)
-  @{str_list (fun x -> " "^(str_opt_t x)) s}>
-  : QuantAnnotAtom
-| AnnotAtom Temp<:((opt_t list)*(code option))> OptType<:(typ_t option)> Opt*<:(opt_t list)
-  @{str_list (fun x -> " "^(str_opt_t x)) s}>
-  : OptAnnotAtom
-;
-
-Temp ->
-  : { ([],None) }
+  Atom            : SingletonAnnotAtom
+| AnnotAtom Quant : QuantAnnotAtom
+| AnnotAtom Opt2<:((opt_t list)*((code option)*(typ_t option)))@{str_pair (fun l -> str_list (fun x -> " "^(str_opt_t x)) l) (str_pair (str_option (fun x -> " "^(str_code x))) (str_option (fun x -> " :"^(str_typ_t x)))) s}>  : OptAnnotAtom
 ;
 
 OptList -> Opt*<:(opt_t list)> OptType<:(typ_t option)> : { ($1,$2) } ;
 
+Opt2 ->
+  ':'<:()> Typ                            : { ([],(None,Some($2))) }
+| Opt                                     : {
+  match $1 with
+  | CodeOption(ps,None,c) -> ([],(Some(c),None))
+  | o -> ([o],(None,None))
+}
+;
+
 OptType ->
-//                                            : { None }
-  ':'<:()> Typ                            : { Some($2) }
+                                            : { None }
+| ':'<:()> Typ                            : { Some($2) }
 ;
 
 Opt ->
