@@ -144,7 +144,13 @@ and flatten_pattern (p : pattern_t) (defname : symb option) (deftyp : rule_type 
 
 (* TODO XXX - fix this *)
 and flatten_annot_atom (an : annot_atom_t) (defname : symb option) (deftyp : rule_type option) (nesting : int list) (code_table : code_hashtbl) (is_singleton : bool) : (annot_atom_t*decl_t list) = match an with
-| SingletonAnnotAtom(p,a,opts) -> let (a2,prods) = flatten_atom a defname deftyp nesting code_table is_singleton in (SingletonAnnotAtom(p,a2,(flatten_opt_list p opts deftyp nesting code_table true)),prods)
+| SingletonAnnotAtom(p,a,opts) ->
+  let (a2,prods) = flatten_atom a defname deftyp nesting code_table is_singleton in
+  if is_singleton then (SingletonAnnotAtom(p,a2,flatten_opt_list p opts deftyp nesting code_table true),prods)
+  else
+    let name = Flags.get_def_prod_name defname nesting in
+    (SingletonAnnotAtom(p,IdentAtom(p,name),([],None)),(ProdDecl(p,Production(p,((Some(Flags.get_def_prod_type deftyp)),(Some(name),([],None))),
+      [Pattern(p,([],None),[SingletonAnnotAtom(p,a2,(flatten_opt_list p opts deftyp nesting code_table true))])])))::prods)
 | QuantAnnotAtom(p,an,q,opts) ->
   let (a2,prods) = flatten_annot_atom an defname deftyp (if is_singleton then nesting else (!Flags.def_prod_index::nesting)) code_table false in
   if is_singleton then (QuantAnnotAtom(p,a2,q,flatten_opt_list p opts deftyp nesting code_table true),prods)

@@ -53,7 +53,7 @@
             position, 
             OCaml code *)
 
-   let str_code s = match s with EmptyCode(_) -> "" | Code(_,c) -> ("{"^c^"}")
+   let str_code s = match s with EmptyCode(_) -> "{}" | Code(_,c) -> ("{"^c^"}")
    let eq_code a b = ((compare a b)=0)
 
   let current_id = ref (-1) ;;
@@ -218,7 +218,7 @@ Eq -> '='<@{" = "}> : ;
 Pattern ->
   OptList<:((opt_t list)*(typ_t option))
   @{str_pair (str_list (fun x -> (str_opt_t x)^" ")) (str_option (fun t -> ":"^(str_typ_t t))) s}>
-  AnnotAtom* <@{str_list (fun x -> (str_annot_atom_t x)^" ") s}>
+  AnnotAtoms<:(annot_atom_t list)@{str_list (fun x -> (str_annot_atom_t x)^" ") s}>
 ;
 
 /*Assoc ->
@@ -227,20 +227,46 @@ Pattern ->
 | "nonassoc"<:()> : NonAssoc
 ;*/
 
+AnnotAtoms ->
+  AnnotAtom* : {
+    let restructure_annot_atom an = (
+      let rec unpack an = (match an with
+      | SingletonAnnotAtom(ps,a,otl) -> [an]
+      | QuantAnnotAtom(ps,an,q,otl) -> (QuantAnnotAtom(ps,SingletonAnnotAtom(ps,EmptyAtom(ps),[]),q,otl))::(unpack an)
+      | OptAnnotAtom(ps,an,otl1,t,otl) -> (OptAnnotAtom(ps,SingletonAnnotAtom(ps,EmptyAtom(ps),[]),otl1,t,otl))::(unpack an)
+      ) in
+      let l = List.rev (unpack an) in
+      (* NOTE - l is always nonempty *)
+      let (_,_,_,an2) = List.fold_left (fun (opts,c,ty,acc) an -> match (opts,c,ty,an) with
+        | (_,_,_,SingletonAnnotAtom(ps,a,otl)) -> (List.rev_append otl opts,c,ty,SingletonAnnotAtom(ps,a,[]))
+      ) ([],None,None,List.hd l) (List.tl l) in
+      an2 (* TODO XXX *)
+    ) in
+    List.rev (List.rev_map restructure_annot_atom $1)
+  }
+;
+
 AnnotAtom ->
-  Atom OptList<:((opt_t list)*(typ_t option))
-  @{str_pair (str_list (fun x -> " "^(str_opt_t x))) (str_option (fun t -> " :"^(str_typ_t t))) s}
-  >            : SingletonAnnotAtom
-| AnnotAtom Quant OptList<:((opt_t list)*(typ_t option))
-  @{str_pair (str_list (fun x -> " "^(str_opt_t x))) (str_option (fun t -> " :"^(str_typ_t t))) s}
-> : QuantAnnotAtom
+  Atom Opt*<:(opt_t list)
+  @{str_list (fun x -> " "^(str_opt_t x)) s}>
+  : SingletonAnnotAtom
+| AnnotAtom Quant Opt*<:(opt_t list)
+  @{str_list (fun x -> " "^(str_opt_t x)) s}>
+  : QuantAnnotAtom
+| AnnotAtom Temp<:((opt_t list)*(code option))> OptType<:(typ_t option)> Opt*<:(opt_t list)
+  @{str_list (fun x -> " "^(str_opt_t x)) s}>
+  : OptAnnotAtom
+;
+
+Temp ->
+  : { ([],None) }
 ;
 
 OptList -> Opt*<:(opt_t list)> OptType<:(typ_t option)> : { ($1,$2) } ;
 
 OptType ->
-                                            : { None }
-|  ':'<:()> Typ                            : { Some($2) }
+//                                            : { None }
+  ':'<:()> Typ                            : { Some($2) }
 ;
 
 Opt ->
