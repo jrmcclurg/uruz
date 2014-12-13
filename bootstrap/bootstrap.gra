@@ -229,21 +229,30 @@ Pattern ->
 
 AnnotAtoms ->
   AnnotAtom* : {
-    (*let restructure_annot_atom an = (
+    let restructure_annot_atom an = (
       let rec unpack an = (match an with
-      | SingletonAnnotAtom(ps,a,otl) -> [an]
-      | QuantAnnotAtom(ps,an,q,otl) -> (QuantAnnotAtom(ps,SingletonAnnotAtom(ps,EmptyAtom(ps),[]),q,otl))::(unpack an)
-      | OptAnnotAtom(ps,an,otl1,t,otl) -> (OptAnnotAtom(ps,SingletonAnnotAtom(ps,EmptyAtom(ps),[]),otl1,t,otl))::(unpack an)
+      | SingletonAnnotAtom(ps,a) -> [(an,ps)]
+      | QuantAnnotAtom(ps,an,q) -> (QuantAnnotAtom(ps,SingletonAnnotAtom(ps,EmptyAtom(ps)),q),ps)::(unpack an)
+      | OptAnnotAtom(ps,an,(otl,(c,ty))) -> (OptAnnotAtom(ps,SingletonAnnotAtom(ps,EmptyAtom(ps)),(otl,(c,ty))),ps)::(unpack an)
       ) in
-      let l = List.rev (unpack an) in
-      (* NOTE - l is always nonempty *)
-      let (_,_,_,an2) = List.fold_left (fun (opts,c,ty,acc) an -> match (opts,c,ty,an) with
-        | (_,_,_,SingletonAnnotAtom(ps,a,otl)) -> (List.rev_append otl opts,c,ty,SingletonAnnotAtom(ps,a,[]))
-      ) ([],None,None,List.hd l) (List.tl l) in
-      an2 (* TODO XXX *)
+      (* NOTE - u is always nonempty *)
+      let u = unpack an in
+      let ps = snd (List.hd u) in
+      let u = (SingletonAnnotAtom(ps,EmptyAtom(ps)),ps)::u in
+      let l = List.rev_map fst u in
+      let ((_,_,_,an2),_) = List.fold_left (fun ((opts,c,ty,acc),is_first) an -> (match an with
+        | OptAnnotAtom(ps,_,(opts2,(c2,ty2))) -> (match (opts,c,ty,opts2,c2,ty2) with
+          | (_,_,_,_,None,None) -> (List.rev_append opts2 opts,c,ty,acc)
+          | (_,None,None,_,Some(c2),None) -> (opts,Some(c2),ty,acc)
+          | (_,_,_,_,Some(c2),None) -> ([],Some(c2),None,OptAnnotAtom(ps,acc,(opts,(c,ty))))
+          | (_,_,_,_,_,Some(ty2)) -> ([],None,None,OptAnnotAtom(ps,acc,(opts,(c,Some(ty2)))))
+        )
+        | SingletonAnnotAtom(ps,a) -> if is_first then (opts,c,ty,an) else ([],None,None,OptAnnotAtom(ps,acc,(opts,(c,ty))))
+        | QuantAnnotAtom(ps,_,q) -> ([],None,None,QuantAnnotAtom(ps,OptAnnotAtom(ps,acc,(opts,(c,ty))),q))),false
+      ) (([],None,None,List.hd l),true) (List.tl l) in
+      an2
     ) in
-    List.rev (List.rev_map restructure_annot_atom $1)*)
-    $1
+    List.rev (List.rev_map restructure_annot_atom $1)
   }
 ;
 
