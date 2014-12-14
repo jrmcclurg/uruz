@@ -672,10 +672,10 @@ let generate_parser_code file prefix g (h : ((string*((string*int) option)*typ o
    output_string file ("   open "^prefix^"ast;;\n");
    output_string file ("   open "^prefix^"utils;;\n");
   output_string file "\n";
-  (*(match footer with
+  if !Flags.footer_is_parser then (match footer with
   | None -> ()
   | Some(EmptyCode(_)) -> ()
-  | Some(Code(_,s)) -> output_string file (s^"\n"));*)
+  | Some(Code(_,s)) -> output_string file (s^"\n"));
    output_string file "%}\n\n";
    SubpatternHashtbl.iter (fun k (s,assoc_str,typo,ps) -> 
       (*print_string (">>> processing terminal symbol: "^s^"\n");*)
@@ -791,7 +791,7 @@ match g with Grammar(_,header,footer,_,_) ->
    output_string file ("   open "^prefix^"parser;;\n");
    output_string file ("   open "^prefix^"ast;;\n");
    output_string file ("   open "^prefix^"utils;;\n");
-  (match footer with
+  if not !Flags.footer_is_parser then (match footer with
   | None -> ()
   | Some(EmptyCode(_)) -> ()
   | Some(Code(_,s)) -> output_string file ("\n"^s));

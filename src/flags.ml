@@ -27,6 +27,7 @@ let libs = (Hashtbl.create 5 : (string,unit) Hashtbl.t);;
 let page_width = ref 70;;
 let default_assoc = ref "left";;
 let default_prec = ref Pervasives.max_int;;
+let footer_is_parser = ref false;;
 
 let error_and_exit s =
    output_string stderr ("Error: "^s^"\n");
@@ -116,6 +117,8 @@ let args = Arg.align [
                     "<dir> Location of the result files (default \".\")");
    ("-prefix",   Arg.String(fun x -> file_prefix := Some(x)),
                     "<string> Prefix for the filenames (default <file-prefix>_)");
+   ("-footer-parser",   Arg.Unit(fun x -> footer_is_parser := true),
+                    " Put grammar footer in parser (instead of lexer)");
 ];;
 
 let error_usage_msg () =

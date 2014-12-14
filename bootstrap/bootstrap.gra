@@ -56,6 +56,11 @@
    let str_code s = match s with EmptyCode(_) -> "{}" | Code(_,c) -> ("{"^c^"}")
    let eq_code a b = ((compare a b)=0)
 
+   let combine_code a b = match (a,b) with
+   | (EmptyCode(_),b) -> b
+   | (a,EmptyCode(_)) -> a
+   | (Code(ps1,s1),Code(ps2,s2)) -> Code(ps1,Printf.sprintf "let s = (%s) in %s" s1 s2)
+
   let current_id = ref (-1) ;;
   let symbol_table = ((Hashtbl.create 1000) : (string,int) Hashtbl.t) ;;
   let symbol_table_inv = ((Hashtbl.create 1000) : (int,string) Hashtbl.t) ;;
@@ -152,23 +157,25 @@ Grammar ->
 ;
 
 Production ->
-  ProdTypeO<:((rule_type option)*((symb option)*((opt_t list)*(typ_t option))))
+  ProdTypeO<:((rule_type option)*((symb option)*((opt_t list)*((code option) * (typ_t option)))))
     @{let (x,(y,z))=s in let ystr = (match y with Some(y) -> (get_symbol y) | None -> "_") in match x with
-        None -> "<"^ystr^(str_pair (str_list (fun x -> " "^(str_opt_t x))) (str_option (fun t -> " :"^(str_typ_t t))) z)^"> "
-      | Some(x) -> (str_rule_type x)^" "^ystr^(str_pair (str_list (fun x -> " "^(str_opt_t x))) (str_option (fun t -> " :"^(str_typ_t t))) z)^" = "}>
+        None -> "<"^ystr^(str_pair (str_list (fun x -> " "^(str_opt_t x))) (str_pair (str_option (fun c -> " "^(str_code c))) (str_option (fun t -> " :"^(str_typ_t t)))) z)^"> "
+      | Some(x) -> (str_rule_type x)^" "^ystr^(str_pair (str_list (fun x -> " "^(str_opt_t x)))
+      (str_pair (str_option (fun c -> " "^(str_code c))) (str_option (fun t -> " :"^(str_typ_t t))))
+      z)^" = "}>
   BarPattern<:(pattern_t list)
     @{str_list (fun x -> "\n| "^(str_pattern_t x)^"") s}> ;
 
 BarPattern -> BarPattern0<:(pattern_t list)> : { List.rev $1 } ;
 
 ProdType ->
-  ProdKw<:rule_type> XIdentO<:(symb option)> OptList<:((opt_t list)*(typ_t option))> Eq : { (Some($1),($2,$3)) }
-| '<'<:()@{"<"}> XIdentO<:(symb option)> OptList<:((opt_t list)*(typ_t option))> '>'<:()@{">"}> Eq? : { (None,($2,$3)) }
+  ProdKw<:rule_type> XIdentO<:(symb option)> OptList<:((opt_t list)*((code option) * (typ_t option)))> Eq : { (Some($1),($2,$3)) }
+| '<'<:()@{"<"}> XIdentO<:(symb option)> OptList<:((opt_t list)*((code option) * (typ_t option)))> '>'<:()@{">"}> Eq? : { (None,($2,$3)) }
 ;
 
 ProdTypeO ->
-                                                               : { (None,(None,([],None))) }
-| ProdType<:((rule_type option)*((symb option)*((opt_t list)*(typ_t option))))> : { $1 }
+                                                               : { (None,(None,([],(None,None)))) }
+| ProdType<:((rule_type option)*((symb option)*((opt_t list)*((code option) * (typ_t option)))))> : { $1 }
 ;
 
 XIdentO -> 
@@ -216,8 +223,10 @@ Value ->
 Eq -> '='<@{" = "}> : ;
 
 Pattern ->
-  OptList<:((opt_t list)*(typ_t option))
-  @{str_pair (str_list (fun x -> (str_opt_t x)^" ")) (str_option (fun t -> " :"^(str_typ_t t))) s}>
+  OptList<:((opt_t list)*((code option) * (typ_t option)))
+  @{str_pair (str_list (fun x -> (str_opt_t x)^" "))
+  (str_pair (str_option (fun c -> " "^(str_code c))) (str_option (fun t -> " :"^(str_typ_t t))))
+  s}>
   AnnotAtoms<:(annot_atom_t list)@{str_list (fun x -> (str_annot_atom_t x)^" ") s}>
 ;
 
@@ -240,15 +249,16 @@ AnnotAtoms ->
       let ps = snd (List.hd u) in
       let u = (SingletonAnnotAtom(ps,EmptyAtom(ps)),ps)::u in
       let l = List.rev_map fst u in
+      let combine opts = fst (combine_opt_list opts) in
       let ((_,_,_,an2),_) = List.fold_left (fun ((opts,c,ty,acc),is_first) an -> (match an with
         | OptAnnotAtom(ps,_,(opts2,(c2,ty2))) -> (match (opts,c,ty,opts2,c2,ty2) with
           | (_,_,_,_,None,None) -> (List.rev_append opts2 opts,c,ty,acc)
           | (_,None,None,_,Some(c2),None) -> (opts,Some(c2),ty,acc)
-          | (_,_,_,_,Some(c2),None) -> ([],Some(c2),None,OptAnnotAtom(ps,acc,(opts,(c,ty))))
-          | (_,_,_,_,_,Some(ty2)) -> ([],None,None,OptAnnotAtom(ps,acc,(opts,(c,Some(ty2)))))
+          | (_,_,_,_,Some(c2),None) -> ([],Some(c2),None,OptAnnotAtom(ps,acc,(combine opts,(c,ty))))
+          | (_,_,_,_,_,Some(ty2)) -> ([],None,None,OptAnnotAtom(ps,acc,(combine opts,(c,Some(ty2)))))
         )
-        | SingletonAnnotAtom(ps,a) -> if is_first then (opts,c,ty,an) else ([],None,None,OptAnnotAtom(ps,acc,(opts,(c,ty))))
-        | QuantAnnotAtom(ps,_,q) -> ([],None,None,QuantAnnotAtom(ps,OptAnnotAtom(ps,acc,(opts,(c,ty))),q))),false
+        | SingletonAnnotAtom(ps,a) -> if is_first then (opts,c,ty,an) else ([],None,None,OptAnnotAtom(ps,acc,(combine opts,(c,ty))))
+        | QuantAnnotAtom(ps,_,q) -> ([],None,None,QuantAnnotAtom(ps,OptAnnotAtom(ps,acc,(combine opts,(c,ty))),q))),false
       ) (([],None,None,List.hd l),true) (List.tl l) in
       an2
     ) in
@@ -262,7 +272,11 @@ AnnotAtom ->
 | AnnotAtom Opt2<:((opt_t list)*((code option)*(typ_t option)))@{str_pair (fun l -> str_list (fun x -> " "^(str_opt_t x)) l) (str_pair (str_option (fun x -> " "^(str_code x))) (str_option (fun x -> " :"^(str_typ_t x)))) s}>  : OptAnnotAtom
 ;
 
-OptList -> Opt*<:(opt_t list)> OptType<:(typ_t option)> : { ($1,$2) } ;
+OptList -> Opt*<:(opt_t list)> OptType<:(typ_t option)> : {
+  let (ol2,c) = combine_opt_list $1 in
+  (ol2,(c,$2))
+}
+;
 
 Opt2 ->
   ':'<:()> Typ                            : { ([],(None,Some($2))) }
@@ -395,5 +409,24 @@ Blanks -> [\r\t ]* <{}:()> : {};
 Newlines -> '\n' <{do_newline lexbuf}:()> : {};
 
 {
-   (* this is the trailer *)
+  (* this is the trailer *)
+  let combine_opt_list ol =
+  let table = Hashtbl.create 10 in
+  List.iter (fun o -> match o with
+  | CodeOption(ps,name,c) ->
+    (try let old = Hashtbl.find table name in
+    let newc = combine_code old c in
+    Hashtbl.replace table name newc
+    with Not_found -> Hashtbl.replace table name c)
+  | CodeNameOption(ps,_) -> die_error ps "unexpected non-inlined code variable") ol;
+  let (ol2,c) = Hashtbl.fold (fun name v (acc,ca) ->
+    let opt2 = (match v with
+    | (EmptyCode(ps) as x) -> (CodeOption(ps,name,x))
+    | (Code(ps,_) as x) -> (CodeOption(ps,name,x))
+    ) in
+    match name with
+    | None -> (acc,Some(v))
+    | Some(_) -> ((opt2::acc),ca)
+  ) table ([],None) in
+  (ol2,c)
 }
