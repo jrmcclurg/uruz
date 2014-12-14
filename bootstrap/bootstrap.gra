@@ -295,13 +295,13 @@ OptType ->
 Opt ->
 //| Int<:int>                               : PrecOption
 //| Assoc                                   : AssocOption
- FnName<:(symb option)> CodeLit<:code> : CodeOption
-| '@'<:()> '$'<:()> XIdent<:symb>       : CodeNameOption
+ FnName<:(symb option)@{"@"^(str_option str_symb s)}> CodeLit<:code> : CodeOption
+| '@'<:()@{"@"}> '$'<:()@{"$"}> XIdent<:symb>       : CodeNameOption
 ;
 
 FnName -> 
                                    : { None }
-| '@'<:()> XIdent?<:(symb option)> : { $2 }
+| '@'<:()@{"@"}> XIdent?<:(symb option)> : { $2 }
 ;
 
 TokenKw -> "token" : ;
