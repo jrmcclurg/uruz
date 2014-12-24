@@ -56,11 +56,6 @@
    let str_code s = match s with EmptyCode(_) -> "{}" | Code(_,c) -> ("{"^c^"}")
    let eq_code a b = ((compare a b)=0)
 
-   let combine_code a b = match (a,b) with
-   | (EmptyCode(_),b) -> b
-   | (a,EmptyCode(_)) -> a
-   | (Code(ps1,s1),Code(ps2,s2)) -> Code(ps1,Printf.sprintf "let s = (%s) in %s" s1 s2)
-
   let current_id = ref (-1) ;;
   let symbol_table = ((Hashtbl.create 1000) : (string,int) Hashtbl.t) ;;
   let symbol_table_inv = ((Hashtbl.create 1000) : (int,string) Hashtbl.t) ;;
@@ -411,26 +406,51 @@ Blanks -> [\r\t ]* <{}:()> : {};
 Newlines -> '\n' <{do_newline lexbuf}:()> : {};
 
 {
+   let combine_code a b = match (a,b) with
+   | (CodeVal(_,(_,EmptyCode(_))),CodeVal(ps,(_,b))) -> CodeVal(ps,(None,b))
+   | (CodeVal(_,(_,a)),CodeVal(ps,(_,EmptyCode(_)))) -> CodeVal(ps,(None,a))
+   | (CodeVal(_,(_,Code(ps1,s1))),CodeVal(ps,(_,Code(ps2,s2)))) -> CodeVal(ps,(None,Code(ps1,Printf.sprintf "let s = (%s) in %s" s1 s2)))
+   | (BoolVal(_,_),BoolVal(_,_))
+   | (IntVal(_,_),IntVal(_,_))
+   | (StringVal(_,_),StringVal(_,_))
+   | (CharVal(_,_),CharVal(_,_)) -> b
+   | (_,BoolVal(ps,_))
+   | (_,IntVal(ps,_))
+   | (_,StringVal(ps,_))
+   | (_,CharVal(ps,_))
+   | (_,CodeVal(ps,_)) -> die_error ps "cannot combine options of different types"
+
   (* this is the trailer *)
   let combine_opt_list ol =
   let table = Hashtbl.create 10 in
   List.iter (fun o -> match o with
-  | ValOption(ps,name,CodeVal(_,(_,c)))
+  | ValOption(_,name,CodeVal(ps,(_,c)))
   | CodeOption(ps,name,c) ->
+    let c2 = CodeVal(ps,(None,c)) in
     (try let old = Hashtbl.find table name in
-    let newc = combine_code old c in
+    let newc = combine_code old c2 in
     Hashtbl.replace table name newc
-    with Not_found -> Hashtbl.replace table name c)
+    with Not_found -> Hashtbl.replace table name c2)
   | CodeNameOption(ps,_) -> die_error ps "unexpected non-inlined code variable"
-  | _ -> () (*TODO XXX - need to handle these options*)) ol;
+  | ValOption(ps,name,v) -> 
+    (try let old = Hashtbl.find table name in
+    let newc = combine_code old v in
+    Hashtbl.replace table name newc
+    with Not_found -> Hashtbl.replace table name v)
+  ) ol;
   let (ol2,c) = Hashtbl.fold (fun name v (acc,ca) ->
     let opt2 = (match v with
-    | (EmptyCode(ps) as x) -> (CodeOption(ps,name,x))
-    | (Code(ps,_) as x) -> (CodeOption(ps,name,x))
+    | CodeVal(ps,(_,x)) -> (CodeOption(ps,name,x))
+    | BoolVal(ps,_)
+    | StringVal(ps,_)
+    | CharVal(ps,_)
+    | IntVal(ps,_) -> (ValOption(ps,name,v))
     ) in
-    match name with
-    | None -> (acc,Some(v))
-    | Some(_) -> ((opt2::acc),ca)
+    match (name,v) with
+    | (None,CodeVal(ps,(_,c))) -> (acc,Some(c))
+    | (None,CharVal(ps,_)) | (None,StringVal(ps,_)) | (None,IntVal(ps,_))
+    | (None,BoolVal(ps,_)) -> die_error ps "unnamed option must be of type <code>" (* TODO XXX *)
+    | (Some(_),_) -> ((opt2::acc),ca)
   ) table ([],None) in
   (ol2,c)
 }
