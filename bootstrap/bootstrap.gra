@@ -216,8 +216,8 @@ Value ->
 | Int<:int>           : IntVal
 | StringQuot<:string@{Printf.sprintf "%S" s}> : StringVal
 | CharQuot<:char@{Printf.sprintf "%C" s}>   : CharVal
-|    NamedCode+<:(((symb option)*code)*(((symb option)*code) list))
-    @{let (x,y) = s in str_list (fun (so,c) -> " "^(str_option (fun x -> (get_symbol x)^"") so)^(str_code c)) (x::y)}> : CodeVal
+| NamedCode<:((symb option)*code)
+    @{let (x,y) = s in " "^(str_option (fun x -> (get_symbol x)^"") x)^(str_code y)}> : CodeVal
 ;
 
 Eq -> '='<@{" = "}> : ;
@@ -283,6 +283,7 @@ Opt2 ->
 | Opt                                     : {
   match $1 with
   | CodeOption(ps,None,c) -> ([],(Some(c),None))
+  | ValOption(ps,None,CodeVal(ps2,(name,c))) -> ([],(Some(c),None))
   | o -> ([o],(None,None))
 }
 ;
@@ -295,7 +296,8 @@ OptType ->
 Opt ->
 //| Int<:int>                               : PrecOption
 //| Assoc                                   : AssocOption
- FnName<:(symb option)@{"@"^(str_option str_symb s)}> CodeLit<:code> : CodeOption
+ FnName<:(symb option)@{"@"^(str_option str_symb s)}> ":="<:()@{":="}> Value : ValOption
+|FnName<:(symb option)@{"@"^(str_option str_symb s)}> CodeLit<:code> : CodeOption
 | '@'<:()@{"@"}> '$'<:()@{"$"}> XIdent<:symb>       : CodeNameOption
 ;
 
@@ -413,12 +415,14 @@ Newlines -> '\n' <{do_newline lexbuf}:()> : {};
   let combine_opt_list ol =
   let table = Hashtbl.create 10 in
   List.iter (fun o -> match o with
+  | ValOption(ps,name,CodeVal(_,(_,c)))
   | CodeOption(ps,name,c) ->
     (try let old = Hashtbl.find table name in
     let newc = combine_code old c in
     Hashtbl.replace table name newc
     with Not_found -> Hashtbl.replace table name c)
-  | CodeNameOption(ps,_) -> die_error ps "unexpected non-inlined code variable") ol;
+  | CodeNameOption(ps,_) -> die_error ps "unexpected non-inlined code variable"
+  | _ -> () (*TODO XXX - need to handle these options*)) ol;
   let (ol2,c) = Hashtbl.fold (fun name v (acc,ca) ->
     let opt2 = (match v with
     | (EmptyCode(ps) as x) -> (CodeOption(ps,name,x))

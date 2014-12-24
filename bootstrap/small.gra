@@ -50,4 +50,5 @@ keyword Foo = "test" ;*/
 //parser TheTest :int = "one" :string {} @$foo : int :string @eq{} @str{} {} :final  ; // TODO XXX - this is a bug
 parser TheTest {one} {two} @eq{the1} {three} @str{s1} @eq{the2} :string = "one" : string {this is code} @eq{one} @eq{two} :foobar ;
 code foo = str{test};
+parser Four = "one" @assoc:="left" | "two" @eq:=str{one} @prec:=123 @color:="#123456" ;
 //parser TheTest3 = || "one" | "two" ||| "three" | | | | ~ ;
