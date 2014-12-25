@@ -1,0 +1,3 @@
+parser the_test = 
+| "one" 
+;

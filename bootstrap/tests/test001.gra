@@ -1,0 +1,3 @@
+parser Foo = "one"*+? ;
+parser bar = "one"*+? "two" "three" ;
+parser BAZ = "one"*+? "two"+* "three" ;

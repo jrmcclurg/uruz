@@ -4,6 +4,8 @@ open Bootstrap_utils
 let filename = ref "";; (* TODO - this will always be set *)
 let out_file = ref (None : string option)
 
+let only_flatten = ref false
+
 let def_prod_type = ref Parser
 let def_prod_name = ref "Production" (* TODO XXX - make this unique? *)
 let def_prod_index = ref 0
@@ -21,6 +23,9 @@ let usage_msg = banner_text^"\n"^
 let args = Arg.align [
    ("-o",        Arg.String(fun x -> out_file := Some(x)),
                     "<file> Location for the result");
+
+   ("-flatten",        Arg.Unit(fun () -> only_flatten := true),
+                    " Only flatten the grammar and exit");
 ];;
 
 let error_usage_msg () =

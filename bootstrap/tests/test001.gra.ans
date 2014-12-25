@@ -1,0 +1,51 @@
+parser Foo = 
+| Foo_0_0? 
+;
+
+parser Foo_0_0 = 
+| Foo_0_0_0+ 
+;
+
+parser Foo_0_0_0 = 
+| "one"* 
+;
+
+parser bar = 
+| bar_0_0 "two" "three" 
+;
+
+parser bar_0_0 = 
+| bar_0_0_0? 
+;
+
+parser bar_0_0_0 = 
+| bar_0_0_0_0+ 
+;
+
+parser bar_0_0_0_0 = 
+| "one"* 
+;
+
+parser BAZ = 
+| BAZ_0_0 BAZ_0_1 "three" 
+;
+
+parser BAZ_0_0 = 
+| BAZ_0_0_0? 
+;
+
+parser BAZ_0_0_0 = 
+| BAZ_0_0_0_0+ 
+;
+
+parser BAZ_0_0_0_0 = 
+| "one"* 
+;
+
+parser BAZ_0_1 = 
+| BAZ_0_1_0* 
+;
+
+parser BAZ_0_1_0 = 
+| "two"+ 
+;

@@ -22,4 +22,11 @@ bootstrap_Makefile:	bootstrap.gra
 clean:	bootstrap_clean
 	rm -rf *.o *.cm* *.mli bootstrap_main.ml bootstrap_utils.ml bootstrap_ast.ml bootstrap_parser.ml bootstrap_parser.mly bootstrap_lexer.ml bootstrap_lexer.mll bootstrap_Makefile
 
+test:	
+		MAX=`ls -1 tests/*.gra | wc -l`; COUNTER=0; echo ----------------; for i in tests/*.gra; do echo "Testing: $$i"; \
+		FOOBAR=`./bootstrap -flatten $$i | tr "\\n" " " | sed "s/ //g"`; \
+		BAZBAR=`cat $$i.ans | tr "\\n" " " | sed "s/ //g"`; \
+		if [ "$$FOOBAR" != "$$BAZBAR" ]; then echo FAIL; else echo ok; COUNTER=$$(($$COUNTER + 1)); fi \
+		; done; echo ----------------; echo $$COUNTER out of $$MAX
+
 include bootstrap_Makefile
