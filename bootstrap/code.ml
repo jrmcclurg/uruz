@@ -148,7 +148,7 @@ and flatten_pattern (p : pattern_t) (defname : symb option) (deftyp : rule_type 
 and flatten_annot_atom (an : annot_atom_t) (defname : symb option) (deftyp : rule_type option) (nesting : int list) (code_table : code_hashtbl) (is_singleton : bool) : (annot_atom_t*decl_t list) = match an with
 | SingletonAnnotAtom(p,a) -> let (a2,prods) = flatten_atom a defname deftyp nesting code_table is_singleton in (SingletonAnnotAtom(p,a2),prods)
 | QuantAnnotAtom(p,an,q) ->
-  let (a2,prods) = flatten_annot_atom an defname deftyp (if is_singleton then nesting else (!Flags.def_prod_index::nesting)) code_table false in
+  let (a2,prods) = flatten_annot_atom an defname deftyp (if is_singleton then nesting else (!Flags.def_prod_index::nesting)) code_table true in
   Printf.printf ">>> Flattening: %s -> %b\n%!" (str_annot_atom_t an) is_singleton;
   if is_singleton then (QuantAnnotAtom(p,a2,q),prods)
   else
