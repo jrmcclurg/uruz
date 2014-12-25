@@ -1,0 +1,104 @@
+parser Three = 
+| Three_0_0* 
+;
+
+parser Three_0_0 = 
+| "one" 
+| "two" 
+;
+
+parser Four = 
+| Four_0_0* 
+;
+
+parser Four_0_0 = 
+| Four_0_0_0* 
+;
+
+parser Four_0_0_0 = 
+| Four_0_0_0_0* 
+;
+
+parser Four_0_0_0_0 = 
+| "one" 
+| "two" 
+;
+
+parser Five = 
+| Five_0_0 
+;
+
+parser Five_0_0 = 
+| "one" 
+;
+
+parser Six = 
+| Six_0_0 
+;
+
+parser Six_0_0 = 
+| Six_0_0_0_0 
+;
+
+parser Six_0_0_0_0 = 
+| "one" 
+;
+
+parser Seven = 
+| Seven_0_0 
+;
+
+parser Seven_0_0 = 
+| Seven_0_0_0_0 
+| "two" 
+| Seven_0_0_2_0 
+;
+
+parser Seven_0_0_0_0 = 
+| "one" 
+;
+
+parser Seven_0_0_2_0 = 
+| "three" 
+;
+
+parser Eight = 
+| Eight_0_0 
+;
+
+parser Eight_0_0 = 
+| Eight_0_0_0_0* 
+| "two"? 
+| Eight_0_0_2_0+ 
+;
+
+parser Eight_0_0_0_0 = 
+| "one" 
+;
+
+parser Eight_0_0_2_0 = 
+| "three" 
+;
+
+parser Nine = 
+| Nine_0_0 
+;
+
+parser Nine_0_0 = 
+| Nine_0_0_0_0* 
+| "two"? 
+| Nine_0_0_2_0+ 
+;
+
+parser Nine_0_0_0_0 = 
+| "one" 
+| Nine_0_0_0_0_1_0 "five" 
+;
+
+parser Nine_0_0_0_0_1_0 = 
+| "four"+ 
+;
+
+parser Nine_0_0_2_0 = 
+| "three" 
+;

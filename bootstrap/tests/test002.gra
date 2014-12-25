@@ -1,0 +1,13 @@
+parser Three = ("one" | "two")* ;
+
+parser Four = ("one" | "two")*** ;
+
+parser Five = ("one") ;
+
+parser Six = (("one")) ;
+
+parser Seven = (("one") | "two" | ("three")) ;
+
+parser Eight = (("one")* | "two"? | ("three")+) ;
+
+parser Nine = (("one" | "four"+ "five")* | "two"? | ("three")+) ;
