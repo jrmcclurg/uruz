@@ -252,7 +252,7 @@ AnnotAtoms ->
           | (_,_,_,_,Some(c2),None) -> ([],Some(c2),None,OptAnnotAtom(ps,acc,(combine opts,(c,ty))))
           | (_,_,_,_,_,Some(ty2)) -> ([],None,None,OptAnnotAtom(ps,acc,(combine opts,(c,Some(ty2)))))
         )
-        | SingletonAnnotAtom(ps,a) -> if is_first then (opts,c,ty,an) else ([],None,None,OptAnnotAtom(ps,acc,(combine opts,(c,ty))))
+        | SingletonAnnotAtom(ps,a) -> if is_first then (opts,c,ty,acc) else ([],None,None,OptAnnotAtom(ps,acc,(combine opts,(c,ty))))
         | QuantAnnotAtom(ps,_,q) -> ([],None,None,QuantAnnotAtom(ps,OptAnnotAtom(ps,acc,(combine opts,(c,ty))),q))),false
       ) (([],None,None,List.hd l),true) (List.tl l) in
       an2
