@@ -1,0 +1,43 @@
+parser One = 
+| "one" "two" Two "three" 
+;
+
+parser Two = 
+| "four" 
+;
+
+parser Three = 
+| TheInt 
+| TheBool 
+| TheString 
+;
+
+parser TheInt = 
+| "four" 
+;
+
+parser TheBool = 
+| "five" 
+;
+
+parser TheString = 
+| "six" 
+;
+
+parser Four = 
+| TheInt2* 
+| TheBool2+ 
+| TheString2? 
+;
+
+parser TheInt2 = 
+| "four" 
+;
+
+parser TheBool2 = 
+| "five" 
+;
+
+parser TheString2 = 
+| "six" 
+;

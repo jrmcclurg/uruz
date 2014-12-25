@@ -1,0 +1,13 @@
+parser One = "one" "two" (<Two> "four") "three" ;
+
+parser Three =
+| (<TheInt> "four")
+| (<TheBool> "five")
+| (<TheString> "six")
+;
+
+parser Four =
+| (parser TheInt2 = "four")*
+| (parser TheBool2 = "five")+
+| (parser TheString2 = "six")?
+;
