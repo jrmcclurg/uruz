@@ -51,5 +51,6 @@ keyword Foo = "test" ;*/
 //parser TheTest {one} {two} @eq{the1} {three} @str{s1} @eq{the2} :string = "one" : string {this is code} @eq{one} @eq{two} :foobar ;
 //code foo = str{test};
 //parser Four @{one} @{two} @:={3} = "one" | "two" @eq:={four} @eq:={five} @str{three} @str:={four} @:={xxx} @{yyy} ;
-parser Four {other} = "one" @test:=123 @test2:=1234 @assoc:="left" {code} "other" | "two"*+? "other" 'c' @left:="one" @right:="two" :int @eq{code2} @eq2{code} ;
+parser Four {other} = "one" @test:=123 @test2:=1234 @assoc:="left" {code} "other" | "two"*+? "other" 'c' :int :bool ;
+//lexer Five = "o" | "t"  ;
 //parser TheTest3 = || "one" | "two" ||| "three" | | | | ~ ;

@@ -144,7 +144,6 @@ and flatten_pattern (p : pattern_t) (defname : symb option) (deftyp : rule_type 
   let (al2,prods) = flatten_list flatten_annot_atom al defname deftyp nesting code_table in
   (Pattern(p,opts2,al2),prods)
 
-(* TODO XXX - fix this *)
 and flatten_annot_atom (an : annot_atom_t) (defname : symb option) (deftyp : rule_type option) (nesting : int list) (code_table : code_hashtbl) (is_singleton : bool) : (annot_atom_t*decl_t list) = match an with
 | SingletonAnnotAtom(p,a) -> let (a2,prods) = flatten_atom a defname deftyp nesting code_table is_singleton in (SingletonAnnotAtom(p,a2),prods)
 | QuantAnnotAtom(p,an,q) ->
@@ -155,7 +154,6 @@ and flatten_annot_atom (an : annot_atom_t) (defname : symb option) (deftyp : rul
     let name = Flags.get_def_prod_name defname nesting in
     (SingletonAnnotAtom(p,IdentAtom(p,name)),(ProdDecl(p,Production(p,((Some(Flags.get_def_prod_type deftyp)),(Some(name),([],(None,None)))),
       [Pattern(p,([],(None,None)),[QuantAnnotAtom(p,a2,q)])])))::prods)
-(* TODO XXX - need to flatten these as well *)
 | OptAnnotAtom(p,an,o) ->
   if is_processing_lexer deftyp then
     die_error p "lexer productions can only contain annotations on the left-hand-side (i.e. applied to the entire production)";
