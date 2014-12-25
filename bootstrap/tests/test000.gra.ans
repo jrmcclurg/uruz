@@ -1,3 +1,9 @@
 parser the_test = 
 | "one" 
 ;
+
+parser the_other_test = 
+| "one" 
+| "two" 
+| "three" 
+;

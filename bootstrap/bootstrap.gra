@@ -220,7 +220,7 @@ Eq -> '='<@{" = "}> : ;
 Pattern ->
   OptList<:((opt_t list)*((code option) * (typ_t option)))
   @{str_pair (str_list (fun x -> (str_opt_t x)^" "))
-  (str_pair (str_option (fun c -> " "^(str_code c))) (str_option (fun t -> " :"^(str_typ_t t))))
+  (str_pair (str_option (fun c -> (str_code c)^" ")) (str_option (fun t -> ":"^(str_typ_t t)^" ")))
   s}>
   AnnotAtoms<:(annot_atom_t list)@{str_list (fun x -> (str_annot_atom_t x)^" ") s}>
 ;
