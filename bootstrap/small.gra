@@ -54,8 +54,7 @@ keyword Foo = "test" ;*/
 //parser Four {other} = "one" @test:=123 @test2:=1234 @assoc:="left" {code} "other" | "two"*+? "other" 'c' :int :bool ;
 //parser Temp = ||| "one" "two" | "three" | "four" "five" "six" ;
 parser Temp =
-// TODO XXX - a "singleton" production on a line (such as following) should probably not be expanded:
-| "one" "two" "three" # Foobar {code} : int
+| "one" "two" ("three" # Foobar :int) # Foobar {code} : int
 //| "five" "six" # {(string_to_int $1) + (string_to_int $2)} :int 
 //| "five" {string_to_int $1} :int "six" {string_to_int $1} :int # {$1 + $2} :int 
 //| "five" "six" # @option:=123 :bool 
