@@ -180,8 +180,8 @@ XIdentO ->
 ;
 
 BarPattern0 ->
-  Pattern                : { if (match $1 with Pattern(_,_,[]) -> true | _ -> false) then [] else [$1] }
-| BarPattern0 '|' Pattern : { if (match $3 with Pattern(_,_,[]) -> true | _ -> false) then $1 else ($3::$1) }
+  Pattern                : { if (match $1 with Pattern(_,[]) -> true | _ -> false) then [] else [$1] }
+| BarPattern0 '|' Pattern : { if (match $3 with Pattern(_,[]) -> true | _ -> false) then $1 else ($3::$1) }
 ;
 
 ProdKw -> ("parse" | "parser" | "lex" | "lexer" | "ast")<:string> : { str_to_rule_type (get_current_pos ()) $1 } ;
@@ -218,21 +218,22 @@ Value ->
 Eq -> '='<@{" = "}> : ;
 
 Pattern ->
-  OptList<:((opt_t list)*((code option) * (typ_t option)))
-  @{str_pair (str_list (fun x -> (str_opt_t x)^" "))
-  (str_pair (str_option (fun c -> (str_code c)^" ")) (str_option (fun t -> ":"^(str_typ_t t)^" ")))
-  s}>
+  //OptList<:((opt_t list)*((code option) * (typ_t option)))
+  //@{str_pair (str_list (fun x -> (str_opt_t x)^" "))
+  //(str_pair (str_option (fun c -> (str_code c)^" ")) (str_option (fun t -> ":"^(str_typ_t t)^" ")))
+  //s}>
   AnnotAtoms<:(annot_atom_t list)@{str_list (fun x -> (str_annot_atom_t x)^" ") s}>
 ;
 
-/*Assoc ->
-  "left"<:()>     : LeftAssoc
-| "right"<:()>    : RightAssoc
-| "nonassoc"<:()> : NonAssoc
-;*/
+TempOpt ->
+   { None }
+| '#'<:()> XIdentO<:(symb option)> OptList<:((opt_t list)*((code option) * (typ_t option)))> {
+  Some($2,$3)
+}
+;
 
 AnnotAtoms ->
-  AnnotAtom* : {
+  AnnotAtom* TempOpt<:(((symb option)*((opt_t list)*((code option) * (typ_t option)))) option)> : {
     let restructure_annot_atom an = (
       let rec unpack an = (match an with
       | SingletonAnnotAtom(ps,a) -> [(an,ps)]
@@ -259,7 +260,12 @@ AnnotAtoms ->
       ) (([],None,None,List.hd l),true) (List.tl l) in
       an2
     ) in
-    List.rev (List.rev_map restructure_annot_atom $1)
+    let result = List.rev (List.rev_map restructure_annot_atom $1) in
+    match $2 with
+    | None -> result
+    | Some(x) ->
+      let ps = get_current_pos () in
+      [SingletonAnnotAtom(ps,ProdAtom(ps,Production(ps,(None,x),[Pattern(ps,result)])))]
   }
 ;
 
