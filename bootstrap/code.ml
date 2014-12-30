@@ -304,6 +304,8 @@ and build_def_graph_atom (a : atom_t) (g : simple_graph) (parent : symb) : unit 
   Hashtbl.replace g parent (IntSet.add id set,m,is_def,ps);
   let x = (try Hashtbl.find g id with Not_found -> (IntSet.empty,None,false,p)) in
   Hashtbl.replace g id x;
+| ProdAtom(p,Production(p2,_,pl)) ->
+  List.iter (fun x -> build_def_graph_pattern x g parent) pl
 | _ -> ()
 
 let get_sorted_defs (result : grammar_t) (count : int) : ((symb*pos_t) list) =
@@ -382,34 +384,42 @@ and strip_lexer_decl (d : decl_t) (table : (symb,production_t) Hashtbl.t) : decl
 (** TYPECHECKING                          **)
 (*******************************************)
 
-(*type prod_hashtbl = (symb,production_t * typ_t option) Hashtbl.t
+type prod_hashtbl = (symb,production_t * typ_t option) Hashtbl.t
 
 let typecast (old_type : typ_t) (new_type : typ_t) : code = EmptyCode(NoPos) (* TODO XXX *)
 
-let rec get_type (a : annot_atom_t) (prod_table : prod_hashtbl) : (typ_t*code option) =
+let rec infer_type_annot_atom (a : annot_atom_t) (prod_table : prod_hashtbl) : (typ_t*annot_atom_t) =
 match a with
-| SingletonAnnotAtom(p,EmptyAtom(p2)) -> (SimpleType(p2,NoType(p2)),None)
-| SingletonAnnotAtom(p,EofAtom(p2)) -> (SimpleType(p2,NoType(p2)),None)
-| SingletonAnnotAtom(p,StringAtom(p2,s)) -> (SimpleType(p2,IdentType(p2,[string_kw])),None)
+| SingletonAnnotAtom(p,EmptyAtom(p2)) -> (SimpleType(p2,NoType(p2)),a)
+| SingletonAnnotAtom(p,EofAtom(p2)) -> (SimpleType(p2,NoType(p2)),a)
+| SingletonAnnotAtom(p,StringAtom(p2,s)) -> (SimpleType(p2,IdentType(p2,[string_kw])),a)
 | SingletonAnnotAtom(p,IdentAtom(p2,name)) ->
   let typo = (try let (_,x) = Hashtbl.find prod_table name in x with Not_found -> None) in
-  ((match typo with None -> SimpleType(p2,AnyType(p2)) | Some(t) -> t),None) (* TODO XXX *)
-| SingletonAnnotAtom(p,CharsetAtom(p2,cs,cso)) -> (SimpleType(p2,IdentType(p2,[string_kw])),None)
-| SingletonAnnotAtom(p,RecurAtom(p2,s1,s2)) -> (SimpleType(p2,IdentType(p2,[string_kw])),None)
-| SingletonAnnotAtom(p,ProdAtom(p2,_)) -> die_error p2 "production not flattened properly"
+  ((match typo with None -> SimpleType(p2,AnyType(p2)) | Some(t) -> t),a) (* TODO XXX *)
+| SingletonAnnotAtom(p,CharsetAtom(p2,cs,cso)) -> (SimpleType(p2,IdentType(p2,[string_kw])),a)
+| SingletonAnnotAtom(p,RecurAtom(p2,s1,s2)) -> (SimpleType(p2,IdentType(p2,[string_kw])),a)
+| SingletonAnnotAtom(p,ProdAtom(p2,pr)) ->
+  let (ty,pr2) = infer_type_production pr prod_table in
+  (ty,SingletonAnnotAtom(p,ProdAtom(p2,pr2)))
 | QuantAnnotAtom(p,a,StarQuant(p2)) ->
-  let (old_type,old_code) = get_type a prod_table in
-  (CompoundType(p,CommaType(p,[[InstConstrType(p,SingletonConstrType(p,old_type),[list_kw])]])),old_code)
+  let (old_type,a2) = infer_type_annot_atom a prod_table in
+  (CompoundType(p,CommaType(p,[[InstConstrType(p,SingletonConstrType(p,old_type),[list_kw])]])),QuantAnnotAtom(p,a2,StarQuant(p2)))
 | QuantAnnotAtom(p,a,PlusQuant(p2)) ->
-  let (old_type,old_code) = get_type a prod_table in
+  let (old_type,a2) = infer_type_annot_atom a prod_table in
   let x = SingletonConstrType(p,old_type) in
-  (CompoundType(p,CommaType(p,[[x;InstConstrType(p,x,[list_kw])]])),old_code)
+  (CompoundType(p,CommaType(p,[[x;InstConstrType(p,x,[list_kw])]])),QuantAnnotAtom(p,a2,PlusQuant(p2)))
 | QuantAnnotAtom(p,a,QuestionQuant(p2)) ->
-  let (old_type,old_code) = get_type a prod_table in
-  (CompoundType(p,CommaType(p,[[InstConstrType(p,SingletonConstrType(p,old_type),[option_kw])]])),None)
-| OptAnnotAtom(p,a,TypeOption(p2,t)) -> let (old_type,old_code) = get_type a prod_table in (t,old_code) (* TODO XXX - do the cast here? *)
-| OptAnnotAtom(p,a,CodeOption(p2,so,c)) -> let (old_type,old_code) = get_type a prod_table in (old_type,Some(c))
-| OptAnnotAtom(p,a,_) -> get_type a prod_table
+  let (old_type,a2) = infer_type_annot_atom a prod_table in
+  (CompoundType(p,CommaType(p,[[InstConstrType(p,SingletonConstrType(p,old_type),[option_kw])]])),QuantAnnotAtom(p,a2,QuestionQuant(p2)))
+| OptAnnotAtom(p,a,(ol,(cd,ty))) ->
+  let (old_type,a2) = infer_type_annot_atom a prod_table in
+  let (needs_cast, new_ty) = (match ty with Some(ty) -> (not (eq_typ_t old_type ty),ty) | None -> (false,old_type)) in
+  (new_ty,OptAnnotAtom(p,a2,(ol,((if needs_cast then cd else cd),Some(new_ty))))) (* TODO XXX - do the cast here? *)
+
+and infer_type_production (pr : production_t) (prod_table : prod_hashtbl) : (typ_t*production_t) =
+match pr with
+| Production(ps,(rt,(name,(ol,(cd,Some(ty))))),patl) -> (ty,pr) (* TODO XXX *)
+| Production(ps,(rt,(name,(ol,(cd,ty)))),patl) -> (SimpleType(ps,AnyType(ps)),pr)
 
 let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : unit = match g with
 | Grammar(pos,(d,dl)) ->
@@ -428,7 +438,7 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : unit =
     let is_lexer = (match rt with (Some(Lexer)) -> true | _ -> false) in
     Printf.printf "processing:\nplaceholder = %s\ntype = %s\n%s\n\n%!"
       (match rt with (Some(Lexer)) -> (str_value_t (get_placeholder_value_production prod)) | _ -> "[not lexer]")
-      (str_x_list (fun (Pattern(_,_,al)) -> str_x_list (str_pair str_typ_t (str_option str_code)) (List.map (fun x -> (if (not is_lexer) then get_type x prod_table else (SimpleType(NoPos,NoType(NoPos)),None))) al) ", ") pl "; ") (str_production_t prod)
+      (str_x_list (fun (Pattern(_,al)) -> str_x_list (str_pair str_typ_t str_annot_atom_t) (List.map (fun x -> (if (not is_lexer) then infer_type_annot_atom x prod_table else (SimpleType(NoPos,NoType(NoPos)),x))) al) ", ") pl "; ") (str_production_t prod)
   ) comps
   (* TODO XXX *)
-  *)
+
