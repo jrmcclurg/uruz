@@ -98,6 +98,7 @@
   let string_kw = add_symbol "string"
   let option_kw = add_symbol "option"
   let list_kw = add_symbol "list"
+  let inline_kw = add_symbol "inline"
 
    type symb = int
    let str_symb = get_symbol
@@ -263,9 +264,9 @@ AnnotAtoms ->
     let result = List.rev (List.rev_map restructure_annot_atom $1) in
     match $2 with
     | None -> result
-    | Some(x) ->
+    | Some((name,(opts,(cd,ty))) as x) ->
       let ps = get_current_pos () in
-      [SingletonAnnotAtom(ps,ProdAtom(ps,Production(ps,(None,x),[Pattern(ps,result)])))]
+      [SingletonAnnotAtom(ps,ProdAtom(ps,Production(ps,(None,(name,((ValOption(ps,Some(inline_kw),BoolVal(ps,true)))::opts,(cd,ty)))),[Pattern(ps,result)])))]
   }
 ;
 

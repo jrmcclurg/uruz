@@ -98,10 +98,10 @@ let (l2,prods,_) = List.fold_left (fun (l2,prods,index) x ->
 (List.rev l2, List.rev prods)
 
 let flatten_opt_list (p : pos_t) ((ol,(co,tyo)) : (opt_t list*(code option * typ_t option))) (deftyp : rule_type option) (nesting : int list)
-(code_table : code_hashtbl) (check_len : bool) : (opt_t list*(code option * typ_t option)) =
+(code_table : code_hashtbl) : (opt_t list*(code option * typ_t option)) =
   let nesting_len = List.length nesting in
   let ol_len = (List.length ol)+(match tyo with None -> 0 | _ -> 1) in
-  if (if check_len then ol_len else nesting_len) > (if check_len then 0 else 1) && is_processing_lexer deftyp then
+  if ol_len > 0 && nesting_len > 1 && is_processing_lexer deftyp then
     die_error p "nested lexer productions cannot have names or annotations";
   (ol,(co,tyo))
 
@@ -130,9 +130,9 @@ and flatten_production (p : production_t) (defname : symb option) (deftyp : rule
   ) in
   let o2 = (match o with
   | (None,(None,ol)) -> (Some(get_def_prod_type deftyp),(Some(get_def_prod_name defname nesting),([],(None,None))))
-  | (None,(Some(name),ol)) -> (Some(get_def_prod_type deftyp),(Some(name),flatten_opt_list ps ol deftyp nesting_old code_table false))
-  | (Some(kw),(None,ol)) -> (Some(kw),(Some(get_def_prod_name defname nesting),flatten_opt_list ps ol deftyp nesting_old code_table false))
-  | (Some(kw),(Some(name),ol)) -> (Some(kw),(Some(name),flatten_opt_list ps ol deftyp nesting_old code_table false))
+  | (None,(Some(name),ol)) -> (Some(get_def_prod_type deftyp),(Some(name),flatten_opt_list ps ol deftyp nesting_old code_table))
+  | (Some(kw),(None,ol)) -> (Some(kw),(Some(get_def_prod_name defname nesting),flatten_opt_list ps ol deftyp nesting_old code_table))
+  | (Some(kw),(Some(name),ol)) -> (Some(kw),(Some(name),flatten_opt_list ps ol deftyp nesting_old code_table))
   ) in
   let (patl2,prods) = flatten_list flatten_pattern patl defname deftyp nesting code_table in
   (Production(ps,o2,patl2),prods)
@@ -143,7 +143,7 @@ and flatten_pattern (p : pattern_t) (defname : symb option) (deftyp : rule_type 
   (Pattern(p,al2),prods)
 
 and flatten_annot_atom (an : annot_atom_t) (defname : symb option) (deftyp : rule_type option) (nesting : int list) (code_table : code_hashtbl) (is_singleton : bool) : (annot_atom_t*decl_t list) = match an with
-| SingletonAnnotAtom(p,a) -> let (a2,prods) = flatten_atom a defname deftyp nesting code_table is_singleton in (SingletonAnnotAtom(p,a2),prods)
+| SingletonAnnotAtom(p,a) -> let (a2,prods) = flatten_atom a defname deftyp nesting code_table is_singleton in (a2,prods)
 | QuantAnnotAtom(p,an,q) ->
   let (a2,prods) = flatten_annot_atom an defname deftyp (if is_singleton then nesting else (!Flags.def_prod_index::nesting)) code_table true in
   if is_singleton then (QuantAnnotAtom(p,a2,q),prods)
@@ -161,29 +161,41 @@ and flatten_annot_atom (an : annot_atom_t) (defname : symb option) (deftyp : rul
     (SingletonAnnotAtom(p,IdentAtom(p,name)),(ProdDecl(p,Production(p,((Some(Flags.get_def_prod_type deftyp)),(Some(name),([],(None,None)))),
       [Pattern(p,[OptAnnotAtom(p,a2,o)])])))::prods)
 
-and flatten_atom (a : atom_t) (defname : symb option) (deftyp : rule_type option) (nesting : int list) (code_table : code_hashtbl) (is_singleton : bool) : (atom_t*decl_t list) = match a with
+and is_inlined (ol,(co,tyo)) : bool = List.exists (fun x -> match x with ValOption(_,Some(k),BoolVal(_,true)) -> (k=inline_kw) | _ -> false) ol
+
+and flatten_atom (a : atom_t) (defname : symb option) (deftyp : rule_type option) (nesting : int list) (code_table : code_hashtbl) (is_singleton : bool) : (annot_atom_t*decl_t list) = match a with
 | IdentAtom(p,_) ->
   if is_processing_lexer deftyp then
     die_error p "lexer productions cannot reference other productions";
-  (a,[])
-| ProdAtom(p,Production(p2,(kwo,(None,ol)),patl)) ->
-  let name = Flags.get_def_prod_name defname nesting in
+  (SingletonAnnotAtom(p,a),[])
+| ProdAtom(p,Production(p2,(kwo,(nameo,ol)),patl)) ->
+  let name, nesting, defname = (match nameo with
+  | Some(name) -> 
+    if is_processing_lexer deftyp then die_error p2 "nested lexer productions cannot have names"
+    else (name, [], Some(name))
+  | None -> (Flags.get_def_prod_name defname nesting, nesting, defname)
+  ) in
   let (patl2,prods) = flatten_list flatten_pattern patl defname (match kwo with None -> deftyp | _ -> kwo) nesting code_table in
-  if is_processing_lexer deftyp then (ProdAtom(p,Production(p2,(Some(Lexer),(None,ol)),patl2)),[]) (* TODO XXX *)
+  if is_processing_lexer deftyp then (SingletonAnnotAtom(p,ProdAtom(p,Production(p2,(Some(Lexer),(None,flatten_opt_list p2 ol deftyp nesting code_table)),patl2))),[]) (* TODO XXX *)
   else (
-    let result = Production(p2,((match kwo with None -> Some(Flags.get_def_prod_type deftyp) | _ -> kwo),(Some(name),([],(None,None)))),patl2) in
-    if false(*TODO*) && is_singleton then (ProdAtom(p,result),prods)
-    else (IdentAtom(p,name),(ProdDecl(p2,result))::prods)
+    let result = Production(p2,((match kwo with None -> Some(Flags.get_def_prod_type deftyp) | _ -> kwo),
+      (Some(name),flatten_opt_list p2 ol deftyp nesting code_table)),patl2) in
+    if false(*TODO*) && is_singleton then (SingletonAnnotAtom(p,ProdAtom(p,result)),prods)
+    else ((if is_inlined ol then OptAnnotAtom(p,SingletonAnnotAtom(p,IdentAtom(p,name)),([ValOption(p,Some(inline_kw),BoolVal(p,true))],(None,None))) else SingletonAnnotAtom(p,IdentAtom(p,name))),(ProdDecl(p2,result))::prods)
   )
-| ProdAtom(p,Production(p2,(kwo,(Some(name),ol)),patl)) -> 
+(*| ProdAtom(p,Production(p2,(kwo,(Some(name),ol)),patl)) -> 
   let (patl2,prods) = flatten_list flatten_pattern patl (Some(name)) (match kwo with None -> deftyp | _ -> kwo) [] code_table in
   if is_processing_lexer deftyp then die_error p2 "nested lexer productions cannot have names"
   else ( 
-    let result = Production(p2,((match kwo with None -> Some(Flags.get_def_prod_type deftyp) | _ -> kwo),(Some(name),flatten_opt_list p2 ol deftyp nesting code_table false)),patl2) in
+    let result = Production(p2,((match kwo with None -> Some(Flags.get_def_prod_type deftyp) | _ -> kwo),(Some(name),flatten_opt_list p2 ol deftyp nesting code_table)),patl2) in
     if false(*TODO*) && is_singleton then (ProdAtom(p,result),prods)
     else (IdentAtom(p,name),(ProdDecl(p2,result))::prods)
-  )
-| _ -> (a,[])
+  ) *)
+| EmptyAtom(p)
+| EofAtom(p)
+| CharsetAtom(p,_,_)
+| RecurAtom(p,_,_)
+| StringAtom(p,_) -> (SingletonAnnotAtom(p,a),[])
 
 (*********************************************************)
 (**  TOPOLOGICAL SORT FUNCTIONALITY                     **)
