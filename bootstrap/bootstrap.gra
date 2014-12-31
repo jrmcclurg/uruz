@@ -282,7 +282,7 @@ OptList -> Opt*<:(opt_t list)> OptType<:(typ_t option)> : {
 ;
 
 Opt2 ->
-  ':'<:()> Typ                            : { ([],(None,Some($2))) }
+  ':'<:()> Typ0<:typ_t>                            : { ([],(None,Some($2))) }
 | Opt                                     : {
   match $1 with
   | CodeOption(ps,None,c) -> ([],(Some(c),None))
@@ -293,7 +293,7 @@ Opt2 ->
 
 OptType ->
                                             : { None }
-| ':'<:()> Typ                            : { Some($2) }
+| ':'<:()> Typ0<:typ_t>                            : { Some($2) }
 ;
 
 Opt ->
@@ -310,6 +310,8 @@ FnName ->
 ;
 
 TokenKw -> "token" : ;
+
+Typ0 -> Typ : { norm_typ $1 };
 
 Typ ->
   SimpleType          : SimpleType
@@ -347,7 +349,7 @@ TupleType0 ->
 ;
 
 ConstrType ->
-  Typ                                                                      : SingletonConstrType
+  Typ0<:typ_t>                                                                      : SingletonConstrType
 | ConstrType TypeName<:(symb list)@{" "^(str_x_list get_symbol s ".")^""}> : InstConstrType
 ;
 
@@ -461,4 +463,10 @@ Newlines -> '\n' <{do_newline lexbuf}:()> : {};
     | (Some(_),_) -> ((opt2::acc),ca)
   ) table ([],None) in
   (ol2,c)
+
+  let rec norm_typ (t : typ_t) : typ_t = match t with
+  | SimpleType(ps,st) -> t
+  | CompoundType(ps,CommaType(ps2,[[SingletonConstrType(ps3,t2)]])) -> t2
+  | CompoundType(ps,_) -> t
+
 }
