@@ -60,6 +60,6 @@ parser Temp =
 | "five" "six" # BoolTemp @option:=123 :bool 
 | "five" "six" # OtherTemp @option:=123 @option:=124 {code1} {code2} @option:=125 :bool 
 ;
-parser Test = "one" :(((int*((int)))*(int*(bool)*(((string)))))) ;
+//parser Test = "one" :(((int*((int)))*(int*(bool)*(((string)))))) ;
 //lexer Five = "o" | "t"  ;
 //parser TheTest3 = || "one" | "two" ||| "three" | | | | ~ ;
