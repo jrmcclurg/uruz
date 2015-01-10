@@ -329,7 +329,7 @@ SimpleType ->
 
 CompoundType ->
   CompoundType1<:((constr_type_t list) list)@{""^(str_x_list (fun x -> str_x_list str_constr_type_t x "*") s ",")^""}> : CommaType
-| AbstrName "of"<@{" of "}> TupleType<:(constr_type_t list)@{str_x_list str_constr_type_t s "*"}>   : AbstrType
+| AbstrName "of"<:()@{" of "}> TupleType<:(constr_type_t list)@{str_x_list str_constr_type_t s "*"}>   : AbstrType
 ;
 
 AbstrName ->

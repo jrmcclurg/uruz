@@ -181,7 +181,10 @@ and flatten_atom (a : atom_t) (defname : symb option) (deftyp : rule_type option
     let result = Production(p2,((match kwo with None -> Some(Flags.get_def_prod_type deftyp) | _ -> kwo),
       (Some(name),flatten_opt_list p2 ol deftyp nesting code_table)),patl2) in
     if false(*TODO*) && is_singleton then (SingletonAnnotAtom(p,ProdAtom(p,result)),prods)
-    else ((if is_inlined ol then OptAnnotAtom(p,SingletonAnnotAtom(p,IdentAtom(p,name)),([ValOption(p,Some(inline_kw),BoolVal(p,true))],(None,None))) else SingletonAnnotAtom(p,IdentAtom(p,name))),(ProdDecl(p2,result))::prods)
+    else ((if is_inlined ol then
+    (*OptAnnotAtom(p,SingletonAnnotAtom(p,IdentAtom(p,name)),([ValOption(p,Some(inline_kw),BoolVal(p,true))],(None,None)))*)
+    OptAnnotAtom(p,SingletonAnnotAtom(p,IdentAtom(p,name)),([(*ValOption(p,Some(inline_kw),BoolVal(p,true))*)],(None,Some(CompoundType(p,AbstrType(p,IdentName(p,name),[SingletonConstrType(p,SimpleType(p,AnyType(p)))]))))))
+      else SingletonAnnotAtom(p,IdentAtom(p,name))),(ProdDecl(p2,result))::prods)
   )
 (*| ProdAtom(p,Production(p2,(kwo,(Some(name),ol)),patl)) -> 
   let (patl2,prods) = flatten_list flatten_pattern patl (Some(name)) (match kwo with None -> deftyp | _ -> kwo) [] code_table in
