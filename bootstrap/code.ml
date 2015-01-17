@@ -161,7 +161,10 @@ and flatten_annot_atom (an : annot_atom_t) (defname : symb option) (deftyp : rul
     (SingletonAnnotAtom(p,IdentAtom(p,name)),(ProdDecl(p,Production(p,((Some(Flags.get_def_prod_type deftyp)),(Some(name),([],(None,None)))),
       [Pattern(p,[OptAnnotAtom(p,a2,o)])])))::prods)
 
-and is_inlined (ol,(co,tyo)) : bool = List.exists (fun x -> match x with ValOption(_,Some(k),BoolVal(_,true)) -> (k=inline_kw) | _ -> false) ol
+and is_inlined p (ol,(co,tyo)) : (bool * (opt_t list * (code option * typ_t option))) =
+  let ol2 = List.filter (fun x -> match x with ValOption(_,Some(k),BoolVal(_,true)) -> (k<>inline_kw) | _ -> true) ol in
+  let is_inl = (List.length ol2) <> (List.length ol) in
+  (is_inl, ((if is_inl then (ol2@[ValOption(p,Some(auto_kw),BoolVal(p,false))]) else ol2),(co,tyo)))
 
 and flatten_atom (a : atom_t) (defname : symb option) (deftyp : rule_type option) (nesting : int list) (code_table : code_hashtbl) (is_singleton : bool) : (annot_atom_t*decl_t list) = match a with
 | IdentAtom(p,_) ->
@@ -178,10 +181,11 @@ and flatten_atom (a : atom_t) (defname : symb option) (deftyp : rule_type option
   let (patl2,prods) = flatten_list flatten_pattern patl defname (match kwo with None -> deftyp | _ -> kwo) nesting code_table in
   if is_processing_lexer deftyp then (SingletonAnnotAtom(p,ProdAtom(p,Production(p2,(Some(Lexer),(None,flatten_opt_list p2 ol deftyp nesting code_table)),patl2))),[]) (* TODO XXX *)
   else (
+    let (is_inl, ol) = is_inlined p ol in
     let result = Production(p2,((match kwo with None -> Some(Flags.get_def_prod_type deftyp) | _ -> kwo),
-      (Some(name),flatten_opt_list p2 ol deftyp nesting code_table)),patl2) in
+      (Some(name),(let (x,y) = flatten_opt_list p2 ol deftyp nesting code_table in (x,y)))),patl2) in
     if false(*TODO*) && is_singleton then (SingletonAnnotAtom(p,ProdAtom(p,result)),prods)
-    else ((if is_inlined ol then
+    else ((if is_inl then
     (*OptAnnotAtom(p,SingletonAnnotAtom(p,IdentAtom(p,name)),([ValOption(p,Some(inline_kw),BoolVal(p,true))],(None,None)))*)
     OptAnnotAtom(p,SingletonAnnotAtom(p,IdentAtom(p,name)),([(*ValOption(p,Some(inline_kw),BoolVal(p,true))*)],(None,Some(CompoundType(p,AbstrType(p,IdentName(p,name),[SingletonConstrType(p,SimpleType(p,AnyType(p)))]))))))
       else SingletonAnnotAtom(p,IdentAtom(p,name))),(ProdDecl(p2,result))::prods)

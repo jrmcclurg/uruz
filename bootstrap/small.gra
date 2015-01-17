@@ -53,17 +53,17 @@ keyword Foo = "test" ;*/
 //parser Four @{one} @{two} @:={3} = "one" | "two" @eq:={four} @eq:={five} @str{three} @str:={four} @:={xxx} @{yyy} ;
 //parser Four {other} = "one" @test:=123 @test2:=1234 @assoc:="left" {code} "other" | "two"*+? "other" 'c' :int :bool ;
 //parser Temp = ||| "one" "two" | "three" | "four" "five" "six" ;
-parser Temp =
+/*parser Temp =
 | "one" "two" "three" # {code} : int
 | "one" "two" "three" # _ {code} : int
 | "five" "six" # SomethingTemp {(string_to_int $1) + (string_to_int $2)} :int 
 | "five" {string_to_int $1} :int "six" {string_to_int $1} :int # IntTemp {$1 + $2} :int 
 | "five" "six" # BoolTemp @option:=123 :bool 
 | "five" "six" # OtherTemp @option:=123 @option:=124 {code1} {code2} @option:=125 :bool 
-;
+;*/
 //parser Final = "one" : (Foo of _) ;
-//parser Other = "one" (parser @inline:=true = "four" | "five") "three" ;
-//parser Three = (parser Four @inline:=true = "test") | (parser Five @inline:=true = "foo") ;
+parser Three = (parser Four @inline:=true = "one" # Six | (parser Seven @inline:=true = "two")) | (parser Five @inline:=true = "foo") ;
+parser Other = "one" (parser @one:=123 @two:=124 = "four" | "five") "three" ;
 //parser Test = "one" :(((int*((int)))*(int*(bool)*(((string)))))) ;
 //lexer Five = "o" | "t"  ;
 //parser TheTest3 = || "one" | "two" ||| "three" | | | | ~ ;
