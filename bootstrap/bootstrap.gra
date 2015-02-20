@@ -31,6 +31,8 @@
    let str_chars c = match c with SingletonChar(c) -> String.make 1 c | RangeChar(c1,c2) -> Printf.sprintf "%c-%c" c1 c2
    let eq_chars a b = ((compare a b)=0)
 
+   let str_x_option f x str = match x with None -> "" | Some(_) -> str^(str_option f x)
+
    let rec parse_char_list (cl : char list) : (bool * chars list) = (
   let (is_neg, csl, mode, range_start) = List.fold_left (fun (is_neg, csl, mode, range_start) c ->
     match (c,mode,range_start) with
@@ -183,8 +185,8 @@ XIdentO ->
 ;
 
 BarPattern0 ->
-  Pattern                : { if (match $1 with Pattern(_,[]) -> true | _ -> false) then [] else [$1] }
-| BarPattern0 '|' Pattern : { if (match $3 with Pattern(_,[]) -> true | _ -> false) then $1 else ($3::$1) }
+  Pattern                : { if (match $1 with Pattern(_,([],_)) -> true | _ -> false) then [] else [$1] }
+| BarPattern0 '|' Pattern : { if (match $3 with Pattern(_,([],_)) -> true | _ -> false) then $1 else ($3::$1) }
 ;
 
 ProdKw -> ("parse" | "parser" | "lex" | "lexer" | "ast")<:string> : { str_to_rule_type (get_current_pos ()) $1 } ;
@@ -225,7 +227,11 @@ Pattern ->
   //@{str_pair (str_list (fun x -> (str_opt_t x)^" "))
   //(str_pair (str_option (fun c -> (str_code c)^" ")) (str_option (fun t -> ":"^(str_typ_t t)^" ")))
   //s}>
-  AnnotAtoms<:(annot_atom_t list)@{str_list (fun x -> (str_annot_atom_t x)^" ") s}>
+  AnnotAtoms<:((annot_atom_t list)*(((symb option) * ((opt_t list) * ((code option) * (typ_t option)))) option))
+  @{let (s,s2) = s in Printf.sprintf "%s%s" (str_list (fun x -> (str_annot_atom_t x)^" ") s)
+  (str_option (fun (name,(opts,(cd,ty))) ->
+  Printf.sprintf "#%s%s%s%s" (str_x_option get_symbol name " ")
+  (str_x_list str_opt_t opts " ") (str_x_option str_code cd " ") (str_x_option str_typ_t ty " :")) s2)}>
 ;
 
 TempOpt ->
@@ -264,11 +270,12 @@ AnnotAtoms ->
       an2
     ) in
     let result = List.rev (List.rev_map restructure_annot_atom $1) in
-    match $2 with
+    (result,$2)
+    (*match $2 with
     | None -> result
     | Some((name,(opts,(cd,ty))) as x) ->
       let ps = get_current_pos () in
-      [SingletonAnnotAtom(ps,ProdAtom(ps,Production(ps,(None,(name,((ValOption(ps,Some(inline_kw),BoolVal(ps,true)))::opts,(cd,ty)))),[Pattern(ps,result)])))]
+      [SingletonAnnotAtom(ps,ProdAtom(ps,Production(ps,(None,(name,((ValOption(ps,Some(inline_kw),BoolVal(ps,true)))::opts,(cd,ty)))),[Pattern(ps,result)])))]*)
   }
 ;
 

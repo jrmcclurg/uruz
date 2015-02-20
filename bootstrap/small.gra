@@ -62,8 +62,14 @@ keyword Foo = "test" ;*/
 | "five" "six" # OtherTemp @option:=123 @option:=124 {code1} {code2} @option:=125 :bool 
 ;*/
 //parser Final = "one" : (Foo of _) ;
-parser Three = (parser Four @inline:=true = "one" # Six | (parser Seven @inline:=true = "two")) | (parser Five @inline:=true = "foo") ;
-parser Other = "one" (parser @one:=123 @two:=124 = "four" | "five") "three" ;
+//parser Three = (parser Four @inline:=true = "one" # Six | (parser Seven @inline:=true = "two")) | (parser Five @inline:=true = "foo") ;
+//parser Other = "one" (parser @one:=123 @two:=124 = "four" | "five") "three" ;
 //parser Test = "one" :(((int*((int)))*(int*(bool)*(((string)))))) ;
 //lexer Five = "o" | "t"  ;
 //parser TheTest3 = || "one" | "two" ||| "three" | | | | ~ ;
+
+parser Test1 = "one" {do_something x} * "two" ;
+parser Test2 {} = ~ # {[]} :foobar | "one" Test2 # {$1::$2} ;
+parser Test3 = ~ | Test3 "one" ;
+//parser Test1 = "one" {code} "two" ;
+//parser Test = "one" @recur:="left" {let x = $1 in something x} @x{foo} * "other" ;
