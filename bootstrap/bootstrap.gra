@@ -103,6 +103,7 @@
   let list_kw = add_symbol "list"
   let inline_kw = add_symbol "inline"
   let auto_kw = add_symbol "auto"
+  let recur_kw = add_symbol "recur"
 
    type symb = int
    let str_symb = get_symbol

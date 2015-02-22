@@ -14,6 +14,16 @@ let rev_flatten (l : 'a list list) : 'a list =
 let tail_flatten (l : 'a list list) : 'a list =
   List.rev (rev_flatten l)
 
+let opt_list_contains (ol : opt_t list) (kw : symb) (v : value_t) : (bool * opt_t list) =
+  let ol2 = List.filter (fun x -> match x with ValOption(_,Some(k),v2) -> (k<>kw || (not (eq_value_t v2 v))) | _ -> true) ol in
+  (*Printf.printf "list1 => %s\n" (str_x_list str_opt_t ol ", ");
+  Printf.printf "list2 => %s\n" (str_x_list str_opt_t ol2 ", ");*)
+  let is_inl = (List.length ol2) <> (List.length ol) in
+  (is_inl, ol2)
+
+let modify_code (cd : code option) f : code option =
+match cd with Some(Code(p,c)) -> Some(Code(p,f c)) | _ -> cd
+
 (* HANDLE PROPERTIES *)
 
 let rec handle_props (g : grammar_t) : (grammar_t*int) = match g with
@@ -89,8 +99,7 @@ and inline_atom (code_table : code_hashtbl) (a : atom_t) : atom_t = match a with
 
 (* FLATTEN PRODUCTIONS *)
 
-let flatten_list f l defname deftyp nesting code_table =
-let len = List.length l in
+let flatten_list f l defname deftyp nesting code_table len =
 let (l2,prods,_) = List.fold_left (fun (l2,prods,index) x ->
   let (x2,prods2) = f x defname deftyp (index::nesting) code_table (len=1) in
   ((x2::l2), List.rev_append prods2 prods, index+1)
@@ -134,36 +143,38 @@ and flatten_production (p : production_t) (defname : symb option) (deftyp : rule
   | (Some(kw),(None,ol)) -> (Some(kw),(Some(get_def_prod_name defname nesting),flatten_opt_list ps ol deftyp nesting_old code_table))
   | (Some(kw),(Some(name),ol)) -> (Some(kw),(Some(name),flatten_opt_list ps ol deftyp nesting_old code_table))
   ) in
-  let (patl2,prods) = flatten_list flatten_pattern patl defname deftyp nesting code_table in
+  let (patl2,prods) = flatten_list flatten_pattern patl defname deftyp nesting code_table (List.length patl) in
   (Production(ps,o2,patl2),prods)
 
 and flatten_pattern (p : pattern_t) (defname : symb option) (deftyp : rule_type option) (nesting : int list) (code_table : code_hashtbl) (is_singleton : bool) : (pattern_t*decl_t list) = match p with
 | Pattern(p,(al,xo)) ->
-  let (al2,prods) = flatten_list flatten_annot_atom al defname deftyp nesting code_table in
+  (*let len = (match xo with Some(name,(opts,(cd,Some(ty)))) -> 2 | Some(name,(opts,(Some(cd),ty))) -> 2 | _ -> List.length al) in*)
+  let len = (match xo with Some(_) -> 2 | _ -> List.length al) in
+  let (al2,prods) = flatten_list flatten_annot_atom al defname deftyp nesting code_table len in
   (Pattern(p,(al2,match xo with Some(n,o) -> Some(n,(flatten_opt_list p o deftyp nesting code_table)) | None -> None)),prods)
 
 and flatten_annot_atom (an : annot_atom_t) (defname : symb option) (deftyp : rule_type option) (nesting : int list) (code_table : code_hashtbl) (is_singleton : bool) : (annot_atom_t*decl_t list) = match an with
 | SingletonAnnotAtom(p,a) -> let (a2,prods) = flatten_atom a defname deftyp nesting code_table is_singleton in (a2,prods)
 | QuantAnnotAtom(p,an,q) ->
   let (a2,prods) = flatten_annot_atom an defname deftyp (if is_singleton then nesting else (!Flags.def_prod_index::nesting)) code_table true in
-  if is_singleton then (QuantAnnotAtom(p,a2,q),prods)
+  let y = QuantAnnotAtom(p,a2,q) in
+  if is_singleton then (y,prods)
   else
     let name = Flags.get_def_prod_name defname nesting in
     (SingletonAnnotAtom(p,IdentAtom(p,name)),(ProdDecl(p,Production(p,((Some(Flags.get_def_prod_type deftyp)),(Some(name),([],(None,None)))),
-      [Pattern(p,([QuantAnnotAtom(p,a2,q)],None))])))::prods)
-| OptAnnotAtom(p,an,o) ->
+      [Pattern(p,([y],None))])))::prods)
+| OptAnnotAtom(p,an,(o,x)) ->
   if is_processing_lexer deftyp then
     die_error p "lexer productions can only contain annotations on the left-hand-side (i.e. applied to the entire production)";
   let (a2,prods) = flatten_annot_atom an defname deftyp (if is_singleton then nesting else (!Flags.def_prod_index::nesting)) code_table false in
-  if is_singleton then (OptAnnotAtom(p,a2,o),prods)
+  if is_singleton then (OptAnnotAtom(p,a2,(o,x)),prods)
   else
     let name = Flags.get_def_prod_name defname nesting in
     (SingletonAnnotAtom(p,IdentAtom(p,name)),(ProdDecl(p,Production(p,((Some(Flags.get_def_prod_type deftyp)),(Some(name),([],(None,None)))),
-      [Pattern(p,([OptAnnotAtom(p,a2,o)],None))])))::prods)
+      [Pattern(p,([OptAnnotAtom(p,a2,(o,x))],None))])))::prods)
 
 and is_inlined p (ol,(co,tyo)) : (bool * (opt_t list * (code option * typ_t option))) =
-  let ol2 = List.filter (fun x -> match x with ValOption(_,Some(k),BoolVal(_,true)) -> (k<>inline_kw) | _ -> true) ol in
-  let is_inl = (List.length ol2) <> (List.length ol) in
+  let (is_inl, ol2) = opt_list_contains ol inline_kw (BoolVal(NoPos,true)) in
   (is_inl, ((if is_inl then (ol2@[ValOption(p,Some(auto_kw),BoolVal(p,false))]) else ol2),(co,tyo)))
 
 and flatten_atom (a : atom_t) (defname : symb option) (deftyp : rule_type option) (nesting : int list) (code_table : code_hashtbl) (is_singleton : bool) : (annot_atom_t*decl_t list) = match a with
@@ -178,7 +189,7 @@ and flatten_atom (a : atom_t) (defname : symb option) (deftyp : rule_type option
     else (name, [], Some(name))
   | None -> (Flags.get_def_prod_name defname nesting, nesting, defname)
   ) in
-  let (patl2,prods) = flatten_list flatten_pattern patl defname (match kwo with None -> deftyp | _ -> kwo) nesting code_table in
+  let (patl2,prods) = flatten_list flatten_pattern patl defname (match kwo with None -> deftyp | _ -> kwo) nesting code_table (List.length patl) in
   if is_processing_lexer deftyp then (SingletonAnnotAtom(p,ProdAtom(p,Production(p2,(Some(Lexer),(None,flatten_opt_list p2 ol deftyp nesting code_table)),patl2))),[]) (* TODO XXX *)
   else (
     let (is_inl, ol) = is_inlined p ol in
@@ -204,6 +215,59 @@ and flatten_atom (a : atom_t) (defname : symb option) (deftyp : rule_type option
 | RecurAtom(p,_,_)
 | StringAtom(p,_) -> (SingletonAnnotAtom(p,a),[])
 
+(*********************************************************)
+
+let rec elim_grammar (g : grammar_t) : grammar_t = match g with
+| Grammar(pos,(d,dl)) -> Grammar(pos,(elim_decl d, List.map elim_decl dl))
+
+and elim_decl (d : decl_t) : decl_t = match d with
+| ProdDecl(p,prod) -> ProdDecl(p,elim_production prod)
+| _ -> d
+
+and elim_production (p : production_t) : production_t = match p with
+| Production(ps,(r,(Some(name),o)),patl) -> Production(ps,(r,(Some(name),o)),List.rev (List.fold_left (fun acc x -> List.rev_append (elim_pattern x name) acc) [] patl))
+| Production(ps,_,_) -> die_error ps "production did not acquire a name"
+
+and elim_pattern (pa : pattern_t) (prod_name : symb) : pattern_t list = match pa with
+(*| Pattern(p,([QuantAnnotAtom(p2,SingletonAnnotAtom(p3,a),q)],xo)) -> [pa] (*TODO*)*)
+(*| Pattern(p,([QuantAnnotAtom(p2,OptAnnotAtom(p3,a,yo),q)],xo)) ->*)
+| Pattern(p,([QuantAnnotAtom(p2,an,q)],xo)) ->
+  let (xo,right,an2,xo2) = (match an with
+  | OptAnnotAtom(p2,a,(opts,(cd,ty))) ->
+    let (left,opts) = opt_list_contains opts recur_kw (StringVal(NoPos,"left")) in
+    let (right,opts) = opt_list_contains opts recur_kw (StringVal(NoPos,"right")) in
+    ((match q with PlusQuant(p) -> Some(None,([],(modify_code cd (fun x -> "["^x^"]"),None)))
+    | QuestionQuant(p) -> Some(None,([],(Some(Code(p,"None")),None)))
+    | StarQuant(p) -> Some(None,([],(Some(Code(p,"[]")),None)))
+    ), right, OptAnnotAtom(p2,a,(opts,(None,None))), (match q with
+    | QuestionQuant(p) -> Some(None,([],(modify_code cd (fun x -> "Some("^x^")"),None)))
+    | _ -> Some(None,([],(modify_code cd (fun x -> if right then ("let x = $1 in ("^x^")::$2")
+    else ("let x = $2 in ("^x^")::$1")),None))) (* TODO XXX - for this case, we need code in the 
+    production that reverses the list *)
+    ))
+  | _ -> (None,false,an,xo)
+  ) in
+  let an = (match q with PlusQuant(p) -> an2 | _ -> SingletonAnnotAtom(p,EmptyAtom(p))) in
+  [Pattern(p,([an],xo));
+    Pattern(p,((if right then List.rev else (fun x -> x))
+    (match q with QuestionQuant(p) -> [an2] | _ -> [SingletonAnnotAtom(p,IdentAtom(p,prod_name));an2]),xo2))]
+| Pattern(p,([OptAnnotAtom(p2,a,(opts,(cd,ty)))],None)) ->
+  [Pattern(p,([OptAnnotAtom(p2,a,(opts,(None,None)))],Some(None,([],(cd,ty)))))]
+(*| Pattern(p,([OptAnnotAtom(p2,a,(opts1,(cd,ty)))],Some(name,(opts2,(None,None))))) ->
+  (* TODO XXX ^^ combine_opt_list opts1 opts2 *)
+  [Pattern(p,([OptAnnotAtom(p2,a,(opts1,(None,None)))],Some(name,(opts2,(cd,ty)))))]*)
+| _ -> [pa]
+
+(*
+
+1 2 3 # 5 6 7 8 # 9 10
+
+9 10 # 5 6 7 8 # 1 2 3
+
+8 7 6 5 10 9
+
+
+*)
 (*********************************************************)
 (**  TOPOLOGICAL SORT FUNCTIONALITY                     **)
 (*********************************************************)

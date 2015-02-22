@@ -13,6 +13,7 @@ let (result,code_table) = collect_named_code result count in
 let result = inline_grammar result code_table in
 (* flatten the grammar *)
 let result = flatten_grammar result code_table in
+let result = elim_grammar result in
 let (result,lexer_prods) = strip_lexer_grammar result count in
 let comps = get_sorted_defs result count in
 Bootstrap_ast.print_grammar_t result;
