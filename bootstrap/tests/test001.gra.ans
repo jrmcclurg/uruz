@@ -1,13 +1,16 @@
 parser Foo = 
-| Foo_0_0? 
+| ~ # {None}
+| Foo_0_0 # {Some($1)}
 ;
 
-parser Foo_0_0 = 
-| Foo_0_0_0+ 
+parser Foo_0_0 {List.rev x} = 
+| Foo_0_0_0 # {[$1]}
+| Foo_0_0 Foo_0_0_0 # {let x = $2 in (x)::$1}
 ;
 
-parser Foo_0_0_0 = 
-| "one"* 
+parser Foo_0_0_0 {List.rev x} = 
+| ~ # {[]}
+| Foo_0_0_0 "one" # {let x = $2 in (x)::$1}
 ;
 
 parser bar = 
@@ -15,15 +18,18 @@ parser bar =
 ;
 
 parser bar_0_0 = 
-| bar_0_0_0? 
+| ~ # {None}
+| bar_0_0_0 # {Some($1)}
 ;
 
-parser bar_0_0_0 = 
-| bar_0_0_0_0+ 
+parser bar_0_0_0 {List.rev x} = 
+| bar_0_0_0_0 # {[$1]}
+| bar_0_0_0 bar_0_0_0_0 # {let x = $2 in (x)::$1}
 ;
 
-parser bar_0_0_0_0 = 
-| "one"* 
+parser bar_0_0_0_0 {List.rev x} = 
+| ~ # {[]}
+| bar_0_0_0_0 "one" # {let x = $2 in (x)::$1}
 ;
 
 parser BAZ = 
@@ -31,21 +37,26 @@ parser BAZ =
 ;
 
 parser BAZ_0_0 = 
-| BAZ_0_0_0? 
+| ~ # {None}
+| BAZ_0_0_0 # {Some($1)}
 ;
 
-parser BAZ_0_0_0 = 
-| BAZ_0_0_0_0+ 
+parser BAZ_0_0_0 {List.rev x} = 
+| BAZ_0_0_0_0 # {[$1]}
+| BAZ_0_0_0 BAZ_0_0_0_0 # {let x = $2 in (x)::$1}
 ;
 
-parser BAZ_0_0_0_0 = 
-| "one"* 
+parser BAZ_0_0_0_0 {List.rev x} = 
+| ~ # {[]}
+| BAZ_0_0_0_0 "one" # {let x = $2 in (x)::$1}
 ;
 
-parser BAZ_0_1 = 
-| BAZ_0_1_0* 
+parser BAZ_0_1 {List.rev x} = 
+| ~ # {[]}
+| BAZ_0_1 BAZ_0_1_0 # {let x = $2 in (x)::$1}
 ;
 
-parser BAZ_0_1_0 = 
-| "two"+ 
+parser BAZ_0_1_0 {List.rev x} = 
+| "two" # {[$1]}
+| BAZ_0_1_0 "two" # {let x = $2 in (x)::$1}
 ;

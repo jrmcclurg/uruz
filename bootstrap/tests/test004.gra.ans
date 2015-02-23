@@ -25,17 +25,32 @@ parser TheString =
 ;
 
 parser Four = 
-| TheInt2* 
-| TheBool2+ 
-| TheString2? 
+| Four_0_0 
+| Four_1_0 
+| Four_2_0 
+;
+
+parser Four_0_0 {List.rev x} = 
+| ~ # {[]}
+| Four_0_0 TheInt2 # {let x = $2 in (x)::$1}
 ;
 
 parser TheInt2 = 
 | "four" 
 ;
 
+parser Four_1_0 {List.rev x} = 
+| TheBool2 # {[$1]}
+| Four_1_0 TheBool2 # {let x = $2 in (x)::$1}
+;
+
 parser TheBool2 = 
 | "five" 
+;
+
+parser Four_2_0 = 
+| ~ # {None}
+| TheString2 # {Some($1)}
 ;
 
 parser TheString2 = 

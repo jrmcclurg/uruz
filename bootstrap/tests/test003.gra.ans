@@ -1,5 +1,5 @@
 parser One = 
-| "one" :int 
+| "one" # :int
 ;
 
 parser Two = 
@@ -7,11 +7,11 @@ parser Two =
 ;
 
 parser Two_0_0 = 
-| "one" :int 
+| "one" # :int
 ;
 
 parser Two_0_1 = 
-| "two" :string 
+| "two" # :string
 ;
 
 parser Three = 
@@ -19,19 +19,19 @@ parser Three =
 ;
 
 parser Three_0_0 = 
-| Three_0_0_0 {code1} 
+| Three_0_0_0 # {code1}
 ;
 
 parser Three_0_0_0 = 
-| "one" :int 
+| "one" # :int
 ;
 
 parser Three_0_1 = 
-| Three_0_1_0 {code2} 
+| Three_0_1_0 # {code2}
 ;
 
 parser Three_0_1_0 = 
-| "two" :string 
+| "two" # :string
 ;
 
 parser Four = 
@@ -39,11 +39,11 @@ parser Four =
 ;
 
 parser Four_0_0 = 
-| "one" {code1} :int 
+| "one" # {code1} :int
 ;
 
 parser Four_0_1 = 
-| "two" {code2} :string 
+| "two" # {code2} :string
 ;
 
 parser Five = 
@@ -51,11 +51,11 @@ parser Five =
 ;
 
 parser Five_0_0 = 
-| "one" @option:=123 @option2:=124 {code1} :int 
+| "one" @option:=123 @option2:=124 # {code1} :int
 ;
 
 parser Five_0_1 = 
-| "two" @option3:=125 {code2} :string 
+| "two" @option3:=125 # {code2} :string
 ;
 
 parser Six = 
@@ -63,23 +63,23 @@ parser Six =
 ;
 
 parser Six_0_0 = 
-| Six_0_0_0 {code2} :int 
+| Six_0_0_0 # {code2} :int
 ;
 
 parser Six_0_0_0 = 
-| "one" @option:=123 @option2:=124 {code1} 
+| "one" @option:=123 @option2:=124 # {code1}
 ;
 
 parser Six_0_1 = 
-| Six_0_1_0 :three 
+| Six_0_1_0 # :three
 ;
 
 parser Six_0_1_0 = 
-| Six_0_1_0_0 :two 
+| Six_0_1_0_0 # :two
 ;
 
 parser Six_0_1_0_0 = 
-| "two" :one 
+| "two" # :one
 ;
 
 parser Seven = 
@@ -87,7 +87,7 @@ parser Seven =
 ;
 
 parser Seven_0_0 = 
-| "one" :int 
+| "one" # :int
 ;
 
 parser Seven_0_1 = 
@@ -99,27 +99,27 @@ parser Eight =
 ;
 
 parser Eight_0_0 = 
-| Eight_0_0_0 :three 
+| Eight_0_0_0 # :three
 ;
 
 parser Eight_0_0_0 = 
-| Eight_0_0_0_0 :two 
+| Eight_0_0_0_0 # :two
 ;
 
 parser Eight_0_0_0_0 = 
-| "one" :one 
+| "one" # :one
 ;
 
 parser Eight_0_1 = 
-| Eight_0_1_0 {code3} 
+| Eight_0_1_0 # {code3}
 ;
 
 parser Eight_0_1_0 = 
-| Eight_0_1_0_0 {code2} 
+| Eight_0_1_0_0 # {code2}
 ;
 
 parser Eight_0_1_0_0 = 
-| "two" {code1} 
+| "two" # {code1}
 ;
 
 parser Nine = 
@@ -127,13 +127,13 @@ parser Nine =
 ;
 
 parser Nine_0_0 = 
-| Seven {code1} :ty1 
+| Seven # {code1} :ty1
 ;
 
 parser Nine_0_1 = 
-| Nine_0_1_0 {code1} 
+| Nine_0_1_0 # {code1}
 ;
 
 parser Nine_0_1_0 = 
-| Eight :ty1 
+| Eight # :ty1
 ;

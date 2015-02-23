@@ -1,5 +1,6 @@
-parser Three = 
-| Three_0_0* 
+parser Three {List.rev x} = 
+| ~ # {[]}
+| Three Three_0_0 # {let x = $2 in (x)::$1}
 ;
 
 parser Three_0_0 = 
@@ -7,16 +8,19 @@ parser Three_0_0 =
 | "two" 
 ;
 
-parser Four = 
-| Four_0_0* 
+parser Four {List.rev x} = 
+| ~ # {[]}
+| Four Four_0_0 # {let x = $2 in (x)::$1}
 ;
 
-parser Four_0_0 = 
-| Four_0_0_0* 
+parser Four_0_0 {List.rev x} = 
+| ~ # {[]}
+| Four_0_0 Four_0_0_0 # {let x = $2 in (x)::$1}
 ;
 
-parser Four_0_0_0 = 
-| Four_0_0_0_0* 
+parser Four_0_0_0 {List.rev x} = 
+| ~ # {[]}
+| Four_0_0_0 Four_0_0_0_0 # {let x = $2 in (x)::$1}
 ;
 
 parser Four_0_0_0_0 = 
@@ -67,16 +71,31 @@ parser Eight =
 ;
 
 parser Eight_0_0 = 
-| Eight_0_0_0_0* 
-| "two"? 
-| Eight_0_0_2_0+ 
+| Eight_0_0_0_0 
+| Eight_0_0_1_0 
+| Eight_0_0_2_0 
 ;
 
-parser Eight_0_0_0_0 = 
+parser Eight_0_0_0_0 {List.rev x} = 
+| ~ # {[]}
+| Eight_0_0_0_0 Eight_0_0_0_0_0 # {let x = $2 in (x)::$1}
+;
+
+parser Eight_0_0_0_0_0 = 
 | "one" 
 ;
 
-parser Eight_0_0_2_0 = 
+parser Eight_0_0_1_0 = 
+| ~ # {None}
+| "two" # {Some($1)}
+;
+
+parser Eight_0_0_2_0 {List.rev x} = 
+| Eight_0_0_2_0_0 # {[$1]}
+| Eight_0_0_2_0 Eight_0_0_2_0_0 # {let x = $2 in (x)::$1}
+;
+
+parser Eight_0_0_2_0_0 = 
 | "three" 
 ;
 
@@ -85,20 +104,36 @@ parser Nine =
 ;
 
 parser Nine_0_0 = 
-| Nine_0_0_0_0* 
-| "two"? 
-| Nine_0_0_2_0+ 
+| Nine_0_0_0_0 
+| Nine_0_0_1_0 
+| Nine_0_0_2_0 
 ;
 
-parser Nine_0_0_0_0 = 
+parser Nine_0_0_0_0 {List.rev x} = 
+| ~ # {[]}
+| Nine_0_0_0_0 Nine_0_0_0_0_0 # {let x = $2 in (x)::$1}
+;
+
+parser Nine_0_0_0_0_0 = 
 | "one" 
-| Nine_0_0_0_0_1_0 "five" 
+| Nine_0_0_0_0_0_1_0 "five" 
 ;
 
-parser Nine_0_0_0_0_1_0 = 
-| "four"+ 
+parser Nine_0_0_0_0_0_1_0 {List.rev x} = 
+| "four" # {[$1]}
+| Nine_0_0_0_0_0_1_0 "four" # {let x = $2 in (x)::$1}
 ;
 
-parser Nine_0_0_2_0 = 
+parser Nine_0_0_1_0 = 
+| ~ # {None}
+| "two" # {Some($1)}
+;
+
+parser Nine_0_0_2_0 {List.rev x} = 
+| Nine_0_0_2_0_0 # {[$1]}
+| Nine_0_0_2_0 Nine_0_0_2_0_0 # {let x = $2 in (x)::$1}
+;
+
+parser Nine_0_0_2_0_0 = 
 | "three" 
 ;

@@ -10,6 +10,8 @@ let def_prod_type = ref Parser
 let def_prod_name = ref "Production" (* TODO XXX - make this unique? *)
 let def_prod_index = ref 0
 
+let param_name = ref "x"
+
 let get_def_prod_name (name : symb option) (nesting : int list) =
   add_symbol ((match name with None -> !def_prod_name | Some(s) -> get_symbol s)^(List.fold_left (fun str n -> "_"^(string_of_int n)^str) "" nesting))
 let get_def_prod_type (t : rule_type option) = match t with None -> !def_prod_type | Some(s) -> s
