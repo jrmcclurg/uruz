@@ -1,6 +1,6 @@
-parser Three {List.rev x} = 
-| ~ # {[]}
-| Three Three_0_0 # {let x = $2 in (x)::$1}
+parser Three {List.rev x} :(_ list) = 
+| ~ # {[]} :(_ list)
+| Three Three_0_0 # {let x = $2 in (x)::$1} :('t2 list)
 ;
 
 parser Three_0_0 = 
@@ -8,19 +8,19 @@ parser Three_0_0 =
 | "two" 
 ;
 
-parser Four {List.rev x} = 
-| ~ # {[]}
-| Four Four_0_0 # {let x = $2 in (x)::$1}
+parser Four {List.rev x} :(_ list) = 
+| ~ # {[]} :(_ list)
+| Four Four_0_0 # {let x = $2 in (x)::$1} :('t2 list)
 ;
 
-parser Four_0_0 {List.rev x} = 
-| ~ # {[]}
-| Four_0_0 Four_0_0_0 # {let x = $2 in (x)::$1}
+parser Four_0_0 {List.rev x} :(_ list) = 
+| ~ # {[]} :(_ list)
+| Four_0_0 Four_0_0_0 # {let x = $2 in (x)::$1} :('t2 list)
 ;
 
-parser Four_0_0_0 {List.rev x} = 
-| ~ # {[]}
-| Four_0_0_0 Four_0_0_0_0 # {let x = $2 in (x)::$1}
+parser Four_0_0_0 {List.rev x} :(_ list) = 
+| ~ # {[]} :(_ list)
+| Four_0_0_0 Four_0_0_0_0 # {let x = $2 in (x)::$1} :('t2 list)
 ;
 
 parser Four_0_0_0_0 = 
@@ -76,23 +76,23 @@ parser Eight_0_0 =
 | Eight_0_0_2_0 
 ;
 
-parser Eight_0_0_0_0 {List.rev x} = 
-| ~ # {[]}
-| Eight_0_0_0_0 Eight_0_0_0_0_0 # {let x = $2 in (x)::$1}
+parser Eight_0_0_0_0 {List.rev x} :(_ list) = 
+| ~ # {[]} :(_ list)
+| Eight_0_0_0_0 Eight_0_0_0_0_0 # {let x = $2 in (x)::$1} :('t2 list)
 ;
 
 parser Eight_0_0_0_0_0 = 
 | "one" 
 ;
 
-parser Eight_0_0_1_0 = 
-| ~ # {None}
-| "two" # {Some($1)}
+parser Eight_0_0_1_0 :(_ option) = 
+| ~ # {None} :(_ option)
+| "two" # {Some($1)} :('t1 option)
 ;
 
-parser Eight_0_0_2_0 {List.rev x} = 
-| Eight_0_0_2_0_0 # {[$1]}
-| Eight_0_0_2_0 Eight_0_0_2_0_0 # {let x = $2 in (x)::$1}
+parser Eight_0_0_2_0 {List.rev x} :(_ list) = 
+| Eight_0_0_2_0_0 # {[$1]} :(_ list)
+| Eight_0_0_2_0 Eight_0_0_2_0_0 # {let x = $2 in (x)::$1} :('t2 list)
 ;
 
 parser Eight_0_0_2_0_0 = 
@@ -109,9 +109,9 @@ parser Nine_0_0 =
 | Nine_0_0_2_0 
 ;
 
-parser Nine_0_0_0_0 {List.rev x} = 
-| ~ # {[]}
-| Nine_0_0_0_0 Nine_0_0_0_0_0 # {let x = $2 in (x)::$1}
+parser Nine_0_0_0_0 {List.rev x} :(_ list) = 
+| ~ # {[]} :(_ list)
+| Nine_0_0_0_0 Nine_0_0_0_0_0 # {let x = $2 in (x)::$1} :('t2 list)
 ;
 
 parser Nine_0_0_0_0_0 = 
@@ -119,19 +119,19 @@ parser Nine_0_0_0_0_0 =
 | Nine_0_0_0_0_0_1_0 "five" 
 ;
 
-parser Nine_0_0_0_0_0_1_0 {List.rev x} = 
-| "four" # {[$1]}
-| Nine_0_0_0_0_0_1_0 "four" # {let x = $2 in (x)::$1}
+parser Nine_0_0_0_0_0_1_0 {List.rev x} :(_ list) = 
+| "four" # {[$1]} :(_ list)
+| Nine_0_0_0_0_0_1_0 "four" # {let x = $2 in (x)::$1} :('t2 list)
 ;
 
-parser Nine_0_0_1_0 = 
-| ~ # {None}
-| "two" # {Some($1)}
+parser Nine_0_0_1_0 :(_ option) = 
+| ~ # {None} :(_ option)
+| "two" # {Some($1)} :('t1 option)
 ;
 
-parser Nine_0_0_2_0 {List.rev x} = 
-| Nine_0_0_2_0_0 # {[$1]}
-| Nine_0_0_2_0 Nine_0_0_2_0_0 # {let x = $2 in (x)::$1}
+parser Nine_0_0_2_0 {List.rev x} :(_ list) = 
+| Nine_0_0_2_0_0 # {[$1]} :(_ list)
+| Nine_0_0_2_0 Nine_0_0_2_0_0 # {let x = $2 in (x)::$1} :('t2 list)
 ;
 
 parser Nine_0_0_2_0_0 = 

@@ -35,6 +35,7 @@ let rec handle_props (g : grammar_t) : (grammar_t*int) = match g with
       | ("default_production_type",StringVal(p,s)) -> Flags.def_prod_type := str_to_rule_type p s
       | ("default_production_name",StringVal(p,s)) -> Flags.def_prod_name := s
       | ("parameter_name",StringVal(p,s)) -> Flags.param_name := s
+      | ("type_name",StringVal(p,s)) -> Flags.type_name := s
       | ("parser_code",CodeVal(p,(c,cl))) -> () (* TODO XXX *)
       | ("lexer_code",CodeVal(p,(c,cl))) -> () (* TODO XXX *)
       | ("ast_code",CodeVal(p,(c,cl))) -> () (* TODO XXX *)
@@ -222,6 +223,9 @@ and flatten_atom (a : atom_t) (defname : symb option) (deftyp : rule_type option
 
 (*********************************************************)
 
+let mk_compound_type ps t kw =
+CompoundType(ps,CommaType(ps,[[InstConstrType(ps,SingletonConstrType(ps,SimpleType(ps,t)),[kw])]]))
+
 let rec elim_grammar (g : grammar_t) : grammar_t = match g with
 | Grammar(pos,(d,dl)) -> Grammar(pos,(elim_decl d, List.map elim_decl dl))
 
@@ -231,11 +235,12 @@ and elim_decl (d : decl_t) : decl_t = match d with
 
 and elim_production (p : production_t) : production_t = match p with
 | Production(ps,(r,(Some(name),(opts,(cd,ty)))),patl) ->
-  let (x,b) = (List.fold_left (fun (acc,acc2) x -> let (y,b) = elim_pattern x name in (List.rev_append y acc, b||acc2)) ([],false) patl) in
-  Production(ps,(r,(Some(name),(opts,((if b then Some(Code(ps,"List.rev x")) else cd),ty)))),List.rev x)
+  let (x,(b,o)) = (List.fold_left (fun (acc,(acc2,acc3)) x -> let (y,(b,o)) = elim_pattern x name in (List.rev_append y acc, ((b||acc2), (match acc3 with None -> o | _ -> acc3)))) ([],(false,None)) patl) in
+  Production(ps,(r,(Some(name),(opts,((if b then Some(Code(ps,"List.rev x")) else cd),
+  (match o with Some(kw) -> Some(mk_compound_type ps (AnyType(ps)) kw) | _ -> ty))))),List.rev x)
 | Production(ps,_,_) -> die_error ps "production did not acquire a name"
 
-and elim_pattern (pa : pattern_t) (prod_name : symb) : (pattern_t list * bool) = match pa with
+and elim_pattern (pa : pattern_t) (prod_name : symb) : (pattern_t list * (bool*symb option)) = match pa with
 (*| Pattern(p,([QuantAnnotAtom(p2,SingletonAnnotAtom(p3,a),q)],xo)) -> [pa] (*TODO*)*)
 (*| Pattern(p,([QuantAnnotAtom(p2,OptAnnotAtom(p3,a,yo),q)],xo)) ->*)
 | Pattern(p,([QuantAnnotAtom(p2,an,q)],xo)) ->
@@ -243,13 +248,16 @@ and elim_pattern (pa : pattern_t) (prod_name : symb) : (pattern_t list * bool) =
   | OptAnnotAtom(p2,a,(opts,(cd,ty))) ->
     let (left,opts) = opt_list_contains opts recur_kw (StringVal(NoPos,"left")) in
     let (right,opts) = opt_list_contains opts recur_kw (StringVal(NoPos,"right")) in
-    ((match q with PlusQuant(p) -> Some(None,([],(modify_code p cd (fun x -> "["^x^"]") "$1",None)))
-    | QuestionQuant(p) -> Some(None,([],(Some(Code(p,"None")),None)))
-    | StarQuant(p) -> Some(None,([],(Some(Code(p,"[]")),None)))
-    ), right, OptAnnotAtom(p2,a,(opts,(None,None))), (match q with
-    | QuestionQuant(p) -> Some(None,([],(modify_code p cd (fun x -> "Some("^x^")") "$1",None)))
-    | _ -> Some(None,([],(modify_code p cd (fun x -> if right then ("let "^ !Flags.param_name^" = $1 in ("^x^")::$2")
-    else ("let "^ !Flags.param_name^" = $2 in ("^x^")::$1")) !Flags.param_name,None)))
+    ((match q with PlusQuant(p) -> Some(None,([],(modify_code p cd (fun x -> "["^x^"]") "$1",Some(mk_compound_type p (AnyType(p)) list_kw))))
+    | QuestionQuant(p) -> Some(None,([],(Some(Code(p,"None")),Some(mk_compound_type p (AnyType(p)) option_kw))))
+    | StarQuant(p) -> Some(None,([],(Some(Code(p,"[]")),Some(mk_compound_type p (AnyType(p)) list_kw))))
+    ), right, OptAnnotAtom(p2,a,(opts,(None,None))),
+    (match q with
+    | QuestionQuant(p) -> Some(None,([],(modify_code p cd (fun x -> "Some("^x^")") "$1",
+    Some(mk_compound_type p (VarType(p,add_symbol (!Flags.type_name^"1"))) option_kw))))
+    | _ -> let (first,second) = (if right then ("1","2") else ("2","1")) in
+    Some(None,([],(modify_code p cd (fun x -> ("let "^ !Flags.param_name^" = $"^first^" in ("^x^")::$"^second)
+    ) !Flags.param_name,Some(mk_compound_type p (VarType(p,add_symbol (!Flags.type_name^first))) list_kw))))
     ))
   | _ -> (None,false,an,xo)
   ) in
@@ -257,15 +265,15 @@ and elim_pattern (pa : pattern_t) (prod_name : symb) : (pattern_t list * bool) =
   ([Pattern(p,([an],xo));
     Pattern(p,((if right then List.rev else (fun x -> x))
     (match q with QuestionQuant(p) -> [an2] | _ -> [SingletonAnnotAtom(p,IdentAtom(p,prod_name));an2]),xo2))],
-    (not right) && (match q with QuestionQuant(_) -> false | _ -> true))
+    (match q with QuestionQuant(_) -> (false,Some(option_kw)) | _ -> ((not right),Some(list_kw))))
 | Pattern(p,([OptAnnotAtom(p2,a,(opts,(None,None)))],None)) ->
-  ([Pattern(p,([OptAnnotAtom(p2,a,(opts,(None,None)))],None))], false)
+  ([Pattern(p,([OptAnnotAtom(p2,a,(opts,(None,None)))],None))], (false,None))
 | Pattern(p,([OptAnnotAtom(p2,a,(opts,(cd,ty)))],None)) ->
-  ([Pattern(p,([OptAnnotAtom(p2,a,(opts,(None,None)))],Some(None,([],(cd,ty)))))], false)
+  ([Pattern(p,([OptAnnotAtom(p2,a,(opts,(None,None)))],Some(None,([],(cd,ty)))))], (false,None))
 (*| Pattern(p,([OptAnnotAtom(p2,a,(opts1,(cd,ty)))],Some(name,(opts2,(None,None))))) ->
   (* TODO XXX ^^ combine_opt_list opts1 opts2 *)
   [Pattern(p,([OptAnnotAtom(p2,a,(opts1,(None,None)))],Some(name,(opts2,(cd,ty)))))]*)
-| _ -> ([pa],false)
+| _ -> ([pa],(false,None))
 
 (*
 

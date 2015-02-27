@@ -68,14 +68,15 @@ keyword Foo = "test" ;*/
 //lexer Five = "o" | "t"  ;
 //parser TheTest3 = || "one" | "two" ||| "three" | | | | ~ ;
 
-property parameter_name = "y" ;
+property parameter_name = "x" ;
+property type_name = "t" ;
 parser Test1 = "one" {do_something x} * "two" ;
-parser Test2 {} = ~ # {[]} :foobar | "one" Test2 # {$1::$2} ;
+parser Test2 :(_ list) = ~ # {[]} :(_ list) | "one" Test2 # {$1::$2} :('t1 list) ;
 parser Test3 = ~ | Test3 "one" ;
 parser Foo = "x" {cd} * + "y";
 parser Last =
 | "one" {cd} :type1 
 | "two" {code}
-| "three" @recur:="left" {string_of_int x} + # {code} ;
+| "three" @recur:="left" {string_of_int x} ? # {code} ;
 //parser Test1 = "one" {code} "two" ;
 //parser Test = "one" @recur:="left" {let x = $1 in something x} @x{foo} + "other" ;

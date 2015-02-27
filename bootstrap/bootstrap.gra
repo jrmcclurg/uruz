@@ -333,6 +333,7 @@ SimpleType ->
   TokenKw<:()> : TokenType // TODO XXX - maybe there's a need to set the name of this type?
 | '_'<:()>      : AnyType
 | '~'<:()>      : NoType
+| '\''<:()@{"'"}> XIdent<:symb> : VarType
 | '('<:()> ')'<:()>  : UnitType
 | TypeName<:(symb list)@{""^(str_x_list get_symbol s ".")^""}> : IdentType
 ;

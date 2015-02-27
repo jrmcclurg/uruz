@@ -30,27 +30,27 @@ parser Four =
 | Four_2_0 
 ;
 
-parser Four_0_0 {List.rev x} = 
-| ~ # {[]}
-| Four_0_0 TheInt2 # {let x = $2 in (x)::$1}
+parser Four_0_0 {List.rev x} :(_ list) = 
+| ~ # {[]} :(_ list)
+| Four_0_0 TheInt2 # {let x = $2 in (x)::$1} :('t2 list)
 ;
 
 parser TheInt2 = 
 | "four" 
 ;
 
-parser Four_1_0 {List.rev x} = 
-| TheBool2 # {[$1]}
-| Four_1_0 TheBool2 # {let x = $2 in (x)::$1}
+parser Four_1_0 {List.rev x} :(_ list) = 
+| TheBool2 # {[$1]} :(_ list)
+| Four_1_0 TheBool2 # {let x = $2 in (x)::$1} :('t2 list)
 ;
 
 parser TheBool2 = 
 | "five" 
 ;
 
-parser Four_2_0 = 
-| ~ # {None}
-| TheString2 # {Some($1)}
+parser Four_2_0 :(_ option) = 
+| ~ # {None} :(_ option)
+| TheString2 # {Some($1)} :('t1 option)
 ;
 
 parser TheString2 = 
