@@ -256,17 +256,19 @@ AnnotAtoms ->
       let u = (SingletonAnnotAtom(ps,EmptyAtom(ps)),ps)::u in
       let l = List.rev_map fst u in
       let combine opts = fst (combine_opt_list opts) in
-      let ((_,_,_,an2),_) = List.fold_left (fun ((opts,c,ty,acc),is_first) an -> (match an with
+      let ((_,_,_,an2),_) = List.fold_left (fun ((opts,c,ty,acc),is_first) an -> 
+        let old ps = (match (combine opts, c, ty) with ([],None,None) -> acc | (oc,_,_) -> OptAnnotAtom(ps,acc,(oc,(c,ty)))) in
+        (match an with
         | OptAnnotAtom(ps,_,(opts2,(c2,ty2))) -> (match (opts,c,ty,opts2,c2,ty2) with
           | (_,_,_,_,None,None) -> (List.rev_append opts2 opts,c,ty,acc)
           | (_,None,None,_,Some(c2),None) -> (opts,Some(c2),ty,acc)
-          | (_,_,_,_,Some(c2),None) -> ([],Some(c2),None,OptAnnotAtom(ps,acc,(combine opts,(c,ty))))
+          | (_,_,_,_,Some(c2),None) -> ([],Some(c2),None,old ps)
           | (_,_,_,_,_,Some(ty2)) -> ([],None,None,OptAnnotAtom(ps,acc,(combine opts,(c,Some(ty2)))))
         )
         | SingletonAnnotAtom(ps,a) ->
           if is_first || ((opts,c,ty)=([],None,None)) then (opts,c,ty,acc)
-          else ([],None,None,OptAnnotAtom(ps,acc,(combine opts,(c,ty))))
-        | QuantAnnotAtom(ps,_,q) -> ([],None,None,QuantAnnotAtom(ps,OptAnnotAtom(ps,acc,(combine opts,(c,ty))),q))),false
+          else ([],None,None,old ps)
+        | QuantAnnotAtom(ps,_,q) -> ([],None,None,QuantAnnotAtom(ps,old ps,q))),false
       ) (([],None,None,List.hd l),true) (List.tl l) in
       an2
     ) in

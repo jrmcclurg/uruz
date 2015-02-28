@@ -160,9 +160,9 @@ and flatten_pattern (p : pattern_t) (defname : symb option) (deftyp : rule_type 
 and flatten_annot_atom (an : annot_atom_t) (defname : symb option) (deftyp : rule_type option) (nesting : int list) (code_table : code_hashtbl) (is_singleton : bool) : (annot_atom_t*decl_t list) = match an with
 | SingletonAnnotAtom(p,a) -> let (a2,prods) = flatten_atom a defname deftyp nesting code_table is_singleton in (a2,prods)
 | QuantAnnotAtom(p,an,q) ->
-  let (a2,prods) = flatten_annot_atom an defname deftyp (if is_singleton then nesting else (!Flags.def_prod_index::nesting)) code_table true in
+  let (a2,prods) = flatten_annot_atom an defname deftyp (if is_singleton then nesting else (!Flags.def_prod_index::nesting)) code_table false in
   let y = QuantAnnotAtom(p,a2,q) in
-  if is_singleton then (y,prods)
+  if is_singleton || (is_processing_lexer deftyp) then (y,prods)
   else
     let name = Flags.get_def_prod_name defname nesting in
     (SingletonAnnotAtom(p,IdentAtom(p,name)),
@@ -234,6 +234,7 @@ and elim_decl (d : decl_t) : decl_t = match d with
 | _ -> d
 
 and elim_production (p : production_t) : production_t = match p with
+| Production(ps,(Some(Lexer),_),_) -> p
 | Production(ps,(r,(Some(name),(opts,(cd,ty)))),patl) ->
   let (x,(b,o)) = (List.fold_left (fun (acc,(acc2,acc3)) x -> let (y,(b,o)) = elim_pattern x name in (List.rev_append y acc, ((b||acc2), (match acc3 with None -> o | _ -> acc3)))) ([],(false,None)) patl) in
   Production(ps,(r,(Some(name),(opts,((if b then Some(Code(ps,"List.rev x")) else cd),
@@ -244,6 +245,8 @@ and elim_pattern (pa : pattern_t) (prod_name : symb) : (pattern_t list * (bool*s
 (*| Pattern(p,([QuantAnnotAtom(p2,SingletonAnnotAtom(p3,a),q)],xo)) -> [pa] (*TODO*)*)
 (*| Pattern(p,([QuantAnnotAtom(p2,OptAnnotAtom(p3,a,yo),q)],xo)) ->*)
 | Pattern(p,([QuantAnnotAtom(p2,an,q)],xo)) ->
+  (* we expect an OptAnnotAtom below, so make wrap SingletonAnnotAtom appropriately *)
+  let an = (match an with SingletonAnnotAtom(p,_) -> OptAnnotAtom(p,an,([],(None,None))) | _ -> an) in
   let (xo,right,an2,xo2) = (match an with
   | OptAnnotAtom(p2,a,(opts,(cd,ty))) ->
     let (left,opts) = opt_list_contains opts recur_kw (StringVal(NoPos,"left")) in
@@ -251,7 +254,7 @@ and elim_pattern (pa : pattern_t) (prod_name : symb) : (pattern_t list * (bool*s
     ((match q with PlusQuant(p) -> Some(None,([],(modify_code p cd (fun x -> "["^x^"]") "$1",Some(mk_compound_type p (AnyType(p)) list_kw))))
     | QuestionQuant(p) -> Some(None,([],(Some(Code(p,"None")),Some(mk_compound_type p (AnyType(p)) option_kw))))
     | StarQuant(p) -> Some(None,([],(Some(Code(p,"[]")),Some(mk_compound_type p (AnyType(p)) list_kw))))
-    ), right, OptAnnotAtom(p2,a,(opts,(None,None))),
+    ), right, a,
     (match q with
     | QuestionQuant(p) -> Some(None,([],(modify_code p cd (fun x -> "Some("^x^")") "$1",
     Some(mk_compound_type p (VarType(p,add_symbol (!Flags.type_name^"1"))) option_kw))))
