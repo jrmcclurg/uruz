@@ -490,6 +490,9 @@ and strip_lexer_decl (d : decl_t) (table : (symb,production_t) Hashtbl.t) : decl
 type prod_hashtbl = (symb,production_t * typ_t option) Hashtbl.t
 
 (* TODO XXX - need to handle NoType properly throughout!! *)
+
+(* TODO XXX - make sure to add get_current_position when generating the cast *)
+
 let typecast (inner : bool) (co : code option) (old_types : typ_t list) (new_type : typ_t) : code option =
 let fail p = die_error p ("don't know how to cast type ("^(str_x_list str_typ_t old_types "*")^") to "^(str_typ_t new_type)) in
 match co with
