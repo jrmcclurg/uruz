@@ -344,7 +344,7 @@ SimpleType ->
 
 CompoundType ->
   CompoundType1<:((constr_type_t list) list)@{""^(str_x_list (fun x -> str_x_list str_constr_type_t x "*") s ",")^""}> : CommaType
-| AbstrName "of"<:()@{" of "}> TupleType<:(constr_type_t list)@{str_x_list str_constr_type_t s "*"}>   : AbstrType
+| AbstrName "of"<:()@{""}> TupleType<:(constr_type_t list)@{(if (List.length s)>0 then " of " else "")^(str_x_list str_constr_type_t s "*")}>   : AbstrType
 ;
 
 AbstrName ->
@@ -490,8 +490,18 @@ Newlines -> '\n' <{do_newline lexbuf}:()> : {};
   (ol2,c)
 
   let rec norm_typ (t : typ_t) : typ_t = match t with
+  (* uppercase singleton type goes to abstract data type *)
+  | SimpleType(ps,IdentType(ps2,[name])) ->
+    let str = get_symbol name in
+    let c = String.get str 0 in
+    if (Char.uppercase c)<>c then t else CompoundType(ps,AbstrType(ps,IdentName(ps,name),[]))
   | SimpleType(ps,st) -> t
   | CompoundType(ps,CommaType(ps2,[[SingletonConstrType(ps3,t2)]])) -> t2
-  | CompoundType(ps,_) -> t
+  | CompoundType(ps,CommaType(ps2,cll)) -> CompoundType(ps,CommaType(ps2,List.rev (List.rev_map (fun cl -> List.rev (List.rev_map norm_constr_type cl)) cll)))
+  | CompoundType(ps,AbstrType(ps2,an,cl)) -> CompoundType(ps,AbstrType(ps2,an,List.rev (List.rev_map norm_constr_type cl)))
+
+  and norm_constr_type (ct : constr_type_t) : constr_type_t = match ct with
+  | SingletonConstrType(p,t) -> SingletonConstrType(p,norm_typ t)
+  | InstConstrType(p,ct,sl) -> InstConstrType(p,norm_constr_type ct,sl)
 
 }

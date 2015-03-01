@@ -502,6 +502,7 @@ match (old_types,new_type) with
 | ([SimpleType(p,TokenType(_))],SimpleType(_,TokenType(_)))
 | ([SimpleType(p,UnitType(_))],SimpleType(_,UnitType(_))) -> None
 | ([SimpleType(p,IdentType(_,[kw1]))],SimpleType(_,IdentType(_,[kw2]))) ->
+  if kw1=kw2 then Some(Code(p,if inner then "$1" else !Flags.param_name)) else (* TODO XXX *)
   (try Some(Code(p,(if inner then ("let "^(!Flags.param_name)^" = $1 in ") else "")^(Hashtbl.find Flags.typecast_table (kw1,kw2))^" "^(!Flags.param_name))) with Not_found -> fail p)
 (* TODO XXX ... *)
 | (_,SimpleType(p,_))
@@ -640,9 +641,15 @@ let get_auto_type_name (prod_name : symb) : symb =
 
 let is_auto_type (t : typ_t) (prod_name : symb) : bool =
 match t with
+| CompoundType(_,AbstrType(_)) -> true
 | SimpleType(_,IdentType(_,[kw])) ->
   let str = get_symbol prod_name in
   kw=(add_symbol (str^(!Flags.auto_type_suffix)))
+| _ -> false
+
+let is_no_type (t : typ_t) : bool =
+match t with
+| SimpleType(_,NoType(_)) -> true
 | _ -> false
 
 let rec is_finalized_typ (t : typ_t) : bool =
@@ -695,7 +702,10 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : gramma
       ((Pattern(p,(al2,xo2)))::acc,tys::acc2,tyo2)
     ) ([],[],None) pl) in
     (*let pl2 = List.rev pl2 in*)
-    let (is_auto,ty) = (match ty with None -> (true,SimpleType(p,IdentType(p,[auto_name]))) | Some(t) -> (is_auto_type t name,t)) in
+    let (is_auto,ty) = (match ty with
+    | None -> (true,SimpleType(p,IdentType(p,[auto_name])))
+    | Some(t) -> let b = is_auto_type t name in (b,if b then SimpleType(p,IdentType(p,[auto_name])) else t)) in
+    (*let ty = (match ty with CompoundType(_,AbstrType(_,_,_)) -> SimpleType(p,IdentType(p,[auto_name])) | _ -> ty) in*)
     let (pl2,_) = List.fold_left2 (fun (acc,index) (Pattern(p,(al,xo))) tys ->
       let str = get_symbol name in
       let kw_name = add_symbol (str^"_"^(string_of_int index)) in
@@ -706,7 +716,9 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : gramma
           | Some(kw) -> kw
           | _ -> kw_name
         )),
-        List.rev (List.rev_map (fun t -> SingletonConstrType(p,t)) tys))))
+        (*List.rev (List.rev_map (fun t -> SingletonConstrType(p,t)) tys))))*)
+        List.rev (List.fold_left (fun acc t -> if is_no_type t then acc else SingletonConstrType(p,t)::acc) [] tys)
+        )))
         else ty
       ) in
       let xo2 = (match xo with
