@@ -68,7 +68,6 @@ keyword Foo = "test" ;*/
 //lexer Five = "o" | "t"  ;
 //parser TheTest3 = || "one" | "two" ||| "three" | | | | ~ ;
 //parser Test = "one" @recur:="left" {let x = $1 in something x} @x{foo} + "other" ;
-//lexer Test2 = [A-Z]+ ;
 
 property parameter_name = "x" ;
 property type_name = "t" ;
@@ -82,3 +81,4 @@ parser Last =
 | "three" @recur:="left" {string_of_int x} * # {code} ;
 parser Test4 = "one" :int "two" # :int ;*/
 parser Test = "one"* "two" ;
+lexer Test2 = [A-Z]+ ;

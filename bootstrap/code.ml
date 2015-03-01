@@ -585,7 +585,34 @@ match pr with
 | Production(ps,(rt,(name,(ol,(cd,Some(ty))))),patl) -> (ty,pr) (* TODO XXX *)
 | Production(ps,(rt,(name,(ol,(cd,ty)))),patl) -> (SimpleType(ps,AnyType(ps)),pr)
 
-let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : unit = match g with
+let val_to_atom (v : value_t) : (annot_atom_t*typ_t) =
+match v with
+| StringVal(p,s) -> (SingletonAnnotAtom(p,StringAtom(p,s)),SimpleType(p,IdentType(p,[string_kw])))
+| CharVal(p,c) -> (SingletonAnnotAtom(p,CharsetAtom(p,SingletonCharset(p,c),None)),SimpleType(p,IdentType(p,[string_kw])))
+| BoolVal(p,_) | IntVal(p,_) | CodeVal(p,_) -> die_error p "cannot convert value to atom"
+
+let rec replace_vars_typ_opt (tl : typ_t list) (t : typ_t option) : typ_t option =
+match t with
+| None -> None
+| Some(t) -> Some(replace_vars_typ tl t)
+
+and replace_vars_typ (tl : typ_t list) (t : typ_t) : typ_t =
+match t with
+| (SimpleType(p,VarType(p2,name))) -> 
+  let str = get_symbol name in
+  let len = String.length (!Flags.type_name) in
+  let sn = String.sub str len ((String.length str)-len) in
+  (try List.nth tl ((int_of_string sn)-1) with _ -> die_error p ("invalid type variable: "^str))
+| (CompoundType(p,CommaType(p2,cll))) -> CompoundType(p,CommaType(p2,List.rev (List.rev_map (fun cl -> List.rev (List.rev_map (replace_vars_constr_type tl) cl)) cll)))
+| (CompoundType(p,AbstrType(p2,an,cl))) -> CompoundType(p,AbstrType(p2,an,List.rev (List.rev_map (replace_vars_constr_type tl) cl)))
+| _ -> t
+
+and replace_vars_constr_type (tl : typ_t list) (ct : constr_type_t) : constr_type_t =
+match ct with
+| SingletonConstrType(p,t) -> SingletonConstrType(p,replace_vars_typ tl t)
+| InstConstrType(p,ct,sl) -> InstConstrType(p,replace_vars_constr_type tl ct,sl)
+
+let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : grammar_t = match g with
 | Grammar(pos,(d,dl)) ->
   let prod_table = (Hashtbl.create count : prod_hashtbl) in
   (* set up a map containing all productions *)
@@ -597,15 +624,47 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : unit =
       Printf.printf "adding: %s\n%!" (get_symbol name)
     | _ -> ()
   ) (d::dl);
-  List.iter (fun (name,ps) ->
-    let ((Production(_,(rt,_),pl) as prod),t) = (try Hashtbl.find prod_table name with Not_found -> die_error ps ("could not find production '"^(get_symbol name)^"'")) in
+  Printf.printf "----------------------\n";
+  let prods = List.rev (List.rev_map (fun (name,ps) ->
+    let ((Production(p,(rt,yo),pl) as prod),t) =
+      (try Hashtbl.find prod_table name
+      with Not_found -> die_error ps ("could not find production '"^(get_symbol name)^"'")) in
     let is_lexer = (match rt with (Some(Lexer)) -> true | _ -> false) in
-    Printf.printf "processing:\n--------\n%s\n--------\nunified = %s\nplaceholder = %s\ntype = %s\n\n%!" (str_production_t prod)
-      (str_option str_typ_t (List.fold_left (fun acc (Pattern(_,(_,xo))) -> match xo with Some(name,(opts,(cd,ty))) -> (match (ty,acc) with (Some(ty),Some(ty2)) -> Some(unify_typ ty ty2) | (_,Some(ty2)) -> Some(ty2) | (Some(ty),_) -> Some(ty) | (None,None) -> None) | _ -> acc) None pl))
+    let pl = (if is_lexer then
+      let (a,ty) = val_to_atom (get_placeholder_value_production prod) in
+      [Pattern(p,([a],Some(None,([],(None,Some(ty))))))] else pl) in
+    let (pl2,ty) = (List.fold_left (fun (acc,tyo) (Pattern(p,(al,xo)) as pat) ->
+      let temp = (List.rev_map (fun a -> (infer_type_annot_atom a prod_table)) al) in
+      let (al2,tys) = List.fold_left (fun (acc1,acc2) (ty,a) -> ((a::acc1),(ty::acc2))) ([],[]) temp in
+      let (tyo2,xo2) = (match xo with
+      | Some(name,(opts,(cd,ty))) -> let ty = replace_vars_typ_opt tys ty in (
+        (match (ty,tyo) with
+        | (Some(ty),Some(ty2)) -> Some(unify_typ ty ty2)
+        | (_,Some(ty2)) -> Some(ty2)
+        | (Some(ty),_) -> Some(ty)
+        | (None,None) -> None
+      ),Some(name,(opts,(cd,ty))))
+      | _ -> (tyo,xo)) in
+      ((Pattern(p,(al2,xo2)))::acc,tyo2)
+    ) ([],None) pl) in
+    let pl2 = List.rev pl2 in
+    Printf.printf "processing:\n---------\n%s\n--------\nunified = %s\n\n%!"
+      (str_production_t prod)
+      (str_option str_typ_t ty)
+      ;
+    (*Printf.printf "processing:\n--------\n%s\n--------\nunified = %s\nplaceholder = %s\ntype = %s\n\n%!"
+      (str_production_t prod)
+      (str_option str_typ_t (List.fold_left (fun acc (Pattern(_,(_,xo))) ->
+      match xo with Some(name,(opts,(cd,ty))) -> (match (ty,acc) with (Some(ty),Some(ty2)) -> Some(unify_typ ty ty2) | (_,Some(ty2)) -> Some(ty2) | (Some(ty),_) -> Some(ty) | (None,None) -> None) | _ -> acc
+      ) None pl))
       (match rt with (Some(Lexer)) -> (str_value_t (get_placeholder_value_production prod)) | _ -> "[not lexer]")
       (str_x_list (fun (Pattern(_,(al,xo))) -> str_x_list (fun (ty,a) -> "{"^(str_annot_atom_t a)^" => "^(str_typ_t ty)^"}")
       (List.map (fun x -> (if (not is_lexer) then infer_type_annot_atom x prod_table
-      else (SimpleType(NoPos,NoType(NoPos)),x))) al) ", ") pl "; ")
-  ) comps
+      else (SimpleType(NoPos,NoType(NoPos)),x))) al) ", ") pl "; ")*)
+    ProdDecl(p,Production(p,(rt,yo),pl2))
+  ) comps) in
+  let l = (List.filter (fun x -> match x with ProdDecl(_,_) -> false | _ -> true) (d::dl)) in
+  let l = List.rev_append (List.rev l) prods in
+  Grammar(pos,(List.hd l, List.tl l))
   (* TODO XXX *)
 

@@ -24,5 +24,6 @@ Printf.printf "\n\n***********************************\n\n%!";
 Printf.printf "\n\ncomps = %s\n%!" (str_x_list (fun (x,_) -> get_symbol x) comps ", ");
 print_newline();
 Printf.printf "\n\n***********************************\n\n%!";
-typecheck result comps count;
+let result = typecheck result comps count in
+Bootstrap_ast.print_grammar_t result;
 exit 0)
