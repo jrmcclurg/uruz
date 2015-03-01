@@ -489,7 +489,16 @@ and strip_lexer_decl (d : decl_t) (table : (symb,production_t) Hashtbl.t) : decl
 
 type prod_hashtbl = (symb,production_t * typ_t option) Hashtbl.t
 
-let typecast (old_type : typ_t) (new_type : typ_t) : code = EmptyCode(NoPos) (* TODO XXX *)
+let typecast (co : code option) (old_types : typ_t list) (new_type : typ_t) : code option =
+match co with
+| Some(_) -> co
+| None -> (
+match (old_types,new_type) with
+| ([SimpleType(p,_)],SimpleType(_,_)) -> Some(Code(p,"xxx"))
+| (_,SimpleType(p,_))
+| (_,CompoundType(p,_)) ->
+  die_error NoPos ("don't know how to cast type ("^(str_x_list str_typ_t old_types "*")^") to "^(str_typ_t new_type))
+)
 
 let rec unify_typ (old_type : typ_t) (new_type : typ_t) (auto_name : symb) : typ_t =
 let fail p = die_error p (Printf.sprintf "could not unify type %s with %s" (str_typ_t old_type) (str_typ_t new_type)) in
@@ -678,13 +687,12 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : gramma
       ((Pattern(p,(al2,xo2)))::acc,tys::acc2,tyo2)
     ) ([],[],None) pl) in
     (*let pl2 = List.rev pl2 in*)
-    let (is_auto,ty) = (match ty with None -> (true,Some(SimpleType(p,IdentType(p,[auto_name])))) | Some(t) -> (is_auto_type t name,ty)) in
+    let (is_auto,ty) = (match ty with None -> (true,SimpleType(p,IdentType(p,[auto_name]))) | Some(t) -> (is_auto_type t name,t)) in
     let (pl2,_) = List.fold_left2 (fun (acc,index) (Pattern(p,(al,xo)) as pa) tys ->
-      (* TODO XXX - do cast *)
       let str = get_symbol name in
       let kw_name = add_symbol (str^"_"^(string_of_int index)) in
       let mk_ty nm = (if is_auto then
-        Some(CompoundType(p,AbstrType(p,
+        (CompoundType(p,AbstrType(p,
         IdentName(p,(
           match nm with
           | Some(kw) -> kw
@@ -695,15 +703,18 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : gramma
       ) in
       let xo2 = (match xo with
       | Some(name,(opts,(cd,Some(CompoundType(_,AbstrType(_,_,_)) as ct)))) ->
-        Some((match name with None -> Some(kw_name) | _ -> name),(opts,(cd,Some(ct))))
+        Some((match name with None -> Some(kw_name) | _ -> name),(opts,(typecast cd tys ct,Some(ct))))
       | Some(name,(opts,(cd,_))) ->
-        Some((match name with None -> Some(kw_name) | _ -> name),(opts,(cd,mk_ty name)))
-      | None -> Some(Some(kw_name),([],(None,mk_ty None)))) in
+        let new_ty = mk_ty name in
+        Some((match name with None -> Some(kw_name) | _ -> name),(opts,(typecast cd tys new_ty,Some(new_ty))))
+      | None ->
+        let new_ty = mk_ty None in
+        Some(Some(kw_name),([],(typecast None tys new_ty,Some(new_ty))))) in
       (((Pattern(p,(al,xo2)))::acc),index-1)
     ) ([],(List.length pl2)-1) pl2 types in
     Printf.printf "processing:\n---------\n%s\n--------\nunified = %s\nauto name = %s\nis auto = %b\n\n%!"
       (str_production_t prod)
-      (str_option str_typ_t ty)
+      (str_typ_t ty)
       (get_symbol auto_name)
       is_auto
       ;
@@ -717,11 +728,12 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : gramma
       (List.map (fun x -> (if (not is_lexer) then infer_type_annot_atom x prod_table
       else (SimpleType(NoPos,NoType(NoPos)),x))) al) ", ") pl "; ")*)
     (* compute the overall type of the production *)
-    (* vvvv TODO XXX - also need to insert the cast if needed!! *)
-    let ty1 = (match (ty1,ty) with (None,_) -> ty | (_,None) -> ty1 | (Some(ty1),Some(ty2)) -> if is_finalized_typ ty1 then Some(ty1) else Some(unify_typ ty1 ty2 auto_name)) in
-    let result = Production(p,(rt,(name1,(ol1,(cd1,ty1)))),pl2) in
+    let ty1 = (match (ty1,ty) with
+    | (None,_) -> ty
+    | (Some(ty1),ty2) -> if is_finalized_typ ty1 then (ty1) else (unify_typ ty1 ty2 auto_name)) in
+    let result = Production(p,(rt,(name1,(ol1,(typecast cd1 [ty] ty1,Some(ty1))))),pl2) in
     (* add production type to the table *)
-    Hashtbl.replace prod_table name (result,ty1);
+    Hashtbl.replace prod_table name (result,Some(ty1));
     ProdDecl(p,result)
   ) comps) in
   let l = (List.filter (fun x -> match x with ProdDecl(_,_) -> false | _ -> true) (d::dl)) in

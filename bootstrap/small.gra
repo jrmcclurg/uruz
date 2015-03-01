@@ -87,3 +87,8 @@ parser Test4 =
 | "one" # :(int * (_ * bool) * string)
 | "two" # :(int * (Hashtbl.t * bool) * string)
 ;
+parser Test5 :string =
+| "one" :int
+| "two" :int
+| "three" :int
+;
