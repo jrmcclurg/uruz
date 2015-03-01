@@ -270,7 +270,7 @@ and elim_pattern (pa : pattern_t) (prod_name : symb) : (pattern_t list * (bool*s
     (match q with QuestionQuant(p) -> [an2] | _ -> [SingletonAnnotAtom(p,IdentAtom(p,prod_name));an2]),xo2))],
     (match q with QuestionQuant(_) -> (false,Some(option_kw)) | _ -> ((not right),Some(list_kw))))
 | Pattern(p,([OptAnnotAtom(p2,a,(opts,(None,None)))],None)) ->
-  ([Pattern(p,([OptAnnotAtom(p2,a,(opts,(None,None)))],None))], (false,None))
+  ([Pattern(p,((if opts=[] then [a] else [OptAnnotAtom(p2,a,(opts,(None,None)))]),None))], (false,None))
 | Pattern(p,([OptAnnotAtom(p2,a,(opts,(cd,ty)))],None)) ->
   ([Pattern(p,([OptAnnotAtom(p2,a,(opts,(None,None)))],Some(None,([],(cd,ty)))))], (false,None))
 (*| Pattern(p,([OptAnnotAtom(p2,a,(opts1,(cd,ty)))],Some(name,(opts2,(None,None))))) ->
@@ -557,7 +557,7 @@ match a with
   let t = SimpleType(p2,IdentType(p2,[string_kw])) in
   (t,OptAnnotAtom(p,a,([],(None,Some(t)))))
 | OptAnnotAtom(p,a,(ol,(None,None))) ->
-  let (t,a2) = infer_type_annot_atom a prod_table in (t,OptAnnotAtom(p,a2,([],(None,Some(t)))))
+  infer_type_annot_atom a prod_table
 | SingletonAnnotAtom(p,ProdAtom(_,_))
 | OptAnnotAtom(p,_,_)
 | QuantAnnotAtom(p,_,_) -> die_error p "atom was not flattened properly"

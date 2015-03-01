@@ -81,4 +81,5 @@ parser Last =
 | "three" @recur:="left" {string_of_int x} * # {code} ;
 parser Test4 = "one" :int "two" # :int ;*/
 parser Test = "one"* "two" ;
-lexer Test2 = [A-Z]+ ;
+//lexer Test2 = [A-Z]+ ;
+parser Test3 = "one" | "two" :int | "three" ;
