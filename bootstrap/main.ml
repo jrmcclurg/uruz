@@ -7,6 +7,7 @@ let () = (
 let i = parse_command_line () in
 (* parse the input file *)
 let result = get_ast i in
+Flags.init_tables ();
 (* set defaults based on the poperties in input file *)
 let (result,count) = handle_props result in
 let (result,code_table) = collect_named_code result count in

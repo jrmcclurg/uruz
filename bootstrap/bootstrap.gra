@@ -98,6 +98,8 @@
     result
 
   let char_kw = add_symbol "char"
+  let int_kw = add_symbol "int"
+  let bool_kw = add_symbol "bool"
   let string_kw = add_symbol "string"
   let option_kw = add_symbol "option"
   let list_kw = add_symbol "list"

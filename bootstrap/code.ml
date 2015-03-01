@@ -489,15 +489,20 @@ and strip_lexer_decl (d : decl_t) (table : (symb,production_t) Hashtbl.t) : decl
 
 type prod_hashtbl = (symb,production_t * typ_t option) Hashtbl.t
 
-let typecast (co : code option) (old_types : typ_t list) (new_type : typ_t) : code option =
+(* TODO XXX - need to handle NoType properly throughout!! *)
+let typecast (inner : bool) (co : code option) (old_types : typ_t list) (new_type : typ_t) : code option =
+let fail p = die_error p ("don't know how to cast type ("^(str_x_list str_typ_t old_types "*")^") to "^(str_typ_t new_type)) in
 match co with
 | Some(_) -> co
 | None -> (
 match (old_types,new_type) with
-| ([SimpleType(p,_)],SimpleType(_,_)) -> Some(Code(p,"xxx"))
+| ([SimpleType(p,TokenType(_))],SimpleType(_,TokenType(_)))
+| ([SimpleType(p,UnitType(_))],SimpleType(_,UnitType(_))) -> None
+| ([SimpleType(p,IdentType(_,[kw1]))],SimpleType(_,IdentType(_,[kw2]))) ->
+  (try Some(Code(p,(if inner then ("let "^(!Flags.param_name)^" = $1 in ") else "")^(Hashtbl.find Flags.typecast_table (kw1,kw2))^" "^(!Flags.param_name))) with Not_found -> fail p)
+(* TODO XXX ... *)
 | (_,SimpleType(p,_))
-| (_,CompoundType(p,_)) ->
-  die_error NoPos ("don't know how to cast type ("^(str_x_list str_typ_t old_types "*")^") to "^(str_typ_t new_type))
+| (_,CompoundType(p,_)) -> fail p
 )
 
 let rec unify_typ (old_type : typ_t) (new_type : typ_t) (auto_name : symb) : typ_t =
@@ -672,7 +677,7 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : gramma
     let pl = (if is_lexer then
       let (a,ty) = val_to_atom (get_placeholder_value_production prod) in
       [Pattern(p,([a],Some(None,([],(None,Some(ty))))))] else pl) in
-    let (pl2,types,ty) = (List.fold_left (fun (acc,acc2,tyo) (Pattern(p,(al,xo)) as pat) ->
+    let (pl2,types,ty) = (List.fold_left (fun (acc,acc2,tyo) (Pattern(p,(al,xo))) ->
       let temp = (List.rev_map (fun a -> (infer_type_annot_atom a prod_table)) al) in
       let (al2,tys) = List.fold_left (fun (acc1,acc2) (ty,a) -> ((a::acc1),(ty::acc2))) ([],[]) temp in
       let (tyo2,xo2) = (match xo with
@@ -688,7 +693,7 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : gramma
     ) ([],[],None) pl) in
     (*let pl2 = List.rev pl2 in*)
     let (is_auto,ty) = (match ty with None -> (true,SimpleType(p,IdentType(p,[auto_name]))) | Some(t) -> (is_auto_type t name,t)) in
-    let (pl2,_) = List.fold_left2 (fun (acc,index) (Pattern(p,(al,xo)) as pa) tys ->
+    let (pl2,_) = List.fold_left2 (fun (acc,index) (Pattern(p,(al,xo))) tys ->
       let str = get_symbol name in
       let kw_name = add_symbol (str^"_"^(string_of_int index)) in
       let mk_ty nm = (if is_auto then
@@ -703,13 +708,13 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : gramma
       ) in
       let xo2 = (match xo with
       | Some(name,(opts,(cd,Some(CompoundType(_,AbstrType(_,_,_)) as ct)))) ->
-        Some((match name with None -> Some(kw_name) | _ -> name),(opts,(typecast cd tys ct,Some(ct))))
+        Some((match name with None -> Some(kw_name) | _ -> name),(opts,(typecast true cd tys ct,Some(ct))))
       | Some(name,(opts,(cd,_))) ->
         let new_ty = mk_ty name in
-        Some((match name with None -> Some(kw_name) | _ -> name),(opts,(typecast cd tys new_ty,Some(new_ty))))
+        Some((match name with None -> Some(kw_name) | _ -> name),(opts,(typecast true cd tys new_ty,Some(new_ty))))
       | None ->
         let new_ty = mk_ty None in
-        Some(Some(kw_name),([],(typecast None tys new_ty,Some(new_ty))))) in
+        Some(Some(kw_name),([],(typecast true None tys new_ty,Some(new_ty))))) in
       (((Pattern(p,(al,xo2)))::acc),index-1)
     ) ([],(List.length pl2)-1) pl2 types in
     Printf.printf "processing:\n---------\n%s\n--------\nunified = %s\nauto name = %s\nis auto = %b\n\n%!"
@@ -731,7 +736,7 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : gramma
     let ty1 = (match (ty1,ty) with
     | (None,_) -> ty
     | (Some(ty1),ty2) -> if is_finalized_typ ty1 then (ty1) else (unify_typ ty1 ty2 auto_name)) in
-    let result = Production(p,(rt,(name1,(ol1,(typecast cd1 [ty] ty1,Some(ty1))))),pl2) in
+    let result = Production(p,(rt,(name1,(ol1,(typecast false cd1 [ty] ty1,Some(ty1))))),pl2) in
     (* add production type to the table *)
     Hashtbl.replace prod_table name (result,Some(ty1));
     ProdDecl(p,result)
@@ -739,5 +744,3 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : gramma
   let l = (List.filter (fun x -> match x with ProdDecl(_,_) -> false | _ -> true) (d::dl)) in
   let l = List.rev_append (List.rev l) prods in
   Grammar(pos,(List.hd l, List.tl l))
-  (* TODO XXX *)
-

@@ -79,14 +79,14 @@ parser Last =
 | "one" {cd} :type1 
 | "two" {code}
 | "three" @recur:="left" {string_of_int x} * # {code} ;
-parser Test4 = "one" :int "two" # :int ;*/
-parser Test = "one"* "two" ;
 //lexer Test2 = [A-Z]+ ;
+/*parser Test4 = "one" :int "two" # :int ;*/
+parser Test = "one"* "two" ;
 parser Test3 = "one"* # | "two" :(Foobar of int * string) | "three" "four" # :(Baz of foo) ;
 parser Test4 =
 | "one" # :(int * (_ * bool) * string)
 | "two" # :(int * (Hashtbl.t * bool) * string)
-;
+;*/
 parser Test5 :string =
 | "one" :int
 | "two" :int

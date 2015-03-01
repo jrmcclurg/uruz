@@ -14,6 +14,12 @@ let param_name = ref "x"
 let type_name = ref "t"
 let auto_type_suffix = ref "_t"
 
+let typecast_table = Hashtbl.create 100
+
+let init_tables () =
+Hashtbl.replace typecast_table (string_kw,int_kw) "int_of_string";
+Hashtbl.replace typecast_table (int_kw,string_kw) "string_of_int"
+
 let get_def_prod_name (name : symb option) (nesting : int list) =
   add_symbol ((match name with None -> !def_prod_name | Some(s) -> get_symbol s)^(List.fold_left (fun str n -> "_"^(string_of_int n)^str) "" nesting))
 let get_def_prod_type (t : rule_type option) = match t with None -> !def_prod_type | Some(s) -> s
