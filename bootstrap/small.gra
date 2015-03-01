@@ -92,5 +92,12 @@ parser Test5 :_ =
 | "one" ~ "two" # {f} :Foobar // (string*string)
 | "one" # {foobar}
 | "two" # {foo}
-| "three" # {foo}
+| "three" Four # {foo}
+;
+
+parser Four :string = "string" # :string ;
+
+parser Recur =
+| ~ # {}
+| Recur "one" # {}
 ;

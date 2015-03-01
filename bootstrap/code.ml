@@ -491,6 +491,8 @@ type prod_hashtbl = (symb,production_t * typ_t option) Hashtbl.t
 
 (* TODO XXX - need to handle NoType properly throughout!! *)
 
+(* TODO XXX - should probably check to make sure all computed types have no AnyType *)
+
 (* TODO XXX - make sure to add get_current_position when generating the cast *)
 
 let typecast (inner : bool) (co : code option) (old_types : typ_t list) (new_type : typ_t) : code option =
@@ -557,7 +559,7 @@ match (an1,an2) with
 | (IdentName(p,s1),IdentName(p2,s2)) ->
   if s1=s2 then an1 else fail p
 
-let rec infer_type_annot_atom (a : annot_atom_t) (prod_table : prod_hashtbl) : (typ_t*annot_atom_t) =
+let rec infer_type_annot_atom (a : annot_atom_t) (prod_table : prod_hashtbl) (auto_name : symb) : (typ_t*annot_atom_t) =
 match a with
 | SingletonAnnotAtom(p,EmptyAtom(p2)) ->
   let t = SimpleType(p2,NoType(p2)) in (t,OptAnnotAtom(p,a,([],(None,Some(t)))))
@@ -569,7 +571,7 @@ match a with
   let typo = (try let (_,x) = Hashtbl.find prod_table name in x with Not_found ->
     die_error p2 ("wasn't able to typecheck production: "^(get_symbol name))
   ) in
-  let t = (match typo with None -> SimpleType(p2,AnyType(p2)) | Some(t) -> t) in
+  let t = (match typo with None -> SimpleType(p2,IdentType(p2,[auto_name])) | Some(t) -> t) in
   (t,OptAnnotAtom(p,a,([],(None,Some(t)))))
 | SingletonAnnotAtom(p,CharsetAtom(p2,cs,cso)) ->
   let t = SimpleType(p2,IdentType(p2,[string_kw])) in
@@ -578,7 +580,7 @@ match a with
   let t = SimpleType(p2,IdentType(p2,[string_kw])) in
   (t,OptAnnotAtom(p,a,([],(None,Some(t)))))
 | OptAnnotAtom(p,a,(ol,(None,None))) ->
-  infer_type_annot_atom a prod_table
+  infer_type_annot_atom a prod_table auto_name
 | SingletonAnnotAtom(p,ProdAtom(_,_))
 | OptAnnotAtom(p,_,_)
 | QuantAnnotAtom(p,_,_) -> die_error p "atom was not flattened properly"
@@ -688,7 +690,7 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : gramma
       let (a,ty) = val_to_atom (get_placeholder_value_production prod) in
       [Pattern(p,([a],Some(None,([],(None,Some(ty))))))] else pl) in
     let (pl2,types,ty) = (List.fold_left (fun (acc,acc2,tyo) (Pattern(p,(al,xo))) ->
-      let temp = (List.rev_map (fun a -> (infer_type_annot_atom a prod_table)) al) in
+      let temp = (List.rev_map (fun a -> (infer_type_annot_atom a prod_table auto_name)) al) in
       let (al2,tys) = List.fold_left (fun (acc1,acc2) (ty,a) -> ((a::acc1),(ty::acc2))) ([],[]) temp in
       let (tyo2,xo2) = (match xo with
       | Some(name,(opts,(cd,ty))) -> let ty = replace_vars_typ_opt tys ty in (
