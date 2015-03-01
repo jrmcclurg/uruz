@@ -12,6 +12,7 @@ let def_prod_index = ref 0
 
 let param_name = ref "x"
 let type_name = ref "t"
+let auto_type_suffix = ref "_t"
 
 let get_def_prod_name (name : symb option) (nesting : int list) =
   add_symbol ((match name with None -> !def_prod_name | Some(s) -> get_symbol s)^(List.fold_left (fun str n -> "_"^(string_of_int n)^str) "" nesting))
