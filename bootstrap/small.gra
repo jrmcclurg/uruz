@@ -88,13 +88,17 @@ parser Test4 =
 | "two" # :(int * (Hashtbl.t * bool) * string)
 ;*/
 parser Test5 :_ =
-| ~ # {}
-| "one" ~ "two" # {} :Foobar // (string*string)
+| test : _ foo : _
+| [a-z] : _
+| ~ {""} :string # 
+| "one" ~ "two" #  :(Foobar of int*int) // (string*string)
 | "one" # {foobar} :(_ of (Baz of test))
 | "two" "three" # 
 // | "two" # 
 | "three" Four #
 ;
+
+parser test @prec:=12345 = "one" :(Baz of 't1) | "three" :(_ of string) ; parser foo = "two" ;
 
 parser Four :string = "string" # :string ;
 parser Six = "string" # :() ;
