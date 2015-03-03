@@ -79,7 +79,6 @@ parser Last =
 | "one" {cd} :type1 
 | "two" {code}
 | "three" @recur:="left" {string_of_int x} * # {code} ;
-//lexer Test2 = [A-Z]+ ;
 /*parser Test4 = "one" :int "two" # :int ;*/
 parser Test = "one"* "two" ;
 parser Test3 = "one"* # | "two" :(Foobar of int * string) | "three" "four" # :(Baz of foo) ;
@@ -98,7 +97,7 @@ parser Test5 :_ =
 | "three" Four #
 ;
 
-parser test @prec:=12345 = "one" :(Baz of 't1) | "three" :(_ of string) ; parser foo = "two" ;
+parser test @prec:=12345 = "one" :(Baz of 't1) | "three" :(((_ of string))) ; parser foo = "two" ;
 
 parser Four :string = "string" # :string ;
 parser Six = "string" # :() ;
@@ -111,5 +110,11 @@ parser Recur =
 ;
 
 parser final =
-| ~{123}:int ~{"test"}:string ~{true}:bool
+| ~{123}:int ~{"test"}:string ~{true}:bool TestLex TestParse TestParse2 TestParse3 TestParse4
 ;
+
+lexer TestLex = [A-Z] ; // TODO XXX - why is this overall production getting type "string"
+parser TestParse = [A-Z]:char | 'x':char ; // TODO XXX - this production is getting type "char"
+parser TestParse2 = [A-Z] | 'x' ;
+parser TestParse3 = [A-Z] 'x' | 'x' 'y' ;
+parser TestParse4 = [A-Z] # :char | 'x' # :char ;
