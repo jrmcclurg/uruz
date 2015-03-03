@@ -89,15 +89,19 @@ parser Test4 =
 ;*/
 parser Test5 :_ =
 | ~ # {}
-| "one" ~ "two" # {f} :Foobar // (string*string)
-| "one" # {foobar}
-| "two" # {foo}
-| "three" Four # {foo}
+| "one" ~ "two" # {} :Foobar // (string*string)
+| "one" # {foobar} :(_ of (Baz of test))
+| "two" "three" # 
+// | "two" # 
+| "three" Four #
 ;
 
 parser Four :string = "string" # :string ;
+parser Six = "string" # :() ;
+
+parser Five :(string list) = "string":(char list) # :(((string list))) ;
 
 parser Recur =
-| ~ # {}
-| Recur "one" # {}
+| ~
+| Recur "one" 
 ;

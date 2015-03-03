@@ -2,9 +2,22 @@
 (* TODO XXX - emit normalize_ and get_pos_ functions *)
 (* TODO XXX - maybe disallow "_" in identifiers *)
 
+(* TODO XXX
+
+let explode s = List.rev (List.rev_map (fun s -> String.get s 0) (Str.split (Str.regexp "") s)) in
+let x = explode "this is a test" in
+Printf.printf "x = %s\n" (str_x_list (fun x -> String.make 1 x) x ", ");
+let implode l = let str = String.create (List.length l) in let _ = List.fold_left (fun index c -> str.[index] <- c; index+1) 0 l in str in
+let y = implode x in
+Printf.printf "y = '%s'\n" y;
+
+*)
+
 open Bootstrap_ast
 open Bootstrap_utils
 open Flags
+
+let rec range (a:int) (b:int) : int list = if (a > b) then [] else (a::(range (a+1) b))
 
 let rev_flatten (l : 'a list list) : 'a list =
   List.fold_left (fun acc l2 ->
@@ -495,21 +508,114 @@ type prod_hashtbl = (symb,production_t * typ_t option) Hashtbl.t
 
 (* TODO XXX - make sure to add get_current_position when generating the cast *)
 
-let typecast (inner : bool) (co : code option) (old_types : typ_t list) (new_type : typ_t) : code option =
-let fail p = die_error p ("don't know how to cast type ("^(str_x_list str_typ_t old_types "*")^") to "^(str_typ_t new_type)) in
-match co with
-| Some(_) -> co
-| None -> (
-match (old_types,new_type) with
-| ([SimpleType(p,TokenType(_))],SimpleType(_,TokenType(_)))
-| ([SimpleType(p,UnitType(_))],SimpleType(_,UnitType(_))) -> None
-| ([SimpleType(p,IdentType(_,[kw1]))],SimpleType(_,IdentType(_,[kw2]))) ->
-  if kw1=kw2 then Some(Code(p,if inner then "$1" else !Flags.param_name)) else (* TODO XXX *)
-  (try Some(Code(p,(if inner then ("let "^(!Flags.param_name)^" = $1 in ") else "")^(Hashtbl.find Flags.typecast_table (kw1,kw2))^" "^(!Flags.param_name))) with Not_found -> fail p)
-(* TODO XXX ... *)
-| (_,SimpleType(p,_))
-| (_,CompoundType(p,_)) -> fail p
-)
+let str_code_plain (c : code) =
+match c with
+| EmptyCode(_) -> ""
+| Code(_,s) -> s
+
+exception IncompatibleLists of pos_t
+
+let rec typecast (cd : code option) (old_types : typ_t list) (new_type : typ_t) : code option =
+match (cd,new_type) with
+| (Some(_),_) -> cd
+| (None,SimpleType(p,_))
+| (None,CompoundType(p,_)) ->
+  let old_t2 = (match old_types with
+  | [] -> die_error p "unexpected empty pattern"
+  | [t] -> t
+  | _ -> (CompoundType(p,CommaType(p,[List.rev (List.rev_map (fun x -> SingletonConstrType(p,x)) old_types)])))
+  ) in
+  Some(typecast_typ !Flags.param_name old_t2 new_type)
+
+and typecast_constr (arg : string) (old_type : constr_type_t) (new_type : constr_type_t) : code =
+let fail p = die_error p ("don't know how to cast type "^(str_constr_type_t old_type)^" to "^(str_constr_type_t new_type)) in
+  match (old_type,new_type) with
+  | (SingletonConstrType(p,t1),SingletonConstrType(_,t2)) -> typecast_typ arg t1 t2
+  | (SingletonConstrType(p,t1),ct2) -> typecast_typ arg t1 (CompoundType(p,CommaType(p,[[ct2]])))
+  | (ct1,SingletonConstrType(p,t2)) -> typecast_typ arg (CompoundType(p,CommaType(p,[[ct1]]))) t2
+  | (InstConstrType(p,ct1,[]),InstConstrType(_,ct2,[])) ->
+    typecast_constr arg ct1 ct2
+  | (InstConstrType(p,ct1,[]),InstConstrType(_,_,l2)) ->
+    typecast_constr arg ct1 new_type
+  | (InstConstrType(p,_,l1),InstConstrType(_,ct2,[])) ->
+    typecast_constr arg old_type ct2
+  | (InstConstrType(p1,ct1,l1),InstConstrType(p2,ct2,l2)) ->
+    let (kw1,kw2,l1,l2) = (match (List.rev l1, List.rev l2) with
+    | (kw1::l1, kw2::l2) -> (kw1,kw2,List.rev l1,List.rev l2)
+    | _ -> die_error p1 "unexpected match failure"
+    ) in
+    if kw1<>kw2 then fail p1
+    else (
+      let c = typecast_constr arg (InstConstrType(p1,ct1,l1)) (InstConstrType(p2,ct2,l2)) in
+      if kw1=list_kw then Code(p1,"(List.rev (List.rev_map (fun "^arg^" -> "^(str_code_plain c)^") "^arg^"))")
+      else Code(p1,"foobarx")
+    )
+
+and typecast_lists (arg : string) (p : pos_t) (index : int) (old_types : constr_type_t list) (new_types : constr_type_t list) : code list =
+  match (old_types,new_types) with
+  | ([],[]) -> []
+  | ((SingletonConstrType(_,SimpleType(_,NoType(_))))::more,_) -> typecast_lists arg p (index+1) more new_types
+  | (_,(SingletonConstrType(_,SimpleType(_,NoType(_))))::more) -> typecast_lists arg p index old_types more
+  | ((SingletonConstrType(_,SimpleType(_,IdentType(_,[kw1]))) as o)::more1,(SingletonConstrType(_,SimpleType(_,IdentType(_,[kw2]))) as n)::more2) when kw1=kw2 ->
+      (typecast_constr (arg^"_"^(string_of_int index)) o n)::(typecast_lists arg p (index+1) more1 more2)
+  | (o::more1,(SingletonConstrType(_,SimpleType(_,IdentType(_,[kw2]))) as n)::more2) when kw2= !Flags.pos_type_name ->
+      (* handle the pos_t appropriately *)
+      (Code(p,"get_current_pos ()"))::(typecast_lists arg p index old_types more2)
+  | (o::more1,n::more2) -> (
+      (typecast_constr (arg^"_"^(string_of_int index)) o n)::(typecast_lists arg p (index+1) more1 more2)
+  )
+  | ([],SingletonConstrType(p,_)::_)
+  | ([],InstConstrType(p,_,_)::_)
+  | (SingletonConstrType(p,_)::_,[])
+  | (InstConstrType(p,_,_)::_,[]) -> raise (IncompatibleLists(p))
+
+and typecast_typ (arg : string) (old_type : typ_t) (new_type : typ_t) : code =
+let fail p b = die_error p ("don't know how to cast type "^(str_typ_t old_type)^" to "^(str_typ_t new_type)^(if b then ": mismatching argument count" else "")) in
+match (old_type,new_type) with
+| (_,CompoundType(_,CommaType(_,[[SingletonConstrType(_,t2)]]))) ->
+  typecast_typ arg old_type t2
+| (CompoundType(p,CommaType(_,[[SingletonConstrType(_,t1)]])),_) ->
+  typecast_typ arg t1 new_type
+| (SimpleType(p,TokenType(_)),SimpleType(_,TokenType(_)))
+| (SimpleType(p,UnitType(_)),SimpleType(_,UnitType(_))) -> Code(p,arg)
+| (SimpleType(p,IdentType(_,[kw1])),SimpleType(_,IdentType(_,[kw2]))) ->
+  if kw1=kw2 then Code(p,arg)(*Some(Code(p,if inner then "$1" else !Flags.param_name))*)
+  else (try (Code(p,(Hashtbl.find Flags.typecast_table (kw1,kw2))^" "^arg)) with Not_found -> fail p false)
+(* char list => string *)
+| (CompoundType(_,CommaType(_,[[InstConstrType(_,SingletonConstrType(_,SimpleType(_,IdentType(_,[kw1]))),[kw2])]])),SimpleType(p,IdentType(_,[kw])))
+    when kw=string_kw && kw1=char_kw && kw2=list_kw ->
+    (Code(p,"(str_implode "^arg^")"))
+(* string => char list *)
+| (SimpleType(p,IdentType(_,[kw])),CompoundType(_,CommaType(_,[[InstConstrType(_,SingletonConstrType(_,SimpleType(_,IdentType(_,[kw1]))),[kw2])]])))
+    when kw=string_kw && kw1=char_kw && kw2=list_kw ->
+    (Code(p,"(str_explode "^arg^")"))
+| (CompoundType(p,CommaType(_,[l1])),CompoundType(_,CommaType(_,[l2]))) ->
+  let x = (try typecast_lists arg p 1 l1 l2 with IncompatibleLists(p) -> fail p true) in
+  Code(p,Printf.sprintf "(let (%s) = %s in (%s))"
+    (str_x_list (fun x -> arg^"_"^(string_of_int x)) (range 1 (List.length x)) ",")
+    arg
+    (str_x_list str_code_plain x ",")
+  )
+  (*Some(Code(p,Printf.sprintf "%d -> %d" (List.length l1) (List.length l2)))*)
+(* TODO XXX - vvvvv make sure these must have IdentName *)
+| (CompoundType(p,CommaType(_,[l1])),CompoundType(_,AbstrType(_,IdentName(_,name),l2))) ->
+  let x = (try typecast_lists arg p 1 l1 l2 with IncompatibleLists(p) -> fail p true) in
+  Code(p,Printf.sprintf "(let (%s) = %s in %s(%s))"
+    (str_x_list (fun x -> arg^"_"^(string_of_int x)) (range 1 (List.length x)) ",")
+    arg
+    (get_symbol name)
+    (str_x_list str_code_plain x ",")
+  )
+| (CompoundType(p,AbstrType(_,_,l1)),CompoundType(_,AbstrType(_,_,l2))) ->
+  let x = (try typecast_lists arg p 1 l1 l2 with IncompatibleLists(p) -> fail p true) in
+  Code(p,"zzz") (* TODO XXX *)
+  (*Some(Code(p,Printf.sprintf "%d -> %d" (List.length l1) (List.length l2)))*)
+| (CompoundType(p,AbstrType(_,_,l1)),CompoundType(_,CommaType(_,[l2]))) ->
+  let x = (try typecast_lists arg p 1 l1 l2 with IncompatibleLists(p) -> fail p true) in
+  Code(p,"zzz") (* TODO XXX *)
+| (_,SimpleType(p,UnitType(_))) -> (Code(p,"()"))
+| (CompoundType(p,_),_)
+| (SimpleType(p,_),_) -> fail p false
 
 let rec unify_typ (old_type : typ_t) (new_type : typ_t) (auto_name : symb) : typ_t =
 let fail p = die_error p (Printf.sprintf "could not unify type %s with %s" (str_typ_t old_type) (str_typ_t new_type)) in
@@ -637,16 +743,15 @@ match ct with
 
 let get_auto_type_name (prod_name : symb) : symb =
   let str = get_symbol prod_name in
-  (*let c = String.get str 0 in*)
-  let str = str(*(if (Char.lowercase c)<>c then ("_"^str) else str)*)^(!Flags.auto_type_suffix) in
+  let c = String.get str 0 in
+  let str = (if (Char.lowercase c)<>c then ("x"^str) else str)^(!Flags.auto_type_suffix) in
   add_symbol str
 
 let is_auto_type (t : typ_t) (prod_name : symb) : bool =
 match t with
 | CompoundType(_,AbstrType(_)) -> true
 | SimpleType(_,IdentType(_,[kw])) ->
-  let str = get_symbol prod_name in
-  kw=(add_symbol (str^(!Flags.auto_type_suffix)))
+  kw=(get_auto_type_name prod_name)
 | _ -> false
 
 let is_no_type (t : typ_t) : bool =
@@ -658,6 +763,7 @@ let rec is_finalized_typ (t : typ_t) : bool =
 match t with
 | SimpleType(_,AnyType(_)) -> false
 | SimpleType(_,VarType(_)) -> false
+| CompoundType(_,AbstrType(_,AnyName(_),cl)) -> false
 | SimpleType(_,_) -> true
 | CompoundType(_,CommaType(_,cll)) -> List.for_all (fun cl -> List.for_all is_finalized_constr_type cl) cll
 | CompoundType(_,AbstrType(_,an,cl)) -> List.for_all is_finalized_constr_type cl
@@ -708,6 +814,7 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : gramma
     | None -> (true,SimpleType(p,IdentType(p,[auto_name])))
     | Some(t) -> let b = is_auto_type t name in (b,if b then SimpleType(p,IdentType(p,[auto_name])) else t)) in
     (*let ty = (match ty with CompoundType(_,AbstrType(_,_,_)) -> SimpleType(p,IdentType(p,[auto_name])) | _ -> ty) in*)
+    (* NOTE - we now replace the old pattern types with the new ones *)
     let (pl2,_) = List.fold_left2 (fun (acc,index) (Pattern(p,(al,xo))) tys ->
       let str = get_symbol name in
       let kw_name = add_symbol (str^"_"^(string_of_int index)) in
@@ -718,20 +825,25 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : gramma
           | Some(kw) -> kw
           | _ -> kw_name
         )),
-        (*List.rev (List.rev_map (fun t -> SingletonConstrType(p,t)) tys))))*)
-        List.rev (List.fold_left (fun acc t -> if is_no_type t then acc else SingletonConstrType(p,t)::acc) [] tys)
+        (*List.rev (List.rev_map (fun t -> SingletonConstrType(p,t)) tys)*)
+        let result = (List.rev (List.fold_left (fun acc t -> if is_no_type t then acc else SingletonConstrType(p,t)::acc) [] tys)) in
+        (if !Flags.enable_pos then (SingletonConstrType(p,SimpleType(p,IdentType(p,[!Flags.pos_type_name])))::result) else result)
         )))
         else ty
       ) in
-      let xo2 = (match xo with
-      | Some(name,(opts,(cd,Some(CompoundType(_,AbstrType(_,_,_)) as ct)))) ->
-        Some((match name with None -> Some(kw_name) | _ -> name),(opts,(typecast true cd tys ct,Some(ct))))
+      let (xo2,new_ty) = (match xo with
+      | Some(name,(opts,(cd,Some(CompoundType(x1,AbstrType(x2,nn,x3)) as ct)))) ->
+        let name2 = (match name with None -> kw_name | Some(name) -> name) in
+        let new_ty = (match nn with IdentName(_) -> ct | _ -> CompoundType(x1,AbstrType(x2,IdentName(x2,name2),x3))) in
+        (Some(Some(name2),(opts,(typecast cd tys new_ty,Some(new_ty)))),new_ty)
       | Some(name,(opts,(cd,_))) ->
         let new_ty = mk_ty name in
-        Some((match name with None -> Some(kw_name) | _ -> name),(opts,(typecast true cd tys new_ty,Some(new_ty))))
+        (Some((match name with None -> Some(kw_name) | _ -> name),(opts,(typecast cd tys new_ty,Some(new_ty)))),new_ty)
       | None ->
         let new_ty = mk_ty None in
-        Some(Some(kw_name),([],(typecast true None tys new_ty,Some(new_ty))))) in
+        (Some(Some(kw_name),([],(typecast None tys new_ty,Some(new_ty)))),new_ty)
+      ) in
+      (if is_finalized_typ new_ty then () else die_error p ("this pattern's overall type "^(str_typ_t new_ty)^" contains type variables which can't be eliminated"));
       (((Pattern(p,(al,xo2)))::acc),index-1)
     ) ([],(List.length pl2)-1) pl2 types in
     Printf.printf "processing:\n---------\n%s\n--------\nunified = %s\nauto name = %s\nis auto = %b\n\n%!"
@@ -740,20 +852,12 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : gramma
       (get_symbol auto_name)
       is_auto
       ;
-    (*Printf.printf "processing:\n--------\n%s\n--------\nunified = %s\nplaceholder = %s\ntype = %s\n\n%!"
-      (str_production_t prod)
-      (str_option str_typ_t (List.fold_left (fun acc (Pattern(_,(_,xo))) ->
-      match xo with Some(name,(opts,(cd,ty))) -> (match (ty,acc) with (Some(ty),Some(ty2)) -> Some(unify_typ ty ty2) | (_,Some(ty2)) -> Some(ty2) | (Some(ty),_) -> Some(ty) | (None,None) -> None) | _ -> acc
-      ) None pl))
-      (match rt with (Some(Lexer)) -> (str_value_t (get_placeholder_value_production prod)) | _ -> "[not lexer]")
-      (str_x_list (fun (Pattern(_,(al,xo))) -> str_x_list (fun (ty,a) -> "{"^(str_annot_atom_t a)^" => "^(str_typ_t ty)^"}")
-      (List.map (fun x -> (if (not is_lexer) then infer_type_annot_atom x prod_table
-      else (SimpleType(NoPos,NoType(NoPos)),x))) al) ", ") pl "; ")*)
     (* compute the overall type of the production *)
     let ty1 = (match (ty1,ty) with
     | (None,_) -> ty
     | (Some(ty1),ty2) -> if is_finalized_typ ty1 then (ty1) else (unify_typ ty1 ty2 auto_name)) in
-    let result = Production(p,(rt,(name1,(ol1,(typecast false cd1 [ty] ty1,Some(ty1))))),pl2) in
+    (if is_finalized_typ ty1 then () else die_error p ("this production's overall type "^(str_typ_t ty1)^" contains type variables which can't be eliminated"));
+    let result = Production(p,(rt,(name1,(ol1,(typecast cd1 [ty] ty1,Some(ty1))))),pl2) in
     (* add production type to the table *)
     Hashtbl.replace prod_table name (result,Some(ty1));
     ProdDecl(p,result)

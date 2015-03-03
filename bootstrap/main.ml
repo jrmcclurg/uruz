@@ -1,5 +1,6 @@
 open Bootstrap_utils
 open Bootstrap_main
+open Bootstrap_ast
 open Flags
 open Code
 

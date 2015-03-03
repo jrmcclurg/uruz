@@ -13,12 +13,16 @@ let def_prod_index = ref 0
 let param_name = ref "x"
 let type_name = ref "t"
 let auto_type_suffix = ref "_t"
+let pos_type_name = ref (add_symbol "pos_t")
+let enable_pos = ref true
 
 let typecast_table = Hashtbl.create 100
 
 let init_tables () =
 Hashtbl.replace typecast_table (string_kw,int_kw) "int_of_string";
-Hashtbl.replace typecast_table (int_kw,string_kw) "string_of_int"
+Hashtbl.replace typecast_table (int_kw,string_kw) "string_of_int";
+Hashtbl.replace typecast_table (char_kw,string_kw) "(String.make 1)";
+Hashtbl.replace typecast_table (string_kw,char_kw) "(fun s -> String.get s 0)"
 
 let get_def_prod_name (name : symb option) (nesting : int list) =
   add_symbol ((match name with None -> !def_prod_name | Some(s) -> get_symbol s)^(List.fold_left (fun str n -> "_"^(string_of_int n)^str) "" nesting))
