@@ -179,7 +179,7 @@ and flatten_annot_atom (an : annot_atom_t) (defname : symb option) (deftyp : rul
   else
     let name = Flags.get_def_prod_name defname nesting in
     (SingletonAnnotAtom(p,IdentAtom(p,name)),
-    (ProdDecl(p,Production(p,((Some(Flags.get_def_prod_type deftyp)),(Some(name),([],(None,None)))),
+    (ProdDecl(p,Production(p,((Some(Flags.get_def_prod_type deftyp)),(Some(name),([ValOption(p,Some(auto_kw),BoolVal(p,false))],(None,None)))),
       [Pattern(p,([y],None))])))::prods)
 | OptAnnotAtom(p,an,(o,x)) ->
   if is_processing_lexer deftyp then
@@ -189,7 +189,7 @@ and flatten_annot_atom (an : annot_atom_t) (defname : symb option) (deftyp : rul
   else
     let name = Flags.get_def_prod_name defname nesting in
     (SingletonAnnotAtom(p,IdentAtom(p,name)),
-    (ProdDecl(p,Production(p,((Some(Flags.get_def_prod_type deftyp)),(Some(name),([],(None,None)))),
+    (ProdDecl(p,Production(p,((Some(Flags.get_def_prod_type deftyp)),(Some(name),([ValOption(p,Some(auto_kw),BoolVal(p,false))],(None,None)))),
       [Pattern(p,([OptAnnotAtom(p,a2,(o,x))],None))])))::prods)
 
 and is_inlined p (ol,(co,tyo)) : (bool * (opt_t list * (code option * typ_t option))) =
@@ -249,12 +249,15 @@ and elim_decl (d : decl_t) : decl_t = match d with
 and elim_production (p : production_t) : production_t = match p with
 | Production(ps,(Some(Lexer),_),_) -> p
 | Production(ps,(r,(Some(name),(opts,(cd,ty)))),patl) ->
-  let (x,(b,o)) = (List.fold_left (fun (acc,(acc2,acc3)) x -> let (y,(b,o)) = elim_pattern x name in (List.rev_append y acc, ((b||acc2), (match acc3 with None -> o | _ -> acc3)))) ([],(false,None)) patl) in
+  let (is_auto,opts) = (opt_list_contains opts auto_kw (BoolVal(NoPos,false))) in
+  let is_auto = not is_auto in
+  let (x,(b,o)) = (List.fold_left (fun (acc,(acc2,acc3)) x -> let (y,(b,o)) = elim_pattern x name is_auto in (List.rev_append y acc, ((b||acc2),
+    (match acc3 with None -> o | _ -> acc3)))) ([],(false,None)) patl) in
   Production(ps,(r,(Some(name),(opts,((if b then Some(Code(ps,"List.rev x")) else cd),
-  (match o with Some(kw) -> Some(mk_compound_type ps (AnyType(ps)) kw) | _ -> ty))))),List.rev x)
+    (match o with Some(kw) -> Some(mk_compound_type ps (AnyType(ps)) kw) | _ -> ty))))),List.rev x)
 | Production(ps,_,_) -> die_error ps "production did not acquire a name"
 
-and elim_pattern (pa : pattern_t) (prod_name : symb) : (pattern_t list * (bool*symb option)) = match pa with
+and elim_pattern (pa : pattern_t) (prod_name : symb) (is_auto : bool) : (pattern_t list * (bool*symb option)) = match pa with
 (*| Pattern(p,([QuantAnnotAtom(p2,SingletonAnnotAtom(p3,a),q)],xo)) -> [pa] (*TODO*)*)
 (*| Pattern(p,([QuantAnnotAtom(p2,OptAnnotAtom(p3,a,yo),q)],xo)) ->*)
 | Pattern(p,([QuantAnnotAtom(p2,an,q)],xo)) ->
@@ -285,10 +288,9 @@ and elim_pattern (pa : pattern_t) (prod_name : symb) : (pattern_t list * (bool*s
 | Pattern(p,([OptAnnotAtom(p2,a,(opts,(None,None)))],None)) ->
   ([Pattern(p,((if opts=[] then [a] else [OptAnnotAtom(p2,a,(opts,(None,None)))]),None))], (false,None))
 | Pattern(p,([OptAnnotAtom(p2,a,(opts,(cd,ty)))],None)) ->
-  ([Pattern(p,([OptAnnotAtom(p2,a,(opts,(None,None)))],Some(None,([],(cd,ty)))))], (false,None))
-(*| Pattern(p,([OptAnnotAtom(p2,a,(opts1,(cd,ty)))],Some(name,(opts2,(None,None))))) ->
-  (* TODO XXX ^^ combine_opt_list opts1 opts2 *)
-  [Pattern(p,([OptAnnotAtom(p2,a,(opts1,(None,None)))],Some(name,(opts2,(cd,ty)))))]*)
+  let ty = (match ty with Some(SimpleType(_,AnyType(_))) -> Some(SimpleType(p2,VarType(p2,add_symbol (!Flags.type_name^"1")))) | _ -> ty) in
+  let ty2 = (match ty with Some(ty) -> Some(if not is_auto then ty else CompoundType(p2,AbstrType(p2,AnyName(p2),[SingletonConstrType(p2,ty)]))) | None -> None) in
+  ([Pattern(p,([OptAnnotAtom(p2,a,(opts,(None,None)))],Some(None,([],(cd,ty2)))))], (false,None))
 | _ -> ([pa],(false,None))
 
 (*
@@ -655,6 +657,10 @@ match (old_type,new_type) with
     (try List.rev (List.rev_map2 (fun c1 c2 -> unify_constr_type c1 c2 auto_name) cl1 cl2) with _ -> fail p)
   ) ctl1 ctl2)))
   with _ -> fail p)
+| (SimpleType(_,IdentType(_,[kw])),CompoundType(p,AbstrType(p2,an1,cl1))) when kw=auto_name ->
+  SimpleType(p,IdentType(p,[auto_name]))
+| (CompoundType(p,AbstrType(p2,an1,cl1)),SimpleType(_,IdentType(_,[kw]))) when kw=auto_name ->
+  SimpleType(p,IdentType(p,[auto_name]))
 | (CompoundType(p,AbstrType(p2,an1,cl1)),CompoundType(_,AbstrType(_,an2,cl2))) ->
   (*(try CompoundType(p,AbstrType(p2,unify_abstr_name an1 an2,List.rev (List.rev_map2 (fun c1 c2 -> unify_constr_type c1 c2) cl1 cl2)))
   with _ -> fail p)*)
@@ -672,13 +678,17 @@ and unify_constr_type (t1 : constr_type_t) (t2 : constr_type_t) (auto_name : sym
 let fail p = die_error p (Printf.sprintf "could not unify type %s with %s" (str_constr_type_t t1) (str_constr_type_t t2)) in
 match (t1,t2) with
 | (SingletonConstrType(p,t1),SingletonConstrType(p2,t2)) -> SingletonConstrType(p,unify_typ t1 t2 auto_name)
+| (InstConstrType(p,ct1,[]),_) ->
+  unify_constr_type ct1 t2 auto_name
+| (_,InstConstrType(p2,ct2,[])) ->
+  unify_constr_type t1 ct2 auto_name
 | (InstConstrType(p,ct1,s1),InstConstrType(p2,ct2,s2)) ->
   if s1=s2 then InstConstrType(p,unify_constr_type ct1 ct2 auto_name,s1) else fail p
 | (SingletonConstrType(p,_),InstConstrType(_,_,_))
 | (InstConstrType(p,_,_),SingletonConstrType(_,_)) -> fail p
 
 and unify_abstr_name (an1 : abstr_name_t) (an2 : abstr_name_t) : abstr_name_t =
-let fail p = die_error p (Printf.sprintf "could not unify type %s with %s" (str_abstr_name_t an1) (str_abstr_name_t an2)) in
+let fail p = die_error p (Printf.sprintf "could not unify constructor name %s with %s" (str_abstr_name_t an1) (str_abstr_name_t an2)) in
 match (an1,an2) with
 | (AnyName(p),_) -> an2
 | (_,AnyName(p)) -> an1

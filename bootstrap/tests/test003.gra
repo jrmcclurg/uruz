@@ -8,10 +8,10 @@ parser Four = "one" {code1} :int "two" {code2} :string ;
 
 parser Five = "one" @option:=123 {code1} @option2:=124 :int "two" {code2} @option3:=125 :string ;
 
-parser Six = "one" @option:=123 {code1} @option2:=124 {code2} :int "two" :one :two :three ;
+parser Six = "one" @option:=123 {code1} @option2:=124 {code2} :int "two" :char :string :char ;
 
 parser Seven = "one" :int "two" @option3:=125 ;
 
-parser Eight = "one" :one :two :three "two" {code1} {code2} {code3} ;
+parser Eight = "one" :string :char :string "two" {code1} {code2} {code3} ;
 
-parser Nine = Seven {code1} :ty1 Eight :ty1 {code1} ;
+parser Nine = Seven {code1} :int Eight :_ {code1} ;

@@ -1,5 +1,5 @@
 parser One = 
-| "one" # :int
+| "one" # :(_ of int)
 ;
 
 parser Two = 
@@ -71,15 +71,15 @@ parser Six_0_0_0 =
 ;
 
 parser Six_0_1 = 
-| Six_0_1_0 # :three
+| Six_0_1_0 # :char
 ;
 
 parser Six_0_1_0 = 
-| Six_0_1_0_0 # :two
+| Six_0_1_0_0 # :string
 ;
 
 parser Six_0_1_0_0 = 
-| "two" # :one
+| "two" # :char
 ;
 
 parser Seven = 
@@ -99,15 +99,15 @@ parser Eight =
 ;
 
 parser Eight_0_0 = 
-| Eight_0_0_0 # :three
+| Eight_0_0_0 # :string
 ;
 
 parser Eight_0_0_0 = 
-| Eight_0_0_0_0 # :two
+| Eight_0_0_0_0 # :char
 ;
 
 parser Eight_0_0_0_0 = 
-| "one" # :one
+| "one" # :string
 ;
 
 parser Eight_0_1 = 
@@ -127,7 +127,7 @@ parser Nine =
 ;
 
 parser Nine_0_0 = 
-| Seven # {code1} :ty1
+| Seven # {code1} :int
 ;
 
 parser Nine_0_1 = 
@@ -135,5 +135,5 @@ parser Nine_0_1 =
 ;
 
 parser Nine_0_1_0 = 
-| Eight # :ty1
+| Eight # :'t1
 ;

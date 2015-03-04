@@ -87,7 +87,7 @@ parser Test4 =
 | "two" # :(int * (Hashtbl.t * bool) * string)
 ;*/
 parser Test5 :_ =
-| test : _ foo : _
+| test:_  foo : _
 | [a-z] : _
 | ~ {""} :string # 
 | "one" ~ "two" #  :(Foobar of int*int) // (string*string)
@@ -97,7 +97,7 @@ parser Test5 :_ =
 | "three" Four #
 ;
 
-parser test @prec:=12345 = "one" :(Baz of 't1) | "three" :(((_ of string))) ; parser foo = "two" ;
+parser test @prec:=12345 = "one" #:(Baz of 't1) | "three" #:(((_ of string))) ; parser foo = "two" ;
 
 parser Four :string = "string" # :string ;
 parser Six = "string" # :() ;
@@ -114,7 +114,10 @@ parser final =
 ;
 
 lexer TestLex = [A-Z] ; // TODO XXX - why is this overall production getting type "string"
-parser TestParse = [A-Z]:char | 'x':char ; // TODO XXX - this production is getting type "char"
+parser TestParse = [A-Z]:char | 'x':char ; // this production gets auto type
+parser TestParseX @auto:=false = [A-Z]:char | 'x':char ; // production gets type "char"
 parser TestParse2 = [A-Z] | 'x' ;
 parser TestParse3 = [A-Z] 'x' | 'x' 'y' ;
 parser TestParse4 = [A-Z] # :char | 'x' # :char ;
+
+parser Xxx = "one":_ "two":_ ;
