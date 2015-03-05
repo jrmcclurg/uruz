@@ -571,6 +571,7 @@ and typecast_lists (arg : string) (p : pos_t) (index : int) (old_types : constr_
 
 and typecast_typ (arg : string) (old_type : typ_t) (new_type : typ_t) : code =
 let fail p b = die_error p ("don't know how to cast type "^(str_typ_t old_type)^" to "^(str_typ_t new_type)^(if b then ": mismatching argument count" else "")) in
+(*Printf.printf ">>> trying to convert %s to %s\n" (str_typ_t old_type) (str_typ_t new_type);*)
 match (old_type,new_type) with
 | (_,SimpleType(p,IdentType(_,[kw]))) when kw=unit_kw ->
   (Code(p,"()"))
@@ -605,7 +606,7 @@ match (old_type,new_type) with
     (get_symbol name)
     (str_x_list str_code_plain x ",")
   )
-| (SimpleType(p,IdentType(_,[kw])),CompoundType(_,CommaType(_,[l2]))) ->
+| (SimpleType(p,IdentType(_,[kw])),CompoundType(_,CommaType(_,[l2]))) when (List.length l2) > 1 ->
   let (x,_) = (try typecast_lists arg p 1 [SingletonConstrType(p,old_type)] l2 [] with IncompatibleLists(p) -> fail p true) in
   let x = List.rev x in
   Code(p,Printf.sprintf "let %s = %s in (%s))"

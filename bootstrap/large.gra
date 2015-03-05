@@ -1,0 +1,168 @@
+// TODO XXX bug list:
+// empty grammar (i.e. no root nonterminal) causes compile error
+// "eof"? on RHS of a production doesn't work
+// when a (...)* is in a list of item separated by bar, it gives compile warnings
+// when (AnnotAtom+ "eof"? | '.') is compiled, there are problems when "eof" exists in input
+// for ("token" | "tok") within a production, the strings are not pulled out, so it clashes with another "token"
+//   in another production
+
+// This is a comment
+/*
+  This is a multi-line comment
+*/
+
+property util_code = {
+   type rule_type = Parser | Lexer | Ast
+   let eq_rule_type a b = ((compare a b)=0)
+   let str_rule_type s = match s with
+   | Parser -> "parser"
+   | Lexer -> "lexer"
+   | Ast -> "ast"
+   let str_to_rule_type p s = match s with
+   | "parser" | "parse" -> Parser
+   | "lexer" | "lex" -> Lexer
+   | "ast" -> Ast
+   | _ -> die_error p ("production type '"^s^"' does not exist")
+
+   (* TODO XXX - does this need pos information? *)
+   type chars = SingletonChar of char | RangeChar of char * char
+
+   (*let str_chars c = match c with SingletonChar(c) -> "{"^(String.make 1 c)^"}" | RangeChar(c1,c2) -> Printf.sprintf "{%c-%c}" c1 c2*)
+   let str_chars c = match c with SingletonChar(c) -> String.make 1 c | RangeChar(c1,c2) -> Printf.sprintf "%c-%c" c1 c2
+   let eq_chars a b = ((compare a b)=0)
+
+   let str_x_option f x str = match x with None -> "" | Some(_) -> str^(str_option f x)
+
+   let rec parse_char_list (cl : char list) : (bool * chars list) = (
+  let (is_neg, csl, mode, range_start) = List.fold_left (fun (is_neg, csl, mode, range_start) c ->
+    match (c,mode,range_start) with
+    | ('^',0,_) -> Printf.printf "x:1\n%!"; (true, csl, 1, None)
+    | (_,2,Some(rs)) -> Printf.printf "x:2\n%!"; (is_neg, (RangeChar(rs,c))::csl, 1, None)
+    | ('-',_,Some(_)) -> Printf.printf "x:3\n%!"; (is_neg, csl, 2, range_start)
+    | (_,_,Some(cx)) -> Printf.printf "x:4\n%!"; (is_neg, (SingletonChar(cx))::csl, 1, Some(c))
+    | (_,_,_) -> Printf.printf "x:5\n%!"; (is_neg, csl, 1, Some(c))
+  ) (false,[],0,None) cl in
+  let extra = (match (range_start,mode) with (Some(c),2) -> ['-';c] | (Some(c),_) -> [c] | _ -> []) in
+  let csl = List.rev_append (List.rev_map (fun c -> SingletonChar(c)) extra) csl in
+  (is_neg, List.rev csl)
+)
+
+   type code = EmptyCode of pos_t (**
+           Empty code having given
+           position *)
+         | Code of pos_t * string (**
+            Code block having given
+            position, 
+            OCaml code *)
+
+   let str_code s = match s with EmptyCode(_) -> "{}" | Code(_,c) -> ("{"^c^"}")
+   let eq_code a b = ((compare a b)=0)
+
+  let current_id = ref (-1) ;;
+  let symbol_table = ((Hashtbl.create 1000) : (string,int) Hashtbl.t) ;;
+  let symbol_table_inv = ((Hashtbl.create 1000) : (int,string) Hashtbl.t) ;;
+
+  let print_symbol_table () =
+    Hashtbl.iter (fun k v ->
+      print_string ((string_of_int k)^" --> "^v^"\n")
+    ) symbol_table_inv
+
+  let force_add_symbol (s : string) (result : int) (complain : bool) : int =
+    (*if complain && (try let _ = Hashtbl.find symbol_table s in true with _ -> false) then failwith "multiply-defined symbol";*)
+    Hashtbl.replace symbol_table s result;
+    Hashtbl.replace symbol_table_inv result s;
+    result
+
+  let add_symbol (s : string) : int =
+    (try
+      int_of_string s
+     with _ -> (
+     try
+      Hashtbl.find symbol_table s
+     with _ ->
+       let result = !current_id in
+       (*print_string (">> ADD SYMBOL: "^s^" = "^(string_of_int result)^"\n");*)
+       let _ = force_add_symbol s result false in
+       current_id := result - 1;
+       result
+    ))
+
+  let get_symbol (id : int) : string =
+    try Hashtbl.find symbol_table_inv id
+    with _ ->
+      string_of_int id
+
+  let get_unique_id () : int =
+    let result = !current_id in
+    current_id := result - 1;
+    result
+
+  let unit_kw = add_symbol "unit"
+  let char_kw = add_symbol "char"
+  let int_kw = add_symbol "int"
+  let int64_kw = add_symbol "int64"
+  let int32_kw = add_symbol "int32"
+  let float_kw = add_symbol "float"
+  let bool_kw = add_symbol "bool"
+  let string_kw = add_symbol "string"
+  let option_kw = add_symbol "option"
+  let list_kw = add_symbol "list"
+  let inline_kw = add_symbol "inline"
+  let auto_kw = add_symbol "auto"
+  let recur_kw = add_symbol "recur"
+
+   type symb = int
+   let str_symb = get_symbol
+   let eq_symb a b = ((compare a b)=0)
+
+
+   let is_string_empty (s : string) : bool =
+   (*print_string ("is_empty("^s^")=");*)
+   let sp = "[\r\n\t ]+" in
+   let t = Str.global_replace (Str.regexp sp) "" s in
+   let result = (if t = "" then true else false) in
+   (*print_string (if result then "yes" else "no");
+   print_string "\n";*)
+   result
+   ;;
+
+   let rec string_explode (s:string) : char list =
+   if (String.length s) > 0 then
+      (String.get s 0)::(string_explode (String.sub s 1 ((String.length s)-1)))
+   else []
+   ;;
+
+   let rec string_combine (cl : char list) : string =
+   match cl with
+   | [] -> ""
+   | c::more -> (String.make 1 c)^(string_combine more)
+   ;;
+
+   (* strips (recursive) OCaml comments from a string *)
+   let rec strip_ocaml_comments (s : string) : string =
+   string_combine (strip_ocaml_comments_helper (string_explode s) [] 0)
+   
+   and strip_ocaml_comments_helper (cl : char list) (unknown : char list) (level : int) : char list =
+   match cl with
+   | c1::c2::more ->
+      if ((c1 = '(') && (c2 = '*')) then strip_ocaml_comments_helper more (unknown @ [c1;c2]) (level+1)
+      else if ((c1 = '*') && (c2 = ')')) then strip_ocaml_comments_helper more (if (level=1) then [] else unknown@[c1;c2]) (level-1)
+      else if (level > 0) then strip_ocaml_comments_helper (c2::more) (unknown@[c1]) level
+      else c1::(strip_ocaml_comments_helper (c2::more) unknown level)
+   | [c] -> c::unknown
+   | [] -> unknown
+   ;;
+
+   let handle_code ((p,s) : (Lexing.position * string)) : code =
+      let p2 = get_pos p in
+      (if (is_string_empty (strip_ocaml_comments s)) then EmptyCode(p2) else Code(p2, s))
+   ;;
+} ;
+
+parser Grammar =
+  SemiDecl*
+  :(decl_t list)
+  @str{let (x,y)=s in (str_decl_t x)^"\n;"^(str_list (fun y -> "\n\n"^(str_decl_t y)^"\n;") y)}
+;
+
+parser SemiDecl {} :(decl_t) = ~ ;
