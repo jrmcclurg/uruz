@@ -1,4 +1,3 @@
-(* TODO XXX - pretty-printing of string/char literals needs to print the quotes *)
 (* TODO XXX - emit normalize_ and get_pos_ functions *)
 (* TODO XXX - maybe disallow "_" in identifiers *)
 
@@ -549,7 +548,7 @@ let fail p = die_error p ("don't know how to cast type "^(str_constr_type_t old_
     else (
       let c = typecast_constr arg (InstConstrType(p1,ct1,l1)) (InstConstrType(p2,ct2,l2)) in
       if kw1=list_kw then Code(p1,"(List.rev (List.rev_map (fun "^arg^" -> "^(str_code_plain c)^") "^arg^"))")
-      else Code(p1,"foobarx")
+      else Code(p1,"foobarx") (* TODO XXX - handle option etc. *)
     )
 
 and typecast_lists (arg : string) (p : pos_t) (index : int) (old_types : constr_type_t list) (new_types : constr_type_t list) (result : code list) : (code list * int) =
@@ -573,14 +572,18 @@ and typecast_lists (arg : string) (p : pos_t) (index : int) (old_types : constr_
 and typecast_typ (arg : string) (old_type : typ_t) (new_type : typ_t) : code =
 let fail p b = die_error p ("don't know how to cast type "^(str_typ_t old_type)^" to "^(str_typ_t new_type)^(if b then ": mismatching argument count" else "")) in
 match (old_type,new_type) with
+| (_,SimpleType(p,IdentType(_,[kw]))) when kw=unit_kw ->
+  (Code(p,"()"))
+| (_,SimpleType(p,NoType(_)))
+| (_,SimpleType(p,UnitType(_))) ->
+  (Code(p,"()"))
 | (_,CompoundType(_,CommaType(_,[[SingletonConstrType(_,t2)]]))) ->
   typecast_typ arg old_type t2
 | (CompoundType(p,CommaType(_,[[SingletonConstrType(_,t1)]])),_) ->
   typecast_typ arg t1 new_type
 | (SimpleType(p,NoType(_)),_) ->
   typecast_typ arg (CompoundType(p,CommaType(p,[[]]))) new_type
-| (SimpleType(p,TokenType(_)),SimpleType(_,TokenType(_)))
-| (SimpleType(p,UnitType(_)),SimpleType(_,UnitType(_))) -> Code(p,arg)
+| (SimpleType(p,TokenType(_)),SimpleType(_,TokenType(_))) -> Code(p,arg)
 | (SimpleType(p,IdentType(_,[kw1])),SimpleType(_,IdentType(_,[kw2]))) ->
   if kw1=kw2 then Code(p,arg)(*Some(Code(p,if inner then "$1" else !Flags.param_name))*)
   else (try (Code(p,(Hashtbl.find Flags.typecast_table (kw1,kw2))^" "^arg)) with Not_found -> fail p false)
@@ -628,14 +631,13 @@ match (old_type,new_type) with
     (get_symbol name)
     (str_x_list str_code_plain x ",")
   )
-| (CompoundType(p,AbstrType(_,_,l1)),CompoundType(_,AbstrType(_,_,l2))) ->
+(*| (CompoundType(p,AbstrType(_,_,l1)),CompoundType(_,AbstrType(_,_,l2))) ->
   let (x,num) = (try typecast_lists arg p 1 l1 l2 [] with IncompatibleLists(p) -> fail p true) in
   ignore num; Code(p,"zzz") (* TODO XXX *)
   (*Some(Code(p,Printf.sprintf "%d -> %d" (List.length l1) (List.length l2)))*)
 | (CompoundType(p,AbstrType(_,_,l1)),CompoundType(_,CommaType(_,[l2]))) ->
   let (x,num) = (try typecast_lists arg p 1 l1 l2 [] with IncompatibleLists(p) -> fail p true) in
-  ignore num; Code(p,"zzz") (* TODO XXX *)
-| (_,SimpleType(p,UnitType(_))) -> (Code(p,"()"))
+  ignore num; Code(p,"zzz") (* TODO XXX *)*)
 | (CompoundType(p,_),_)
 | (SimpleType(p,_),_) -> fail p false
 
@@ -747,7 +749,7 @@ match pr with
 let val_to_atom (v : value_t) : (annot_atom_t*typ_t) =
 match v with
 | StringVal(p,s) -> (SingletonAnnotAtom(p,StringAtom(p,s)),SimpleType(p,IdentType(p,[string_kw])))
-| CharVal(p,c) -> (SingletonAnnotAtom(p,CharsetAtom(p,SingletonCharset(p,c),None)),SimpleType(p,IdentType(p,[string_kw])))
+| CharVal(p,c) -> (SingletonAnnotAtom(p,CharsetAtom(p,SingletonCharset(p,c),None)),SimpleType(p,IdentType(p,[char_kw])))
 | BoolVal(p,_) | IntVal(p,_) | CodeVal(p,_) -> die_error p "cannot convert value to atom"
 
 let rec replace_vars_typ_opt (tl : typ_t list) (t : typ_t option) : typ_t option =

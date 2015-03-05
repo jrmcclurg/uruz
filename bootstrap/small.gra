@@ -86,7 +86,7 @@ parser Test4 =
 | "one" # :(int * (_ * bool) * string)
 | "two" # :(int * (Hashtbl.t * bool) * string)
 ;*/
-parser Test5 :_ =
+/*parser Test5 :_ =
 | test:_  foo : _
 | [a-z] : _
 | ~ {""} :string # 
@@ -113,11 +113,15 @@ parser final =
 | ~{123}:int ~{"test"}:string ~{true}:bool TestLex TestParse TestParse2 TestParse3 TestParse4
 ;
 
-lexer TestLex = [A-Z] ; // TODO XXX - why is this overall production getting type "string"
 parser TestParse = [A-Z]:char | 'x':char ; // this production gets auto type
 parser TestParseX @auto:=false = [A-Z]:char | 'x':char ; // production gets type "char"
 parser TestParse2 = [A-Z] | 'x' ;
 parser TestParse3 = [A-Z] 'x' | 'x' 'y' ;
 parser TestParse4 = [A-Z] # :char | 'x' # :char ;
 
-parser Xxx = "one":_ "two":_ ;
+parser Xxx = "one":_ "two":_ ;*/
+
+lexer TestLex = [A-Z] ; // this overall production gets type "char"
+parser TestParse = "*" TestLex foo # :(Something of char*string*(int*~)) ;
+
+parser foo @auto:=false = ~{(123L,true)}:(int64) ;

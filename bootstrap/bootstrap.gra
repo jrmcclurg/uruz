@@ -97,8 +97,12 @@
     current_id := result - 1;
     result
 
+  let unit_kw = add_symbol "unit"
   let char_kw = add_symbol "char"
   let int_kw = add_symbol "int"
+  let int64_kw = add_symbol "int64"
+  let int32_kw = add_symbol "int32"
+  let float_kw = add_symbol "float"
   let bool_kw = add_symbol "bool"
   let string_kw = add_symbol "string"
   let option_kw = add_symbol "option"

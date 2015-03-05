@@ -19,10 +19,54 @@ let enable_pos = ref true
 let typecast_table = Hashtbl.create 100
 
 let init_tables () =
+(* string -> x *)
+Hashtbl.replace typecast_table (string_kw,bool_kw) "bool_of_string";
+Hashtbl.replace typecast_table (bool_kw,string_kw) "string_of_bool";
 Hashtbl.replace typecast_table (string_kw,int_kw) "int_of_string";
 Hashtbl.replace typecast_table (int_kw,string_kw) "string_of_int";
+Hashtbl.replace typecast_table (string_kw,char_kw) "(fun s -> String.get s 0)";
 Hashtbl.replace typecast_table (char_kw,string_kw) "(String.make 1)";
-Hashtbl.replace typecast_table (string_kw,char_kw) "(fun s -> String.get s 0)"
+Hashtbl.replace typecast_table (string_kw,float_kw) "float_of_string";
+Hashtbl.replace typecast_table (float_kw,string_kw) "string_of_float";
+Hashtbl.replace typecast_table (string_kw,int64_kw) "Int64.of_string";
+Hashtbl.replace typecast_table (int64_kw,string_kw) "Int64.to_string";
+Hashtbl.replace typecast_table (string_kw,int32_kw) "Int32.of_string";
+Hashtbl.replace typecast_table (int32_kw,string_kw) "Int32.to_string";
+(* int -> x *)
+Hashtbl.replace typecast_table (int_kw,char_kw) "char_of_int";
+Hashtbl.replace typecast_table (char_kw,int_kw) "int_of_char";
+Hashtbl.replace typecast_table (int_kw,bool_kw) "(fun i -> i > 0)";
+Hashtbl.replace typecast_table (bool_kw,int_kw) "(fun b -> if b then 1 else 0)";
+Hashtbl.replace typecast_table (int_kw,float_kw) "float_of_int";
+Hashtbl.replace typecast_table (float_kw,int_kw) "int_of_float";
+Hashtbl.replace typecast_table (int_kw,int64_kw) "Int64.of_int";
+Hashtbl.replace typecast_table (int64_kw,int_kw) "Int64.to_int";
+Hashtbl.replace typecast_table (int_kw,int32_kw) "Int32.of_int";
+Hashtbl.replace typecast_table (int32_kw,int_kw) "Int32.to_int";
+(* bool -> x *)
+Hashtbl.replace typecast_table (bool_kw,char_kw) "(fun b -> if b then 't' else 'f')";
+Hashtbl.replace typecast_table (char_kw,bool_kw) "(fun x -> match Char.lowercase x with 'f' | '0' -> false | _ -> true)";
+Hashtbl.replace typecast_table (bool_kw,float_kw) "(fun b -> if b then 1.0 else 0.0)";
+Hashtbl.replace typecast_table (float_kw,bool_kw) "(fun i -> i > 0.0)";
+Hashtbl.replace typecast_table (bool_kw,int32_kw) "(fun b -> if b then 1l else 0l)";
+Hashtbl.replace typecast_table (int32_kw,bool_kw) "(fun i -> (compare i 0l) > 0)";
+Hashtbl.replace typecast_table (bool_kw,int64_kw) "(fun b -> if b then 1L else 0L)";
+Hashtbl.replace typecast_table (int64_kw,bool_kw) "(fun i -> (compare i 0L) > 0)";
+(* float -> x *)
+Hashtbl.replace typecast_table (float_kw,char_kw) "(fun x -> char_of_int (int_of_float x))";
+Hashtbl.replace typecast_table (char_kw,float_kw) "(fun x -> float_of_int (int_of_char x))";
+Hashtbl.replace typecast_table (float_kw,int64_kw) "Int64.of_float";
+Hashtbl.replace typecast_table (float_kw,int64_kw) "Int64.of_float";
+Hashtbl.replace typecast_table (float_kw,int32_kw) "Int32.of_float";
+Hashtbl.replace typecast_table (float_kw,int32_kw) "Int32.of_float";
+(* char -> x *)
+Hashtbl.replace typecast_table (char_kw,int64_kw) "(fun x -> Int64.of_int (int_of_char x))";
+Hashtbl.replace typecast_table (int64_kw,char_kw) "(fun x -> char_of_int (Int64.to_int x))";
+Hashtbl.replace typecast_table (char_kw,int32_kw) "(fun x -> Int32.of_int (int_of_char x))";
+Hashtbl.replace typecast_table (int32_kw,char_kw) "(fun x -> char_of_int (Int32.to_int x))";
+(* int64 -> x *)
+Hashtbl.replace typecast_table (int64_kw,int32_kw) "Int64.to_int32";
+Hashtbl.replace typecast_table (int32_kw,int64_kw) "Int64.of_int32"
 
 let get_def_prod_name (name : symb option) (nesting : int list) =
   add_symbol ((match name with None -> !def_prod_name | Some(s) -> get_symbol s)^(List.fold_left (fun str n -> "_"^(string_of_int n)^str) "" nesting))
