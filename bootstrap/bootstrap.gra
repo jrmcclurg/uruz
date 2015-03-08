@@ -238,7 +238,7 @@ Pattern ->
   @{let (s,s2) = s in Printf.sprintf "%s%s" (str_list (fun x -> (str_annot_atom_t x)^" ") s)
   (str_option (fun (name,(opts,(cd,ty))) ->
   Printf.sprintf "#%s%s%s%s" (str_x_option get_symbol name " ")
-  (str_x_list str_opt_t opts " ") (str_x_option str_code cd " ") (str_x_option str_typ_t ty " :")) s2)}>
+  (str_list (fun x -> " "^(str_opt_t x)) opts) (str_x_option str_code cd " ") (str_x_option str_typ_t ty " :")) s2)}>
 ;
 
 TempOpt ->

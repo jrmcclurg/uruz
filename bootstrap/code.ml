@@ -582,7 +582,10 @@ let fail p b = die_error p ("don't know how to cast type "^(str_typ_t old_type)^
 match (old_type,new_type) with
 | (_,SimpleType(p,IdentType(_,[kw]))) when kw=unit_kw ->
   Some(Code(p,"()"))
-| (_,SimpleType(p,NoType(_))) -> None
+| (_,CompoundType(p,AbstrType(_,IdentName(_,name),[]))) ->
+  Some(Code(p,get_symbol name))
+| (_,SimpleType(p,NoType(_))) ->
+  None
 | (_,CompoundType(p,CommaType(_,[[]])))
 | (_,SimpleType(p,UnitType(_))) ->
   Some(Code(p,"()"))

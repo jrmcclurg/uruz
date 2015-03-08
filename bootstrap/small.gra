@@ -122,10 +122,10 @@ parser TestParse4 = [A-Z] # :char | 'x' # :char ;
 parser Xxx = "one":_ "two":_ ;*/
 
 lexer TestLex = [A-Z] ; // this overall production gets type "char"
-parser TestParse = "*" TestLex foo foo2 # :(Something of char*string*(~*int*~)*int64) ;
+parser TestParse = "*" TestLex foo foo2 # :(Something of char*string*(~*int*Wacky)*int64) ;
 
 parser foo @auto:=false = ~{(123L,true)}:(~*int64*bool) ;
 
 parser foo2 @auto:=false = ~{(123L,true)}:(~*int64) ;
 
-parser Final = "one" * @str{code1} "two" ;
+parser Final = "one" * @str{code1} "two" # @str{code2} ;
