@@ -160,9 +160,9 @@ property util_code = {
 } ;
 
 parser Grammar =
-  SemiDecl*
+  SemiDecl+
   :(decl_t list)
-  @str{let (x,y)=s in (str_decl_t x)^"\n;"^(str_list (fun y -> "\n\n"^(str_decl_t y)^"\n;") y)}
+  @str{(str_list (fun y -> "\n\n"^(str_decl_t y)^"\n;") x)}
 ;
 
 parser SemiDecl {} :(decl_t) = ~ ;
