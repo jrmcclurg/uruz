@@ -121,11 +121,15 @@ parser TestParse4 = [A-Z] # :char | 'x' # :char ;
 
 parser Xxx = "one":_ "two":_ ;*/
 
+// TODO XXX vvvv the following should not be allowed
+lexer TestLexBad = [A-Z] # {} ; // this overall production gets type "char"
 lexer TestLex = [A-Z] ; // this overall production gets type "char"
 parser TestParse = "*" TestLex foo foo2 # :(Something of char*string*(~*int*Wacky)*int64) ;
 
 parser foo @auto:=false = ~{(123L,true)}:(~*int64*bool) ;
 
 parser foo2 @auto:=false = ~{(123L,true)}:(~*int64) ;
+
+parser foo3 @auto:=true = ~{(123L,true)}:(~*int64) ;
 
 parser Final = "one" * @str{code1} "two" # @str{code2} ;

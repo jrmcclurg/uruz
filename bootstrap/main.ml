@@ -17,11 +17,11 @@ let result = inline_grammar result code_table in
 let result = flatten_grammar result code_table in
 let result = elim_grammar result in
 let (result,lexer_prods) = strip_lexer_grammar result count in
-let comps = get_sorted_defs result count in
 Bootstrap_ast.print_grammar_t result;
 if !Flags.only_flatten then (
   exit 0
 );
+let comps = get_sorted_defs result count in
 Printf.printf "\n\n***********************************\n\n%!";
 Printf.printf "\n\ncomps = %s\n%!" (str_x_list (fun (x,_) -> get_symbol x) comps ", ");
 print_newline();

@@ -248,12 +248,14 @@ and elim_decl (d : decl_t) : decl_t = match d with
 and elim_production (p : production_t) : production_t = match p with
 | Production(ps,(Some(Lexer),_),_) -> p
 | Production(ps,(r,(Some(name),(opts,(cd,ty)))),patl) ->
+  (*Printf.printf "before = %s\n" (str_x_list str_opt_t opts "; ");*)
   let (is_auto,opts) = (opt_list_contains opts auto_kw (BoolVal(NoPos,false))) in
+  (*Printf.printf "after = %s\n" (str_x_list str_opt_t opts "; ");*)
   let is_auto = not is_auto in
   let (x,(b,o)) = (List.fold_left (fun (acc,(acc2,acc3)) x -> let (y,(b,o)) = elim_pattern x name is_auto in (List.rev_append y acc, ((b||acc2),
     (match acc3 with None -> o | _ -> acc3)))) ([],(false,None)) patl) in
   Production(ps,(r,(Some(name),(opts,((if b then Some(Code(ps,"List.rev x")) else cd),
-    (match o with Some(kw) -> Some(mk_compound_type ps (AnyType(ps)) kw) | _ -> ty))))),List.rev x)
+    (match o with Some(kw) -> Some(mk_compound_type ps (AnyType(ps)) kw) | _ -> if is_auto || true (* TODO XXX *) then ty else Some(SimpleType(ps,AnyType(ps)))))))),List.rev x)
 | Production(ps,_,_) -> die_error ps "production did not acquire a name"
 
 and elim_pattern (pa : pattern_t) (prod_name : symb) (is_auto : bool) : (pattern_t list * (bool*symb option)) = match pa with
@@ -406,21 +408,28 @@ let rec build_def_graph_grammar (g : grammar_t) (count : int) : simple_graph = m
   ) (d::dl);
   graph
 
-and build_def_graph_pattern (p : pattern_t) (g : simple_graph) (parent : symb) : unit = match p with
+and build_def_graph_pattern (p : pattern_t) (g : simple_graph) (parent : symb) : unit =
+Printf.printf "building pat: %s\n" (str_pattern_t p); 
+match p with
 | Pattern(p,(anl,x)) ->
-  List.iter (fun an -> build_def_graph_annot_atom an g parent) anl
+  List.iter (fun an -> build_def_graph_annot_atom an g parent false) anl
 
-and build_def_graph_annot_atom (an : annot_atom_t) (g : simple_graph) (parent : symb) : unit = match an with
-| SingletonAnnotAtom(p,a) -> build_def_graph_atom a g parent
-| QuantAnnotAtom(p,an,q) -> build_def_graph_annot_atom an g parent
-| OptAnnotAtom(p,an,o) -> build_def_graph_annot_atom an g parent
+and build_def_graph_annot_atom (anx : annot_atom_t) (g : simple_graph) (parent : symb) (typed : bool) : unit =
+Printf.printf "building: %s\n" (str_annot_atom_t anx); 
+match anx with
+| SingletonAnnotAtom(p,a) -> build_def_graph_atom a g parent typed
+| QuantAnnotAtom(p,an,q) -> build_def_graph_annot_atom an g parent false
+| OptAnnotAtom(p,an,(opts,(cd,Some(ty)))) -> build_def_graph_annot_atom an g parent true
+| OptAnnotAtom(p,an,(opts,(cd,ty))) -> build_def_graph_annot_atom an g parent typed
 
-and build_def_graph_atom (a : atom_t) (g : simple_graph) (parent : symb) : unit = match a with
+and build_def_graph_atom (a : atom_t) (g : simple_graph) (parent : symb) (typed : bool) : unit = match a with
 | IdentAtom(p,id) -> 
-  let (set,m,is_def,ps) = (try Hashtbl.find g parent with Not_found -> (IntSet.empty,None,false,p)) in
-  Hashtbl.replace g parent (IntSet.add id set,m,is_def,ps);
-  let x = (try Hashtbl.find g id with Not_found -> (IntSet.empty,None,false,p)) in
-  Hashtbl.replace g id x;
+    (* TODO XXX - this "typed" thing doesn't quite work due to the flattening! *)
+    Printf.printf "%s depends on %s (typed = %b)\n" (get_symbol parent) (get_symbol id) typed;
+    let (set,m,is_def,ps) = (try Hashtbl.find g parent with Not_found -> (IntSet.empty,None,false,p)) in
+    Hashtbl.replace g parent (IntSet.add id set,m,is_def,ps);
+    let x = (try Hashtbl.find g id with Not_found -> (IntSet.empty,None,false,p)) in
+    Hashtbl.replace g id x
 | ProdAtom(p,Production(p2,_,pl)) ->
   List.iter (fun x -> build_def_graph_pattern x g parent) pl
 | _ -> ()
