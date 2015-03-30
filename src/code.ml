@@ -956,6 +956,7 @@ let generate_utils_code file g =
   output_string file "\n";
   output_string file "exception Parse_error;;\n";
   output_string file "exception Lexing_error;;\n";
+  output_string file "exception General_error;;\n";
   output_string file "\n";
   output_string file "(* do_error p s\n";
   output_string file " *\n";
@@ -979,7 +980,7 @@ let generate_utils_code file g =
   output_string file "\n";
   output_string file ("let die_error (p : "^p^") (s : string) =\n");
   output_string file "   do_error p s;\n";
-  output_string file "   exit 1;\n";
+  output_string file "   raise General_error;\n";
   output_string file ";;\n";
   output_string file "\n";
   output_string file "(* dies with a general position-based error *)\n";

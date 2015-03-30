@@ -1,0 +1,44 @@
+/* parser Test =
+| "one" : string
+| Two : string
+| "three" : string
+;
+
+parser Two : int =
+| 's' #:int
+| 't' #:int
+;
+
+parser Three: int =
+| 's'
+| 't'
+;
+
+parser Four: int =
+| 's':int # :(_ of int)
+| 't':int # :(Bar of int)
+| 't':int # :(Foo of int)
+;
+
+parser Five: (int*char) =
+| 's':int 'z' # :(_ of int*char)
+| 't':int 'y' # :(Bar of int*char)
+| 't':int 'x' # :(Foo of int*char)
+;
+
+parser Six :(string*char) =
+| 's':int 'z'
+| 't':int 'y'
+| 't':int 'x'
+;
+
+parser Seven = "one" Seven0:(int*int) "three" ;
+parser Seven0 = "two" "four" # :(string*string) ;
+*/
+
+parser Eight: (int*char) =
+| Eight0 # Zap
+| 't':int 'y' # :(Bar of int*char)
+| 't':int 'x' # :(Foo of int*char)
+;
+parser Eight0 :(int*char) = 's' 'z' ;

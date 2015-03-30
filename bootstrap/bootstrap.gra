@@ -351,8 +351,9 @@ CompoundType ->
 | AbstrName "of"<:()@{""}> TupleType<:(constr_type_t list)@{(if (List.length s)>0 then " of " else "")^(str_x_list str_constr_type_t s "*")}>   : AbstrType
 ;
 
+XIdent0 -> XIdent : { [$1] } ;
 AbstrName ->
-  XIdent<:symb> : IdentName
+  XIdent0<:(symb list)@{str_x_list str_symb s "/"}> : IdentName
 | '_'<:()>        : AnyName
 ;
 
@@ -498,8 +499,9 @@ Newlines -> '\n' <{do_newline lexbuf}:()> : {};
   | SimpleType(ps,IdentType(ps2,[name])) ->
     let str = get_symbol name in
     let c = String.get str 0 in
-    if (Char.uppercase c)<>c then t else CompoundType(ps,AbstrType(ps,IdentName(ps,name),[]))
+    if (Char.uppercase c)<>c then t else CompoundType(ps,AbstrType(ps,IdentName(ps,[name]),[]))
   | SimpleType(ps,st) -> t
+  | CompoundType(ps,CommaType(ps2,[])) -> SimpleType(ps,NoType(ps2))
   | CompoundType(ps,CommaType(ps2,[[SingletonConstrType(ps3,t2)]])) -> t2
   | CompoundType(ps,CommaType(ps2,cll)) -> CompoundType(ps,CommaType(ps2,List.rev (List.rev_map (fun cl -> List.rev (List.rev_map norm_constr_type cl)) cll)))
   | CompoundType(ps,AbstrType(ps2,an,cl)) -> CompoundType(ps,AbstrType(ps2,an,List.rev (List.rev_map norm_constr_type cl)))

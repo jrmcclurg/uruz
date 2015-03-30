@@ -4,7 +4,13 @@ open Bootstrap_ast
 open Flags
 open Code
 
+type foo = Bar of int | Foo of int
+
 let () = (
+let x = Bar(123) in
+match x with
+| (_) -> ()
+;
 let i = parse_command_line () in
 (* parse the input file *)
 let result = get_ast i in
@@ -21,12 +27,13 @@ Bootstrap_ast.print_grammar_t result;
 if !Flags.only_flatten then (
   exit 0
 );
-let comps = get_sorted_defs result count in
+let (comps,gr) = get_sorted_defs result count in
 Printf.printf "\n\n***********************************\n\n%!";
 Printf.printf "\n\ncomps = %s\n%!" (str_x_list (fun (x,_) -> get_symbol x) comps ", ");
 print_newline();
 Printf.printf "\n\n***********************************\n\n%!";
-let result = typecheck result comps count in
+let result = typecheck result comps count gr in
 Printf.printf "###################################\n";
 Bootstrap_ast.print_grammar_t result;
+Printf.printf "SUCCESS!\n";
 exit 0)

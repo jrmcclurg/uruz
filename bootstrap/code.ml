@@ -16,6 +16,20 @@ open Bootstrap_ast
 open Bootstrap_utils
 open Flags
 
+let rec is_finalized_typ (t : typ_t) : bool =
+match t with
+| SimpleType(_,AnyType(_)) -> false
+| SimpleType(_,VarType(_)) -> false
+(*| CompoundType(_,AbstrType(_,AnyName(_),cl)) -> false*)
+| SimpleType(_,_) -> true
+| CompoundType(_,CommaType(_,cll)) -> List.for_all (fun cl -> List.for_all is_finalized_constr_type cl) cll
+| CompoundType(_,AbstrType(_,an,cl)) -> List.for_all is_finalized_constr_type cl
+
+and is_finalized_constr_type (ct : constr_type_t) : bool =
+match ct with
+| SingletonConstrType(_,t) -> is_finalized_typ t
+| InstConstrType(_,ct,_) -> is_finalized_constr_type ct
+
 let rec range (a:int) (b:int) : int list = if (a > b) then [] else (a::(range (a+1) b))
 
 let rev_flatten (l : 'a list list) : 'a list =
@@ -216,7 +230,7 @@ and flatten_atom (a : atom_t) (defname : symb option) (deftyp : rule_type option
     if false(*TODO*) && is_singleton then (SingletonAnnotAtom(p,ProdAtom(p,result)),prods)
     else ((if is_inl then
     (*OptAnnotAtom(p,SingletonAnnotAtom(p,IdentAtom(p,name)),([ValOption(p,Some(inline_kw),BoolVal(p,true))],(None,None)))*)
-    OptAnnotAtom(p,SingletonAnnotAtom(p,IdentAtom(p,name)),([(*ValOption(p,Some(inline_kw),BoolVal(p,true))*)],(None,Some(CompoundType(p,AbstrType(p,IdentName(p,name),[SingletonConstrType(p,SimpleType(p,AnyType(p)))]))))))
+    OptAnnotAtom(p,SingletonAnnotAtom(p,IdentAtom(p,name)),([(*ValOption(p,Some(inline_kw),BoolVal(p,true))*)],(None,Some(CompoundType(p,AbstrType(p,IdentName(p,[name]),[SingletonConstrType(p,SimpleType(p,AnyType(p)))]))))))
       else SingletonAnnotAtom(p,IdentAtom(p,name))),(ProdDecl(p2,result))::prods)
   )
 (*| ProdAtom(p,Production(p2,(kwo,(Some(name),ol)),patl)) -> 
@@ -290,7 +304,8 @@ and elim_pattern (pa : pattern_t) (prod_name : symb) (is_auto : bool) : (pattern
   ([Pattern(p,((if opts=[] then [a] else [OptAnnotAtom(p2,a,(opts,(None,None)))]),None))], (false,None))
 | Pattern(p,([OptAnnotAtom(p2,a,(opts,(cd,ty)))],None)) ->
   let ty = (match ty with Some(SimpleType(_,AnyType(_))) -> Some(SimpleType(p2,VarType(p2,add_symbol (!Flags.type_name^"1")))) | _ -> ty) in
-  let ty2 = (match ty with Some(ty) -> Some(if not is_auto then ty else CompoundType(p2,AbstrType(p2,AnyName(p2),[SingletonConstrType(p2,ty)]))) | None -> None) in
+  let ty2 = (match ty with Some(ty) -> Some(if not is_auto then ty
+  else CompoundType(p2,AbstrType(p2,AnyName(p2),[SingletonConstrType(p2,ty)]))) | None -> None) in
   ([Pattern(p,([OptAnnotAtom(p2,a,(opts,(None,None)))],Some(None,([],(cd,ty2)))))], (false,None))
 | _ -> ([pa],(false,None))
 
@@ -320,9 +335,9 @@ type mark = (int * int * bool) option ;;
 type simple_graph =
   (int,
     IntSet.t    (* children of this vertex *) *
-    mark        (* mark used in topological sort *) *
-    bool        (* is_def *) *
-    pos_t       (* definition location *)
+    mark         (* mark used in topological sort *) *
+    bool         (* is_def *) *
+    (pos_t * typ_t option) (* definition location,type *)
     (*production_t*) (* TODO XXX *)
   ) Hashtbl.t
 
@@ -395,13 +410,25 @@ and pop_until (graph : simple_graph) (stack : int Stack.t) (v : int) (res : IntS
 let rec build_def_graph_grammar (g : grammar_t) (count : int) : simple_graph = match g with
 | Grammar(pos,(d,dl)) ->
   let graph = (Hashtbl.create (10*count)(*TODO XXX - num?*) : simple_graph) in
+  (* first go through and find type, position info for all productions *)
   List.iter (fun d -> (match d with
     | ProdDecl(p,Production(p2,(_,(None,_)),patl)) -> die_error p2 "production is not named"
-    | ProdDecl(p,Production(p2,(_,(Some(name),_)),patl)) ->
-      (*Printf.printf ">>> processing name: '%s'\n%!" (get_symbol name);*)
+    | ProdDecl(p,Production(p2,(_,(Some(name),(_,(_,ty1)))),patl)) ->
+      let has_type = (match ty1 with None -> false | Some(t) -> is_finalized_typ t) in
+      Printf.printf ">>>>>> processing name: '%s' = (%b) %s\n%!" (get_symbol name) has_type (str_option str_typ_t ty1);
+      let x = (try Hashtbl.find graph name
+        with Not_found -> (IntSet.empty,None,false,(p2,ty1))) in
+      Hashtbl.replace graph name x
+    | _ -> ())
+  ) (d::dl);
+  (* now actually build the graph *)
+  List.iter (fun d -> (match d with
+    | ProdDecl(p,Production(p2,(_,(None,_)),patl)) -> die_error p2 "production is not named"
+    | ProdDecl(p,Production(p2,(_,(Some(name),(_,(_,ty1)))),patl)) ->
       let x = (try let (set,m,is_def,ps) = Hashtbl.find graph name in
-        if is_def then die_error p2 ("multiple definition of '"^(get_symbol name)^"'") else (set,m,true,p2)
-        with Not_found -> (IntSet.empty,None,true,p2)) in
+        if is_def then die_error p2 ("multiple definition of '"^(get_symbol name)^"'")
+        else (set,m,true,(p2,ty1))
+        with Not_found -> (IntSet.empty,None,true,(p2,ty1))) in
       Hashtbl.replace graph name x;
       List.iter (fun pat -> build_def_graph_pattern pat graph name) patl
     | _ -> ())
@@ -409,13 +436,13 @@ let rec build_def_graph_grammar (g : grammar_t) (count : int) : simple_graph = m
   graph
 
 and build_def_graph_pattern (p : pattern_t) (g : simple_graph) (parent : symb) : unit =
-Printf.printf "building pat: %s\n" (str_pattern_t p); 
+(*Printf.printf "building pat: %s\n" (str_pattern_t p); *)
 match p with
 | Pattern(p,(anl,x)) ->
   List.iter (fun an -> build_def_graph_annot_atom an g parent false) anl
 
 and build_def_graph_annot_atom (anx : annot_atom_t) (g : simple_graph) (parent : symb) (typed : bool) : unit =
-Printf.printf "building: %s\n" (str_annot_atom_t anx); 
+(*Printf.printf "building: %s\n" (str_annot_atom_t anx); *)
 match anx with
 | SingletonAnnotAtom(p,a) -> build_def_graph_atom a g parent typed
 | QuantAnnotAtom(p,an,q) -> build_def_graph_annot_atom an g parent false
@@ -425,25 +452,26 @@ match anx with
 and build_def_graph_atom (a : atom_t) (g : simple_graph) (parent : symb) (typed : bool) : unit = match a with
 | IdentAtom(p,id) -> 
     (* TODO XXX - this "typed" thing doesn't quite work due to the flattening! *)
-    Printf.printf "%s depends on %s (typed = %b)\n" (get_symbol parent) (get_symbol id) typed;
-    let (set,m,is_def,ps) = (try Hashtbl.find g parent with Not_found -> (IntSet.empty,None,false,p)) in
-    Hashtbl.replace g parent (IntSet.add id set,m,is_def,ps);
-    let x = (try Hashtbl.find g id with Not_found -> (IntSet.empty,None,false,p)) in
-    Hashtbl.replace g id x
+    let (x1,x2,x3,(x4,tyo)) = (try Hashtbl.find g id with Not_found -> (IntSet.empty,None,false,(p,None))) in
+    let has_type = (match tyo with None -> false | Some(t) -> is_finalized_typ t) in
+    Hashtbl.replace g id (x1,x2,x3,(x4,tyo));
+    Printf.printf "%s depends on %s (typed = %b)\n" (get_symbol parent) (get_symbol id) has_type;
+    let (set,m,is_def,ps) = (try Hashtbl.find g parent with Not_found -> (IntSet.empty,None,false,(p,None))) in
+    Hashtbl.replace g parent ((if has_type then set else IntSet.add id set),m,is_def,ps);
 | ProdAtom(p,Production(p2,_,pl)) ->
   List.iter (fun x -> build_def_graph_pattern x g parent) pl
 | _ -> ()
 
-let get_sorted_defs (result : grammar_t) (count : int) : ((symb*pos_t) list) =
+let get_sorted_defs (result : grammar_t) (count : int) : ((symb*pos_t) list * simple_graph) =
   let graph = build_def_graph_grammar result count in
   let comps = topo_sort graph in
   let x = List.rev_map (fun comp -> match comp with
     | [] -> failwith "topological sort returned empty connected component"
     | a::more ->
-      let (_,_,_,ps) = (try Hashtbl.find graph a with Not_found -> (IntSet.empty,None,false,NoPos) (*TODO XXX fail?*)) in
+      let (_,_,_,(ps,ty1)) = (try Hashtbl.find graph a with Not_found -> (IntSet.empty,None,false,(NoPos,None)) (*TODO XXX fail?*)) in
       if more=[] then (a,ps) else die_error ps ("cyclic defintion: "^(str_x_list get_symbol comp ", "))
   ) comps in
-  x
+  (x,graph)
 
 (*******************************************)
 (** ????????????                          **)
@@ -586,22 +614,26 @@ let append a l = (match a with None -> l | Some(a) -> a::l) in
   | (InstConstrType(p,_,_)::_,[]) -> raise (IncompatibleLists(p))
 
 and typecast_typ (arg : string) (old_type : typ_t) (new_type : typ_t) : code option =
+Printf.printf " > casting %s => %s\n\n" (str_typ_t old_type) (str_typ_t new_type);
 let fail p b = die_error p ("don't know how to cast type "^(str_typ_t old_type)^" to "^(str_typ_t new_type)^(if b then ": mismatching argument count" else "")) in
 (*Printf.printf ">>> trying to convert %s to %s\n" (str_typ_t old_type) (str_typ_t new_type);*)
 match (old_type,new_type) with
 | (_,SimpleType(p,IdentType(_,[kw]))) when kw=unit_kw ->
   Some(Code(p,"()"))
-| (_,CompoundType(p,AbstrType(_,IdentName(_,name),[]))) ->
+| (_,CompoundType(p,AbstrType(_,IdentName(_,[name]),[]))) ->
   Some(Code(p,get_symbol name))
 | (_,SimpleType(p,NoType(_))) ->
   None
 | (_,CompoundType(p,CommaType(_,[[]])))
 | (_,SimpleType(p,UnitType(_))) ->
   Some(Code(p,"()"))
-| (_,CompoundType(_,CommaType(_,[[SingletonConstrType(_,t2)]]))) ->
+| (CompoundType(p,CommaType(_,[[SingletonConstrType(_,t1)]])),
+CompoundType(_,CommaType(_,[[SingletonConstrType(_,t2)]]))) ->
+  typecast_typ arg t1 t2
+(*| (_,CompoundType(_,CommaType(_,[[SingletonConstrType(_,t2)]]))) ->
   typecast_typ arg old_type t2
 | (CompoundType(p,CommaType(_,[[SingletonConstrType(_,t1)]])),_) ->
-  typecast_typ arg t1 new_type
+  typecast_typ arg t1 new_type*)
 | (SimpleType(p,NoType(_)),_) ->
   typecast_typ arg (CompoundType(p,CommaType(p,[[]]))) new_type
 | (SimpleType(p,TokenType(_)),SimpleType(_,TokenType(_))) ->
@@ -634,7 +666,7 @@ match (old_type,new_type) with
     arg
     (str_x_list str_code_plain x ",")
   ))
-| (SimpleType(p,IdentType(_,[kw])),CompoundType(_,AbstrType(_,IdentName(_,name),l2))) ->
+| (SimpleType(p,IdentType(_,[kw])),CompoundType(_,AbstrType(_,IdentName(_,[name]),l2))) ->
   let (x,_) = (try typecast_lists arg p 1 [SingletonConstrType(p,old_type)] l2 [] with IncompatibleLists(p) -> fail p true) in
   let x = List.rev x in
   Some(Code(p,Printf.sprintf "let %s = %s in %s(%s)"
@@ -652,7 +684,7 @@ match (old_type,new_type) with
     (str_x_list str_code_plain x ",")
   ))
   (*Some(Code(p,Printf.sprintf "%d -> %d" (List.length l1) (List.length l2)))*)
-| (CompoundType(p,CommaType(_,[l1])),CompoundType(_,AbstrType(_,IdentName(_,name),l2))) ->
+| (CompoundType(p,CommaType(_,[l1])),CompoundType(_,AbstrType(_,IdentName(_,[name]),l2))) ->
   let (x,_) = (try typecast_lists arg p 1 l1 l2 [] with IncompatibleLists(p) -> fail p true) in
   let x = List.rev x in
   let num = List.length l1 in
@@ -664,10 +696,27 @@ match (old_type,new_type) with
 (*| (CompoundType(p,AbstrType(_,_,l1)),CompoundType(_,AbstrType(_,_,l2))) ->
   let (x,num) = (try typecast_lists arg p 1 l1 l2 [] with IncompatibleLists(p) -> fail p true) in
   ignore num; Code(p,"zzz") (* TODO XXX *)
-  (*Some(Code(p,Printf.sprintf "%d -> %d" (List.length l1) (List.length l2)))*)
-| (CompoundType(p,AbstrType(_,_,l1)),CompoundType(_,CommaType(_,[l2]))) ->
+  (*Some(Code(p,Printf.sprintf "%d -> %d" (List.length l1) (List.length l2)))*) *)
+| (CompoundType(p,AbstrType(_,IdentName(_,names),l1)),CompoundType(_,CommaType(_,[l2]))) ->
   let (x,num) = (try typecast_lists arg p 1 l1 l2 [] with IncompatibleLists(p) -> fail p true) in
-  ignore num; Code(p,"zzz") (* TODO XXX *)*)
+  let x = List.rev x in
+  let num = List.length x in
+  let r = range 1 num in
+  let args = (str_x_list (fun x -> arg^"_"^(string_of_int x)) r ",") in
+  let c = (str_x_list str_code_plain x ",") in
+  let str = Printf.sprintf "(match %s with %s)" arg
+    (str_x_list (fun sy -> (get_symbol sy)^"("^args^") -> ("^c^")") names " | ") in
+  Some(Code(p,str))
+| (CompoundType(p,AbstrType(_,IdentName(_,names),l1)),SimpleType(p2,IdentType(_,[kw]))) ->
+  let (x,_) = (try typecast_lists arg p 1 l1 [SingletonConstrType(p2,new_type)] [] with IncompatibleLists(p) -> fail p true) in
+  let x = List.rev x in
+  let num = List.length x in
+  let r = range 1 num in
+  let args = (str_x_list (fun x -> arg^"_"^(string_of_int x)) r ",") in
+  let c = (str_x_list str_code_plain x ",") in
+  let str = Printf.sprintf "(match %s with %s)" arg
+    (str_x_list (fun sy -> (get_symbol sy)^"("^args^") -> ("^c^")") names " | ") in
+  Some(Code(p,str))
 | (CompoundType(p,_),_)
 | (SimpleType(p,_),_) -> fail p false
 
@@ -694,9 +743,10 @@ match (old_type,new_type) with
 | (CompoundType(p,AbstrType(p2,an1,cl1)),SimpleType(_,IdentType(_,[kw]))) when kw=auto_name ->
   SimpleType(p,IdentType(p,[auto_name]))
 | (CompoundType(p,AbstrType(p2,an1,cl1)),CompoundType(_,AbstrType(_,an2,cl2))) ->
-  (*(try CompoundType(p,AbstrType(p2,unify_abstr_name an1 an2,List.rev (List.rev_map2 (fun c1 c2 -> unify_constr_type c1 c2) cl1 cl2)))
-  with _ -> fail p)*)
+  (try CompoundType(p,AbstrType(p2,unify_abstr_name an1 an2,List.rev (List.rev_map2 (fun c1 c2 -> unify_constr_type c1 c2 auto_name) cl1 cl2)))
+  with _ -> 
   SimpleType(p,IdentType(p,[auto_name]))
+  )
 | (SimpleType(p,TokenType(_)),SimpleType(_,_))
 | (SimpleType(p,VarType(_,_)),SimpleType(_,_))
 | (SimpleType(p,UnitType(_)),SimpleType(_,_))
@@ -719,13 +769,17 @@ match (t1,t2) with
 | (SingletonConstrType(p,_),InstConstrType(_,_,_))
 | (InstConstrType(p,_,_),SingletonConstrType(_,_)) -> fail p
 
+(* TODO XXX *)
 and unify_abstr_name (an1 : abstr_name_t) (an2 : abstr_name_t) : abstr_name_t =
-let fail p = die_error p (Printf.sprintf "could not unify constructor name %s with %s" (str_abstr_name_t an1) (str_abstr_name_t an2)) in
+(*let fail p = die_error p (Printf.sprintf "could not unify constructor name %s with %s" (str_abstr_name_t an1) (str_abstr_name_t an2)) in*)
 match (an1,an2) with
 | (AnyName(p),_) -> an2
 | (_,AnyName(p)) -> an1
 | (IdentName(p,s1),IdentName(p2,s2)) ->
-  if s1=s2 then an1 else fail p
+  (*if s1=s2 then an1 else fail p*)
+  let u = List.fold_left (fun acc x -> IntSet.add x acc) IntSet.empty s1 in
+  let u2 = List.fold_left (fun acc x -> IntSet.add x acc) u s2 in
+  IdentName(p,IntSet.elements u2)
 
 let rec infer_type_annot_atom (a : annot_atom_t) (prod_table : prod_hashtbl) (auto_name : symb) : (typ_t*annot_atom_t) =
 match a with
@@ -812,42 +866,33 @@ let get_auto_type_name (prod_name : symb) : symb =
   let str = (if (Char.lowercase c)<>c then ("x"^str) else str)^(!Flags.auto_type_suffix) in
   add_symbol str
 
-let is_auto_type (t : typ_t) (prod_name : symb) : bool =
+(* TODO XXX - does this work for (((_))) etc. ? *)
+(* returns (is_auto_type, is_any_type) *)
+let rec is_auto_type (t : typ_t) (prod_name : symb) : (bool*bool) =
 match t with
-| CompoundType(_,AbstrType(_)) -> true
-| SimpleType(_,AnyType(_)) -> true
+| CompoundType(_,AbstrType(_)) -> (true,false)
+| CompoundType(_,CommaType(_,[[SingletonConstrType(_,t)]])) -> is_auto_type t prod_name
+| SimpleType(_,AnyType(_)) -> (true,true)
 | SimpleType(_,IdentType(_,[kw])) ->
-  kw=(get_auto_type_name prod_name)
-| _ -> false
+  ((kw=(get_auto_type_name prod_name)), false)
+| _ -> (false,false)
 
-let is_no_type (t : typ_t) : bool =
+let rec is_no_type (t : typ_t) : bool =
 match t with
 | SimpleType(_,NoType(_)) -> true
+| CompoundType(_,CommaType(_,[[SingletonConstrType(_,t)]])) -> is_no_type t
 | _ -> false
 
-let rec is_finalized_typ (t : typ_t) : bool =
-match t with
-| SimpleType(_,AnyType(_)) -> false
-| SimpleType(_,VarType(_)) -> false
-| CompoundType(_,AbstrType(_,AnyName(_),cl)) -> false
-| SimpleType(_,_) -> true
-| CompoundType(_,CommaType(_,cll)) -> List.for_all (fun cl -> List.for_all is_finalized_constr_type cl) cll
-| CompoundType(_,AbstrType(_,an,cl)) -> List.for_all is_finalized_constr_type cl
-
-and is_finalized_constr_type (ct : constr_type_t) : bool =
-match ct with
-| SingletonConstrType(_,t) -> is_finalized_typ t
-| InstConstrType(_,ct,_) -> is_finalized_constr_type ct
-
-let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : grammar_t = match g with
+let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) (gr : simple_graph) : grammar_t = match g with
 | Grammar(pos,(d,dl)) ->
   let prod_table = (Hashtbl.create count : prod_hashtbl) in
   (* set up a map containing all productions *)
   List.iter (fun d ->
     match d with
     (* NOTE - all productions should be named at this point *)
-    | ProdDecl(p,(Production(p2,(rto,(Some(name),ol)),pl) as prod)) ->
-      Hashtbl.replace prod_table name (prod,None);
+    | ProdDecl(p,(Production(p2,(rto,(Some(name),(ol,(_,tyo)))),pl) as prod)) ->
+      let ty = (match tyo with None -> None | Some(t) -> if is_finalized_typ t then Some(t) else None) in
+      Hashtbl.replace prod_table name (prod,ty);
       Printf.printf "adding: %s\n%!" (get_symbol name)
     | _ -> ()
   ) (d::dl);
@@ -856,6 +901,7 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : gramma
     let ((Production(p,(rt,(name1,(ol1,(cd1,ty1)))),pl) as prod),t) =
       (try Hashtbl.find prod_table name
       with Not_found -> die_error ps ("could not find production '"^(get_symbol name)^"'")) in
+    Printf.printf "starting %s:\n%s\n" (get_symbol name) (str_production_t prod);
     let is_lexer = (match rt with (Some(Lexer)) -> true | _ -> false) in
     let auto_name = get_auto_type_name name in
     let pl = (if is_lexer then
@@ -880,11 +926,34 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : gramma
       | _ -> (tyo,xo)) in
       ((Pattern(p,(al2,xo2)))::acc,tys::acc2,tyo2)
     ) ([],[],None) pl) in
+
+    (* TODO XXX - somehow need to resolve (_ of xxx) before this point *)
+    Printf.printf ">> ty bef = %s\n" (str_option str_typ_t ty);
+
+    (* if the LHS type isn't finalized, unify with RHS type *)
+    let ty = (match (ty,ty1) with
+    | (None,_) -> ty1
+    | (_,None) -> ty
+    | (Some(t),Some(t2)) -> if is_finalized_typ t then ty else Some(unify_typ t t2 auto_name)) in
+    Printf.printf ">> ty aft = %s\n" (str_option str_typ_t ty);
     (*let pl2 = List.rev pl2 in*)
+
+    (* compute concrete type for LHS *)
     let (is_auto,ty) = (match ty with
     | None -> (true,SimpleType(p,IdentType(p,[auto_name])))
-    | Some(t) -> let b = is_auto_type t name in (b,if b then SimpleType(p,IdentType(p,[auto_name])) else t)
+    | Some(t) ->
+      let (b,b2) = is_auto_type t name in
+      (* if we are looking at the any-type, replace with the concrete automatic
+       * type name for this production *)
+      (b,if b2 then SimpleType(p,IdentType(p,[auto_name])) else t)
     ) in
+
+    (* compute concrete type for RHS, i.e. the overall type of the production *)
+    let ty1 = (match (ty1,ty) with
+    | (None,_) -> ty
+    | (Some(ty1),ty2) -> if is_finalized_typ ty1 then (ty1) else (unify_typ ty1 ty2 auto_name)) in
+    (if is_finalized_typ ty1 then () else die_error p ("this production's overall type "^(str_typ_t ty1)^" contains type variables which can't be eliminated"));
+    
     (*let ty = (match ty with CompoundType(_,AbstrType(_,_,_)) -> SimpleType(p,IdentType(p,[auto_name])) | _ -> ty) in*)
     (* NOTE - we now replace the old pattern types with the new ones *)
     let (pl2,_) = List.fold_left2 (fun (acc,index) (Pattern(p,(al,xo))) tys ->
@@ -892,11 +961,12 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : gramma
       let kw_name = add_symbol (str^"_"^(string_of_int index)) in
       let mk_ty nm = (if is_auto then
         (CompoundType(p,AbstrType(p,
-        IdentName(p,(
+        (* TODO XXX - IdentName *)
+        IdentName(p,[
           match nm with
           | Some(kw) -> kw
           | _ -> kw_name
-        )),
+        ]),
         (*List.rev (List.rev_map (fun t -> SingletonConstrType(p,t)) tys)*)
         let result = (List.rev (List.fold_left (fun acc t -> if is_no_type t then acc else SingletonConstrType(p,t)::acc) [] tys)) in
         (if !Flags.enable_pos then (SingletonConstrType(p,SimpleType(p,IdentType(p,[!Flags.pos_type_name])))::result) else result)
@@ -907,19 +977,20 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : gramma
       let (xo2,new_ty) = (match xo with
       | Some(name,(opts,(cd,Some(CompoundType(x1,AbstrType(x2,nn,x3)) as ct)))) ->
         let name2 = (match name with None -> kw_name | Some(name) -> name) in
-        let new_ty = (match nn with IdentName(_) -> ct | _ -> CompoundType(x1,AbstrType(x2,IdentName(x2,name2),x3))) in
+        (* TODO XXX - IdentName *)
+        let new_ty = (match nn with IdentName(_) -> ct | _ -> CompoundType(x1,AbstrType(x2,IdentName(x2,[name2]),x3))) in
         check new_ty;
-        (*Printf.printf ">> 1 casting %s  =>  %s\n" (str_x_list str_typ_t tys "; ") (str_typ_t new_ty);*)
+        Printf.printf ">> 1 casting %s  =>  %s\n" (str_x_list str_typ_t tys "; ") (str_typ_t new_ty);
         (Some(Some(name2),(opts,(typecast cd tys new_ty,Some(new_ty)))),new_ty)
       | Some(name,(opts,(cd,_))) ->
         let new_ty = mk_ty name in
         check new_ty;
-        (*Printf.printf ">> 2 casting %s  =>  %s\n" (str_x_list str_typ_t tys "; ") (str_typ_t new_ty);*)
+        Printf.printf ">> 2 casting %s  =>  %s\n" (str_x_list str_typ_t tys "; ") (str_typ_t new_ty);
         (Some((match name with None -> Some(kw_name) | _ -> name),(opts,(typecast cd tys new_ty,Some(new_ty)))),new_ty)
       | None ->
         let new_ty = mk_ty None in
         check new_ty;
-        (*Printf.printf ">> 3 casting %s  =>  %s\n" (str_x_list str_typ_t tys "; ") (str_typ_t new_ty);*)
+        Printf.printf ">> 3 casting %s  =>  %s\n\n" (str_x_list str_typ_t tys "; ") (str_typ_t new_ty);
         (Some(Some(kw_name),([],(typecast None tys new_ty,Some(new_ty)))),new_ty)
       ) in
       (((Pattern(p,(al,xo2)))::acc),index-1)
@@ -930,11 +1001,6 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) : gramma
       (get_symbol auto_name)
       is_auto
       ;
-    (* compute the overall type of the production *)
-    let ty1 = (match (ty1,ty) with
-    | (None,_) -> ty
-    | (Some(ty1),ty2) -> if is_finalized_typ ty1 then (ty1) else (unify_typ ty1 ty2 auto_name)) in
-    (if is_finalized_typ ty1 then () else die_error p ("this production's overall type "^(str_typ_t ty1)^" contains type variables which can't be eliminated"));
     (*Printf.printf ">> trying to cast %s  =>  %s\n" (str_typ_t ty) (str_typ_t ty1);*)
     let result = Production(p,(rt,(name1,(ol1,(typecast cd1 [ty] ty1,Some(ty1))))),pl2) in
     Printf.printf "success\n";
