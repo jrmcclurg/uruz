@@ -54,8 +54,30 @@ parser Eight0 :(int*char) = 's' 'z' ;*/
 lexer Int :int = [0-9]+ ;
 lexer Var = [a-zA-Z]+ ;*/
 
-parser Test :(int*char) =
+/*parser Test :(int*char) =
 | 'a':string 'b':string # :(string*string)
 //| 'a' 'b'
 //| "str":string "str2":string
+;*/
+
+ast Test =
+| ~:string ~:string ~:foobar
+| Foo "123":int
+| "string" * # :(string list)
+| "one" (ast Three = "four") "two"
+//| 'a' 'b'
+//| "str":string "str2":string
 ;
+
+
+ast Foo = "123" | 'c' | Nothing ;
+
+ast Nothing :int = ~ ;
+
+
+//parser Two:xOne_t = One ;
+//parser One = Two ;
+
+// TODO: collect the auto-generated names when unifying (_ of ...)
+// TODO: hash all lexer tokens
+// TODO: deal with the upper/lowercase idents issues
