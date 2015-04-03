@@ -36,9 +36,26 @@ parser Seven = "one" Seven0:(int*int) "three" ;
 parser Seven0 = "two" "four" # :(string*string) ;
 */
 
+/*
 parser Eight: (int*char) =
 | Eight0 # Zap
 | 't':int 'y' # :(Bar of int*char)
 | 't':int 'x' # :(Foo of int*char)
 ;
-parser Eight0 :(int*char) = 's' 'z' ;
+parser Eight0 :(int*char) = 's' 'z' ;*/
+
+/*parser Expr :int =
+| Int
+| Expr '+' Expr # {$1 + $2}
+| '(':~ Expr ')':~                 // TODO XXX - the ')' should become lexer rules
+//| "let" Var '=' Expr "in" Expr
+;
+
+lexer Int :int = [0-9]+ ;
+lexer Var = [a-zA-Z]+ ;*/
+
+parser Test :(int*char) =
+| 'a':string 'b':string # :(string*string)
+//| 'a' 'b'
+//| "str":string "str2":string
+;

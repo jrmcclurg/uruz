@@ -1,5 +1,5 @@
 parser One = 
-| "one" # :(_ of int)
+| "one" #
 ;
 
 parser Two = 

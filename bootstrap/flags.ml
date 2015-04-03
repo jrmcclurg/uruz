@@ -17,8 +17,17 @@ let pos_type_name = ref (add_symbol "pos_t")
 let enable_pos = ref true
 
 let typecast_table = Hashtbl.create 100
+let def_val_table = Hashtbl.create 10
 
 let init_tables () =
+(* default values *)
+Hashtbl.replace def_val_table string_kw "\"\"";
+Hashtbl.replace def_val_table int_kw "0";
+Hashtbl.replace def_val_table bool_kw "false";
+Hashtbl.replace def_val_table float_kw "0.0";
+Hashtbl.replace def_val_table char_kw "' '";
+Hashtbl.replace def_val_table int32_kw "0l";
+Hashtbl.replace def_val_table int64_kw "0L";
 (* string -> x *)
 Hashtbl.replace typecast_table (string_kw,bool_kw) "bool_of_string";
 Hashtbl.replace typecast_table (bool_kw,string_kw) "string_of_bool";
