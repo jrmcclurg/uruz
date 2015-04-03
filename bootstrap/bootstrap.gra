@@ -57,6 +57,9 @@
 
    let str_code s = match s with EmptyCode(_) -> "{}" | Code(_,c) -> ("{"^c^"}")
    let eq_code a b = ((compare a b)=0)
+   let norm_code c = match c with
+   | EmptyCode(_) -> EmptyCode(NoPos)
+   | Code(_,s) -> Code(NoPos,s)
 
   let current_id = ref (-1) ;;
   let symbol_table = ((Hashtbl.create 1000) : (string,int) Hashtbl.t) ;;

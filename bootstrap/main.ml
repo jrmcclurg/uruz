@@ -22,7 +22,7 @@ let result = inline_grammar result code_table in
 (* flatten the grammar *)
 let result = flatten_grammar result code_table in
 let result = elim_grammar result in
-let (result,lexer_prods) = strip_lexer_grammar result count in
+let (result,lexer_prods,lexers) = strip_lexer_grammar result count in
 Bootstrap_ast.print_grammar_t result;
 if !Flags.only_flatten then (
   exit 0

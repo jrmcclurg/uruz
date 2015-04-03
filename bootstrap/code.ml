@@ -487,6 +487,53 @@ let get_sorted_defs (result : grammar_t) (count : int) : ((symb*pos_t) list * si
 
 let placeholder_char = '*'
 
+(*module PatternsHash = Hashtbl.Make(
+struct
+  type t = pattern_t list
+  let hash = Hashtbl.hash
+  let equal a b = 
+end);;*)
+
+let norm_option f o = match o with
+| None -> None
+| Some(x) -> Some(f x)
+
+let norm_typ t = t (* TODO XXX *)
+
+let rec norm_production (p : production_t) : production_t = match p with
+| Production(_,(rt,(name,(ol,(cd,ty)))),pl) -> Production(NoPos,(rt,(name,(List.rev (List.rev_map norm_opt ol),(norm_option norm_code cd,norm_option norm_typ ty)))),List.rev (List.rev_map norm_pattern pl))
+
+and norm_pattern (p : pattern_t) : pattern_t = match p with
+| Pattern(_,(ans,None)) -> Pattern(NoPos,(List.rev (List.rev_map norm_annot_atom ans),None))
+| Pattern(_,(ans,Some((name,(ol,(cd,ty)))))) ->
+  Pattern(NoPos,(List.rev (List.rev_map norm_annot_atom ans),Some(name,(List.rev (List.rev_map norm_opt ol),(norm_option norm_code cd,norm_option norm_typ ty)))))
+
+and norm_opt (o : opt_t) : opt_t = match o with
+| ValOption(_,s,v) -> ValOption(NoPos,s,norm_value v)
+| CodeOption(_,s,c) -> CodeOption(NoPos,s,norm_code c)
+| CodeNameOption(_,s) -> CodeNameOption(NoPos,s)
+
+and norm_value (v : value_t) : value_t = match v with
+| BoolVal(_,b) -> BoolVal(NoPos,b)
+| IntVal(_,i) -> IntVal(NoPos,i)
+| StringVal(_,s) -> StringVal(NoPos,s)
+| CharVal(_,c) -> CharVal(NoPos,c)
+| CodeVal(_,(s,cd)) -> CodeVal(NoPos,(s,norm_code cd))
+
+and norm_annot_atom (an : annot_atom_t) : annot_atom_t = match an with
+| SingletonAnnotAtom(ps,a) -> SingletonAnnotAtom(NoPos,norm_atom a)
+| QuantAnnotAtom(ps,an,q) -> QuantAnnotAtom(NoPos,norm_annot_atom an,q)
+| OptAnnotAtom(ps,an,opt) -> OptAnnotAtom(NoPos,norm_annot_atom an,opt)
+
+and norm_atom (a : atom_t) : atom_t = match a with
+| EmptyAtom(ps) -> EmptyAtom(NoPos)
+| EofAtom(ps) -> EofAtom(NoPos)
+| StringAtom(ps,str) -> StringAtom(NoPos,str)
+| IdentAtom(ps,s) -> IdentAtom(NoPos,s)
+| CharsetAtom(ps,c1,c2o) -> CharsetAtom(NoPos,c1,c2o)
+| RecurAtom(ps,s1,s2) -> RecurAtom(NoPos,s1,s2)
+| ProdAtom(ps,pr) -> ProdAtom(NoPos,norm_production pr)
+
 let rec get_placeholder_value_production (p : production_t) : value_t = match p with
 | Production(ps,(rto,(nameo,ol)),[]) ->
   die_error ps "unexpected empty production"
@@ -524,15 +571,16 @@ let val_to_atom (v : value_t) : atom_t = match v with
 | CharVal(ps,c) -> CharsetAtom(ps,SingletonCharset(ps,c),None)
 | _ -> failwith ("could not convert value '"^(str_value_t v)^"' to atom")
 
-let rec strip_lexer_grammar (g : grammar_t) (count : int) : (grammar_t * (symb,production_t) Hashtbl.t) = match g with
+let rec strip_lexer_grammar (g : grammar_t) (count : int) : (grammar_t * (symb,production_t) Hashtbl.t * (pattern_t list,symb option) Hashtbl.t) = match g with
 | Grammar(pos,(d,dl)) ->
   let the_list = (d::dl) in
   let table = Hashtbl.create count in
-  let dl2 = List.rev_map (fun x -> strip_lexer_decl x table) the_list in
+  let table2 = Hashtbl.create count in
+  let dl2 = List.rev_map (fun x -> strip_lexer_decl x table table2) the_list in
   let l = List.rev dl2 in
-  (Grammar(pos,(List.hd l,List.tl l)), table)
+  (Grammar(pos,(List.hd l,List.tl l)), table, table2)
 
-and strip_lexer_decl (d : decl_t) (table : (symb,production_t) Hashtbl.t) : decl_t = match d with
+and strip_lexer_decl (d : decl_t) (table : (symb,production_t) Hashtbl.t) (table2 : (pattern_t list,symb option) Hashtbl.t) : decl_t = match d with
 | ProdDecl(p,(Production(p2,((Some(Lexer),(so,ol)) as name),pl) as prod)) ->
   let sym = (match so with
   | Some(s) -> s
@@ -540,6 +588,8 @@ and strip_lexer_decl (d : decl_t) (table : (symb,production_t) Hashtbl.t) : decl
   Hashtbl.replace table sym prod;
   let v = val_to_atom (get_placeholder_value_production prod) in
   ProdDecl(p,Production(p2,name,[Pattern(p2,([SingletonAnnotAtom(p2,v)],None))]))
+| ProdDecl(p,(Production(p2,((Some(Parser),(so,ol))),pl))) ->
+  d
 | _ -> d
 
 (*******************************************)
