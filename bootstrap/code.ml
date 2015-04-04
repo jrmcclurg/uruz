@@ -487,18 +487,9 @@ let get_sorted_defs (result : grammar_t) (count : int) : ((symb*pos_t) list * si
 
 let placeholder_char = '*'
 
-(*module PatternsHash = Hashtbl.Make(
-struct
-  type t = pattern_t list
-  let hash = Hashtbl.hash
-  let equal a b = 
-end);;*)
-
 let norm_option f o = match o with
 | None -> None
 | Some(x) -> Some(f x)
-
-let norm_typ t = t (* TODO XXX *)
 
 let rec norm_production (p : production_t) : production_t = match p with
 | Production(_,(rt,(name,(ol,(cd,ty)))),pl) -> Production(NoPos,(rt,(name,(List.rev (List.rev_map norm_opt ol),(norm_option norm_code cd,norm_option norm_typ ty)))),List.rev (List.rev_map norm_pattern pl))
@@ -533,6 +524,13 @@ and norm_atom (a : atom_t) : atom_t = match a with
 | CharsetAtom(ps,c1,c2o) -> CharsetAtom(NoPos,c1,c2o)
 | RecurAtom(ps,s1,s2) -> RecurAtom(NoPos,s1,s2)
 | ProdAtom(ps,pr) -> ProdAtom(NoPos,norm_production pr)
+
+module PatternsHash = Hashtbl.Make(
+struct
+  type t = pattern_t list
+  let hash a = Hashtbl.hash (List.rev_map norm_pattern a)
+  let equal a b = ((List.rev_map norm_pattern a)=(List.rev_map norm_pattern b))
+end);;
 
 let rec get_placeholder_value_production (p : production_t) : value_t = match p with
 | Production(ps,(rto,(nameo,ol)),[]) ->
@@ -571,21 +569,23 @@ let val_to_atom (v : value_t) : atom_t = match v with
 | CharVal(ps,c) -> CharsetAtom(ps,SingletonCharset(ps,c),None)
 | _ -> failwith ("could not convert value '"^(str_value_t v)^"' to atom")
 
-let rec strip_lexer_grammar (g : grammar_t) (count : int) : (grammar_t * (symb,production_t) Hashtbl.t * (pattern_t list,symb option) Hashtbl.t) = match g with
+let rec strip_lexer_grammar (g : grammar_t) (count : int) : (grammar_t * (symb,production_t) Hashtbl.t * (symb option) PatternsHash.t) = match g with
 | Grammar(pos,(d,dl)) ->
   let the_list = (d::dl) in
   let table = Hashtbl.create count in
-  let table2 = Hashtbl.create count in
+  let table2 = PatternsHash.create count in
   let dl2 = List.rev_map (fun x -> strip_lexer_decl x table table2) the_list in
   let l = List.rev dl2 in
   (Grammar(pos,(List.hd l,List.tl l)), table, table2)
 
-and strip_lexer_decl (d : decl_t) (table : (symb,production_t) Hashtbl.t) (table2 : (pattern_t list,symb option) Hashtbl.t) : decl_t = match d with
+and strip_lexer_decl (d : decl_t) (table : (symb,production_t) Hashtbl.t) (table2 : (symb option) PatternsHash.t) : decl_t = match d with
 | ProdDecl(p,(Production(p2,((Some(Lexer),(so,ol)) as name),pl) as prod)) ->
   let sym = (match so with
   | Some(s) -> s
   | None -> die_error p2 "un-named lexer production") in
   Hashtbl.replace table sym prod;
+  PatternsHash.replace table2 pl so; (* TODO XXX - check for redefinition of pl *)
+  (* TODO XXX - build the remainder of table2 from the Parser decls *)
   let v = val_to_atom (get_placeholder_value_production prod) in
   ProdDecl(p,Production(p2,name,[Pattern(p2,([SingletonAnnotAtom(p2,v)],None))]))
 | ProdDecl(p,(Production(p2,((Some(Parser),(so,ol))),pl))) ->

@@ -11,7 +11,7 @@
   This is a multi-line comment
 */
 
-{
+@UTILS{
    type rule_type = Parser | Lexer | Ast
    let eq_rule_type a b = ((compare a b)=0)
    let str_rule_type s = match s with
@@ -161,6 +161,85 @@
       let p2 = get_pos p in
       (if (is_string_empty (strip_ocaml_comments s)) then EmptyCode(p2) else Code(p2, s))
    ;;
+}
+
+@PARSER{
+   let combine_code a b = match (a,b) with
+   | (CodeVal(_,(_,EmptyCode(_))),CodeVal(ps,(_,b))) -> CodeVal(ps,(None,b))
+   | (CodeVal(_,(_,a)),CodeVal(ps,(_,EmptyCode(_)))) -> CodeVal(ps,(None,a))
+   | (CodeVal(_,(_,Code(ps1,s1))),CodeVal(ps,(_,Code(ps2,s2)))) -> CodeVal(ps,(None,Code(ps1,Printf.sprintf "let s = (%s) in %s" s1 s2)))
+   | (BoolVal(_,_),BoolVal(_,_))
+   | (IntVal(_,_),IntVal(_,_))
+   | (StringVal(_,_),StringVal(_,_))
+   | (CharVal(_,_),CharVal(_,_)) -> b
+   | (_,BoolVal(ps,_))
+   | (_,IntVal(ps,_))
+   | (_,StringVal(ps,_))
+   | (_,CharVal(ps,_))
+   | (_,CodeVal(ps,_)) -> die_error ps "cannot combine options of different types"
+
+  (* this is the trailer *)
+  let combine_opt_list ol =
+  let table = Hashtbl.create 10 in
+  List.iter (fun o -> match o with
+  | ValOption(_,name,CodeVal(ps,(_,c)))
+  | CodeOption(ps,name,c) ->
+    let c2 = CodeVal(ps,(None,c)) in
+    (try let old = Hashtbl.find table name in
+    let newc = combine_code old c2 in
+    Hashtbl.replace table name newc
+    with Not_found -> Hashtbl.replace table name c2)
+  | CodeNameOption(ps,_) -> die_error ps "unexpected non-inlined code variable"
+  | ValOption(ps,name,v) -> 
+    (try let old = Hashtbl.find table name in
+    let newc = combine_code old v in
+    Hashtbl.replace table name newc
+    with Not_found -> Hashtbl.replace table name v)
+  ) ol;
+  let (ol2,c) = Hashtbl.fold (fun name v (acc,ca) ->
+    let opt2 = (match v with
+    | CodeVal(ps,(_,x)) -> (CodeOption(ps,name,x))
+    | BoolVal(ps,_)
+    | StringVal(ps,_)
+    | CharVal(ps,_)
+    | IntVal(ps,_) -> (ValOption(ps,name,v))
+    ) in
+    match (name,v) with
+    | (None,CodeVal(ps,(_,c))) -> (acc,Some(c))
+    | (None,CharVal(ps,_)) | (None,StringVal(ps,_)) | (None,IntVal(ps,_))
+    | (None,BoolVal(ps,_)) -> die_error ps "unnamed option must be of type <code>" (* TODO XXX *)
+    | (Some(_),_) -> ((opt2::acc),ca)
+  ) table ([],None) in
+  let get_name o = (match o with
+  | ValOption(_,name,_) -> name
+  | CodeOption(_,name,_) -> name
+  | CodeNameOption(p,_) -> die_error p "named code was not inlined properly") in
+  let ol2 = List.sort (fun a b -> match (get_name a,get_name b) with
+  | (None,None) -> 0
+  | (None,_) -> -1
+  | (_,None) -> 1
+  | (Some(x),Some(y)) -> compare (get_symbol x) (get_symbol y)) ol2 in
+  (ol2,c)
+}
+
+@AST{
+
+  let rec norm_typ (t : typ_t) : typ_t = match t with
+  (* uppercase singleton type goes to abstract data type *)
+  | SimpleType(ps,IdentType(ps2,[name])) ->
+    let str = get_symbol name in
+    let c = String.get str 0 in
+    if (Char.uppercase c)<>c then t else CompoundType(ps,AbstrType(ps,IdentName(ps,[name]),[]))
+  | SimpleType(ps,st) -> t
+  | CompoundType(ps,CommaType(ps2,[])) -> SimpleType(ps,NoType(ps2))
+  | CompoundType(ps,CommaType(ps2,[[SingletonConstrType(ps3,t2)]])) -> t2
+  | CompoundType(ps,CommaType(ps2,cll)) -> CompoundType(ps,CommaType(ps2,List.rev (List.rev_map (fun cl -> List.rev (List.rev_map norm_constr_type cl)) cll)))
+  | CompoundType(ps,AbstrType(ps2,an,cl)) -> CompoundType(ps,AbstrType(ps2,an,List.rev (List.rev_map norm_constr_type cl)))
+
+  and norm_constr_type (ct : constr_type_t) : constr_type_t = match ct with
+  | SingletonConstrType(p,t) -> SingletonConstrType(p,norm_typ t)
+  | InstConstrType(p,ct,sl) -> InstConstrType(p,norm_constr_type ct,sl)
+
 }
 
 Grammar ->
@@ -440,78 +519,3 @@ MultiComm  -> "/*" .. "*/" <{}:()> : {};
 Blanks -> [\r\t ]* <{}:()> : {};
 Newlines -> '\n' <{do_newline lexbuf}:()> : {};
 
-{
-   let combine_code a b = match (a,b) with
-   | (CodeVal(_,(_,EmptyCode(_))),CodeVal(ps,(_,b))) -> CodeVal(ps,(None,b))
-   | (CodeVal(_,(_,a)),CodeVal(ps,(_,EmptyCode(_)))) -> CodeVal(ps,(None,a))
-   | (CodeVal(_,(_,Code(ps1,s1))),CodeVal(ps,(_,Code(ps2,s2)))) -> CodeVal(ps,(None,Code(ps1,Printf.sprintf "let s = (%s) in %s" s1 s2)))
-   | (BoolVal(_,_),BoolVal(_,_))
-   | (IntVal(_,_),IntVal(_,_))
-   | (StringVal(_,_),StringVal(_,_))
-   | (CharVal(_,_),CharVal(_,_)) -> b
-   | (_,BoolVal(ps,_))
-   | (_,IntVal(ps,_))
-   | (_,StringVal(ps,_))
-   | (_,CharVal(ps,_))
-   | (_,CodeVal(ps,_)) -> die_error ps "cannot combine options of different types"
-
-  (* this is the trailer *)
-  let combine_opt_list ol =
-  let table = Hashtbl.create 10 in
-  List.iter (fun o -> match o with
-  | ValOption(_,name,CodeVal(ps,(_,c)))
-  | CodeOption(ps,name,c) ->
-    let c2 = CodeVal(ps,(None,c)) in
-    (try let old = Hashtbl.find table name in
-    let newc = combine_code old c2 in
-    Hashtbl.replace table name newc
-    with Not_found -> Hashtbl.replace table name c2)
-  | CodeNameOption(ps,_) -> die_error ps "unexpected non-inlined code variable"
-  | ValOption(ps,name,v) -> 
-    (try let old = Hashtbl.find table name in
-    let newc = combine_code old v in
-    Hashtbl.replace table name newc
-    with Not_found -> Hashtbl.replace table name v)
-  ) ol;
-  let (ol2,c) = Hashtbl.fold (fun name v (acc,ca) ->
-    let opt2 = (match v with
-    | CodeVal(ps,(_,x)) -> (CodeOption(ps,name,x))
-    | BoolVal(ps,_)
-    | StringVal(ps,_)
-    | CharVal(ps,_)
-    | IntVal(ps,_) -> (ValOption(ps,name,v))
-    ) in
-    match (name,v) with
-    | (None,CodeVal(ps,(_,c))) -> (acc,Some(c))
-    | (None,CharVal(ps,_)) | (None,StringVal(ps,_)) | (None,IntVal(ps,_))
-    | (None,BoolVal(ps,_)) -> die_error ps "unnamed option must be of type <code>" (* TODO XXX *)
-    | (Some(_),_) -> ((opt2::acc),ca)
-  ) table ([],None) in
-  let get_name o = (match o with
-  | ValOption(_,name,_) -> name
-  | CodeOption(_,name,_) -> name
-  | CodeNameOption(p,_) -> die_error p "named code was not inlined properly") in
-  let ol2 = List.sort (fun a b -> match (get_name a,get_name b) with
-  | (None,None) -> 0
-  | (None,_) -> -1
-  | (_,None) -> 1
-  | (Some(x),Some(y)) -> compare (get_symbol x) (get_symbol y)) ol2 in
-  (ol2,c)
-
-  let rec norm_typ (t : typ_t) : typ_t = match t with
-  (* uppercase singleton type goes to abstract data type *)
-  | SimpleType(ps,IdentType(ps2,[name])) ->
-    let str = get_symbol name in
-    let c = String.get str 0 in
-    if (Char.uppercase c)<>c then t else CompoundType(ps,AbstrType(ps,IdentName(ps,[name]),[]))
-  | SimpleType(ps,st) -> t
-  | CompoundType(ps,CommaType(ps2,[])) -> SimpleType(ps,NoType(ps2))
-  | CompoundType(ps,CommaType(ps2,[[SingletonConstrType(ps3,t2)]])) -> t2
-  | CompoundType(ps,CommaType(ps2,cll)) -> CompoundType(ps,CommaType(ps2,List.rev (List.rev_map (fun cl -> List.rev (List.rev_map norm_constr_type cl)) cll)))
-  | CompoundType(ps,AbstrType(ps2,an,cl)) -> CompoundType(ps,AbstrType(ps2,an,List.rev (List.rev_map norm_constr_type cl)))
-
-  and norm_constr_type (ct : constr_type_t) : constr_type_t = match ct with
-  | SingletonConstrType(p,t) -> SingletonConstrType(p,norm_typ t)
-  | InstConstrType(p,ct,sl) -> InstConstrType(p,norm_constr_type ct,sl)
-
-}

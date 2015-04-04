@@ -17,7 +17,7 @@ code.$(CMO):	code.ml flags.$(CMO) bootstrap_utils.$(CMO) bootstrap_ast.$(CMO)
 	$(OCAMLC) -c code.ml
 
 bootstrap_Makefile:	bootstrap.gra
-	pgg -footer-parser bootstrap.gra
+	pgg bootstrap.gra
 
 clean:	bootstrap_clean
 	rm -rf *.o *.cm* *.mli bootstrap_main.ml bootstrap_utils.ml bootstrap_ast.ml bootstrap_parser.ml bootstrap_parser.mly bootstrap_lexer.ml bootstrap_lexer.mll bootstrap_Makefile
