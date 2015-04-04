@@ -74,6 +74,8 @@ ast Foo = "123" | 'c' | Nothing ;
 
 ast Nothing :int = ~ ;
 
+parser The_ABCDEFGtest = "one" :(Foobar of string) | Test # Foobar ;
+
 
 //parser Two:xOne_t = One ;
 //parser One = Two ;

@@ -271,7 +271,7 @@ ProdTypeO ->
 XIdentO -> 
                 : { None }
 | '_'<:()>      : { None }
-| XIdent<:symb> : { Some($1) }
+| XIdentUpper<:symb> : { Some($1) }
 ;
 
 BarPattern0 ->
@@ -285,8 +285,8 @@ SemiDecl -> Decl ';' : { $1 } ;
 
 Decl -> 
   Production : ProdDecl
-| TokenKws<:()@{"token "}> XIdent+<:(symb*(symb list))> : TokenDecl
-| KeywordKws<:()@{"keyword "}> XIdent<:symb> Eq<:()@{" = "}> StringQuot<:string@{Printf.sprintf "%S" s}> : KeywordDecl
+| TokenKws<:()@{"token "}> XIdentUpper+<:(symb*(symb list))> : TokenDecl
+| KeywordKws<:()@{"keyword "}> XIdentUpper<:symb> Eq<:()@{" = "}> StringQuot<:string@{Printf.sprintf "%S" s}> : KeywordDecl
 | "code"<:()@{"code "}> XIdent<:symb> Eq<:()@{" ="}>
     NamedCode+<:(((symb option)*code)*(((symb option)*code) list))
     @{let (x,y) = s in str_list (fun (so,c) -> " "^(str_option (fun x -> (get_symbol x)^"") so)^(str_code c)) (x::y)}> : CodeDecl
@@ -434,7 +434,14 @@ CompoundType ->
 | AbstrName "of"<:()@{""}> TupleType<:(constr_type_t list)@{(if (List.length s)>0 then " of " else "")^(str_x_list str_constr_type_t s "*")}>   : AbstrType
 ;
 
-XIdent0 -> XIdent : { [$1] } ;
+XIdentUpper -> XIdent : {
+  let str = get_symbol $1 in
+  let bad = (try let _ = Str.search_forward (Str.regexp "__") str 0 in true with Not_found -> false) in
+  if bad || (String.uncapitalize str)=str then parse_error ("identifier '"^str^"' should be capitalized, and have no double-underscores");
+  $1
+} ;
+
+XIdent0 -> XIdentUpper : { [$1] } ;
 AbstrName ->
   XIdent0<:(symb list)@{str_x_list str_symb s "/"}> : IdentName
 | '_'<:()>        : AnyName
@@ -477,7 +484,7 @@ Atom ->
   '~'<:()>                         : EmptyAtom
 | "eof"<:()>                       : EofAtom
 | StringQuot<:string@{Printf.sprintf "%S" s}>              : StringAtom { let p = get_current_pos () in if String.length $1 > 0 then StringAtom(p, $1) else EmptyAtom(p) }
-| XIdent<:symb>                  : IdentAtom
+| XIdentUpper<:symb>                  : IdentAtom
 | Charset CharsetDiffOption<:(charset_t option)
     @{str_option (fun x -> " / "^(str_charset_t x)) s}>                         : CharsetAtom
 | Quot<:string@{Printf.sprintf "%S" s}> ".."<:()@{" .. "}> Quot<:string@{Printf.sprintf "%S" s}> : RecurAtom

@@ -1,8 +1,8 @@
-parser the_test = 
+parser The_test = 
 | "one" 
 ;
 
-parser the_other_test = 
+parser The_other_test = 
 | "one" 
 | "two" 
 | "three" 

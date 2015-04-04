@@ -165,35 +165,35 @@ parser Grammar =
   @str{(str_list (fun y -> "\n\n"^(str_decl_t y)^"\n;") x)}
 ;
 
-parser Production : xProduction_t =
+parser Production : production_t =
   ProdTypeO
-  :((rule_type option)*((symb option)*((xOpt_t list)*((code_t option) * (xTyp_t option)))))
+  :((rule_type option)*((symb option)*((opt_t list)*((code_t option) * (typ_t option)))))
     @str{let (x,(y,z))=s in let ystr = (match y with Some(y) -> (get_symbol y) | None -> "_") in match x with
         None -> "<"^ystr^(str_pair (str_list (fun x -> " "^(str_opt_t x))) (str_pair (str_option (fun c -> " "^(str_code c))) (str_option (fun t -> " :"^(str_typ_t t)))) z)^"> "
       | Some(x) -> (str_rule_type x)^" "^ystr^(str_pair (str_list (fun x -> " "^(str_opt_t x)))
       (str_pair (str_option (fun c -> " "^(str_code c))) (str_option (fun t -> " :"^(str_typ_t t))))
       z)^" = "}
-  BarPattern :(xPattern_t list)
+  BarPattern :(pattern_t list)
     @str{str_list (fun x -> "\n| "^(str_pattern_t x)^"") s} ;
 
-parser BarPattern :(xPattern_t list)  = BarPattern0:(xPattern_t list) # { List.rev $1 } :(xPattern_t list) ;
+parser BarPattern :(pattern_t list)  = BarPattern0:(pattern_t list) # { List.rev $1 } :(pattern_t list) ;
 
 parser ProdType
-:((rule_type option)*((symb option)*((xOpt_t list)*((code_t option) * (xTyp_t option)))))
+:((rule_type option)*((symb option)*((opt_t list)*((code_t option) * (typ_t option)))))
 =
-  ProdKw:rule_type XIdentO:(symb option) OptList:((xOpt_t list)*((code_t option) * (xTyp_t option))) Eq # { (Some($1),($2,$3)) }
-:((rule_type option)*((symb option)*((xOpt_t list)*((code_t option) * (xTyp_t option)))))
-| '<' XIdentO:(symb option) OptList:((xOpt_t list)*((code_t option) * (xTyp_t option))) '>' Eq? # { (None,($2,$3)) }
-:((rule_type option)*((symb option)*((xOpt_t list)*((code_t option) * (xTyp_t option)))))
+  ProdKw:rule_type XIdentO:(symb option) OptList:((opt_t list)*((code_t option) * (typ_t option))) Eq # { (Some($1),($2,$3)) }
+:((rule_type option)*((symb option)*((opt_t list)*((code_t option) * (typ_t option)))))
+| '<' XIdentO:(symb option) OptList:((opt_t list)*((code_t option) * (typ_t option))) '>' Eq? # { (None,($2,$3)) }
+:((rule_type option)*((symb option)*((opt_t list)*((code_t option) * (typ_t option)))))
 ;
 
 parser ProdTypeO
-  :((rule_type option)*((symb option)*((xOpt_t list)*((code_t option) * (xTyp_t option)))))
+  :((rule_type option)*((symb option)*((opt_t list)*((code_t option) * (typ_t option)))))
   =
 ~                                                               # { (None,(None,([],(None,None)))) }
-  :((rule_type option)*((symb option)*((xOpt_t list)*((code_t option) * (xTyp_t option)))))
-| ProdType:((rule_type option)*((symb option)*((xOpt_t list)*((code_t option) * (xTyp_t option))))) # { $1 }
-  :((rule_type option)*((symb option)*((xOpt_t list)*((code_t option) * (xTyp_t option)))))
+  :((rule_type option)*((symb option)*((opt_t list)*((code_t option) * (typ_t option)))))
+| ProdType:((rule_type option)*((symb option)*((opt_t list)*((code_t option) * (typ_t option))))) # { $1 }
+  :((rule_type option)*((symb option)*((opt_t list)*((code_t option) * (typ_t option)))))
 ;
 
 parser XIdentO :(symb option) =
@@ -243,12 +243,12 @@ parser Value =
 parser Eq = '='@{" = "} ;
 
 parser Pattern =
-  //OptList<:((xOpt_t list)*((code option) * (xTyp_t option)))
+  //OptList<:((opt_t list)*((code option) * (typ_t option)))
   //@{str_pair (str_list (fun x -> (str_opt_t x)^" "))
   //(str_pair (str_option (fun c -> (str_code c)^" ")) (str_option (fun t -> ":"^(str_typ_t t)^" ")))
   //s}>
   AnnotAtoms
-  :((annot_atom_t list)*(((symb option) * ((xOpt_t list) * ((code_t option) * (xTyp_t option)))) option))
+  :((annot_atom_t list)*(((symb option) * ((opt_t list) * ((code_t option) * (typ_t option)))) option))
   @{let (s,s2) = s in Printf.sprintf "%s%s" (str_list (fun x -> (str_annot_atom_t x)^" ") s)
   (str_option (fun (name,(opts,(cd,ty))) ->
   Printf.sprintf "#%s%s%s%s" (str_x_option get_symbol name " ")
@@ -256,19 +256,19 @@ parser Pattern =
 ;
 
 parser TempOpt
-  :(((symb option)*((xOpt_t list)*((code_t option) * (xTyp_t option)))) option)
+  :(((symb option)*((opt_t list)*((code_t option) * (typ_t option)))) option)
 =
 ~   # { None }
-| '#':() XIdentO:(symb option) OptList:((xOpt_t list)*((code_t option) * (xTyp_t option))) # {
+| '#':() XIdentO:(symb option) OptList:((opt_t list)*((code_t option) * (typ_t option))) # {
   Some($2,$3)
 }
 ;
 
 parser AnnotAtoms
-  :((annot_atom_t list)*(((symb option) * ((xOpt_t list) * ((code_t option) * (xTyp_t option)))) option))
+  :((annot_atom_t list)*(((symb option) * ((opt_t list) * ((code_t option) * (typ_t option)))) option))
 =
   AnnotAtom* TempOpt
-  :(((symb option)*((xOpt_t list)*((code_t option) * (xTyp_t option)))) option) # {
+  :(((symb option)*((opt_t list)*((code_t option) * (typ_t option)))) option) # {
     let restructure_annot_atom an = (
       let rec unpack an = (match an with
       | SingletonAnnotAtom(ps,a) -> [(an,ps)]
@@ -310,17 +310,17 @@ parser AnnotAtoms
 parser AnnotAtom =
   Atom            # SingletonAnnotAtom
 | AnnotAtom Quant # QuantAnnotAtom
-| AnnotAtom Opt2:((xOpt_t list)*((code_t option)*(xTyp_t option)))@{str_pair (fun l -> str_list (fun x -> " "^(str_opt_t x)) l) (str_pair (str_option (fun x -> " "^(str_code x))) (str_option (fun x -> " :"^(str_typ_t x)))) s}  # OptAnnotAtom
+| AnnotAtom Opt2:((opt_t list)*((code_t option)*(typ_t option)))@{str_pair (fun l -> str_list (fun x -> " "^(str_opt_t x)) l) (str_pair (str_option (fun x -> " "^(str_code x))) (str_option (fun x -> " :"^(str_typ_t x)))) s}  # OptAnnotAtom
 ;
 
-parser OptList :(xOpt_t list*(code_t option*xTyp_t option)) = Opt*:(xOpt_t list) OptType:(xTyp_t option) # {
+parser OptList :(opt_t list*(code_t option*typ_t option)) = Opt*:(opt_t list) OptType:(typ_t option) # {
   let (ol2,c) = combine_opt_list $1 in
   (ol2,(c,$2))
 }
 ;
 
-parser Opt2 :((xOpt_t list)*((code_t option)*(xTyp_t option))) =
-  ':':() Typ0:xTyp_t                            # { ([],(None,Some($2))) }
+parser Opt2 :((opt_t list)*((code_t option)*(typ_t option))) =
+  ':':() Typ0:typ_t                            # { ([],(None,Some($2))) }
 | Opt                                     # {
   match $1 with
   | CodeOption(ps,None,c) -> ([],(Some(c),None))
@@ -329,9 +329,9 @@ parser Opt2 :((xOpt_t list)*((code_t option)*(xTyp_t option))) =
 }
 ;
 
-parser OptType :(xTyp_t option) =
+parser OptType :(typ_t option) =
   ~                                          # { None }
-| ':':() Typ0:xTyp_t                            # { Some($2) }
+| ':':() Typ0:typ_t                            # { Some($2) }
 ;
 
 parser Opt =
@@ -349,9 +349,9 @@ parser FnName :(symb option) =
 
 lexer TokenKw = "token" ;
 
-parser Typ0 : xTyp_t = Typ # { norm_typ $1 };
+parser Typ0 : typ_t = Typ # { norm_typ $1 };
 
-parser Typ : xTyp_t =
+parser Typ : typ_t =
   SimpleType          # SimpleType
 | '(':() CompoundType ')':() # CompoundType
 ;
@@ -388,7 +388,7 @@ parser TupleType0 :(constr_type_t list) =
 ;
 
 parser ConstrType =
-  Typ0:xTyp_t                                                                      # SingletonConstrType
+  Typ0:typ_t                                                                      # SingletonConstrType
 | ConstrType TypeName:(symb list)@{" "^(str_x_list get_symbol s ".")^""} # InstConstrType
 ;
 

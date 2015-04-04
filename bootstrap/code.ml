@@ -433,8 +433,9 @@ let rec build_def_graph_grammar (g : grammar_t) (count : int) : simple_graph = m
   List.iter (fun d -> (match d with
     | ProdDecl(p,Production(p2,(_,(None,_)),patl)) -> die_error p2 "production is not named"
     | ProdDecl(p,Production(p2,(_,(Some(name),(_,(_,ty1)))),patl)) ->
+      let str = get_symbol name in
       let x = (try let (set,m,is_def,ps) = Hashtbl.find graph name in
-        if is_def then die_error p2 ("multiple definition of '"^(get_symbol name)^"'")
+        if is_def then die_error p2 ("multiple definition of '"^str^"'")
         else (set,m,true,ps)
         with Not_found -> die_error p ("could not find node '"^(get_symbol name)^"' while building graph")) in
       Hashtbl.replace graph name x;
@@ -934,8 +935,10 @@ match ct with
 
 let get_auto_type_name (prod_name : symb) : symb =
   let str = get_symbol prod_name in
-  let c = String.get str 0 in
-  let str = (if (Char.lowercase c)<>c then ("x"^str) else str)^(!Flags.auto_type_suffix) in
+  (*let c = String.get str 0 in
+  let str = (if (Char.lowercase c)<>c then ("x"^str) else str)^(!Flags.auto_type_suffix) in*)
+  let str = Str.global_replace (Str.regexp "\\([A-Z]\\)") "_\\1" (String.uncapitalize str) in
+  let str = (String.lowercase str)^(!Flags.auto_type_suffix) in
   add_symbol str
 
 (* TODO XXX - does this work for (((_))) etc. ? *)

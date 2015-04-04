@@ -13,23 +13,23 @@ parser Foo_0_0_0 {List.rev x} :(_ list) =
 | Foo_0_0_0 "one" # {let x = $2 in (x)::$1} :('t2 list)
 ;
 
-parser bar = 
-| bar_0_0 "two" "three" 
+parser Bar = 
+| Bar_0_0 "two" "three" 
 ;
 
-parser bar_0_0 :(_ option) = 
+parser Bar_0_0 :(_ option) = 
 | ~ # {None} :(_ option)
-| bar_0_0_0 # {Some($1)} :('t1 option)
+| Bar_0_0_0 # {Some($1)} :('t1 option)
 ;
 
-parser bar_0_0_0 {List.rev x} :(_ list) = 
-| bar_0_0_0_0 # {[$1]} :(_ list)
-| bar_0_0_0 bar_0_0_0_0 # {let x = $2 in (x)::$1} :('t2 list)
+parser Bar_0_0_0 {List.rev x} :(_ list) = 
+| Bar_0_0_0_0 # {[$1]} :(_ list)
+| Bar_0_0_0 Bar_0_0_0_0 # {let x = $2 in (x)::$1} :('t2 list)
 ;
 
-parser bar_0_0_0_0 {List.rev x} :(_ list) = 
+parser Bar_0_0_0_0 {List.rev x} :(_ list) = 
 | ~ # {[]} :(_ list)
-| bar_0_0_0_0 "one" # {let x = $2 in (x)::$1} :('t2 list)
+| Bar_0_0_0_0 "one" # {let x = $2 in (x)::$1} :('t2 list)
 ;
 
 parser BAZ = 
