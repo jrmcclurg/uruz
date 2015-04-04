@@ -12,6 +12,7 @@ let def_prod_index = ref 0
 
 let param_name = ref "x"
 let type_name = ref "t"
+let lexer_prefix = ref "Lex"
 let auto_type_suffix = ref "_t"
 let pos_type_name = ref (add_symbol "pos_t")
 let enable_pos = ref true
@@ -81,6 +82,8 @@ let get_def_prod_name (name : symb option) (nesting : int list) =
   add_symbol ((match name with None -> !def_prod_name | Some(s) -> get_symbol s)^(List.fold_left (fun str n -> "_"^(string_of_int n)^str) "" nesting))
 let get_def_prod_type (t : rule_type option) = match t with None -> !def_prod_type | Some(s) -> s
 let is_processing_lexer (deftyp : rule_type option) = (deftyp=Some(Lexer)) || (deftyp=None && !def_prod_type=Lexer)
+let is_processing_parser (deftyp : rule_type option) = (deftyp=Some(Parser)) || (deftyp=None && !def_prod_type=Parser)
+let is_processing_ast (deftyp : rule_type option) = (deftyp=Some(Ast)) || (deftyp=None && !def_prod_type=Ast)
 
 let banner_text = "Welcome to bootstrap v. 1.0";;
 let usage_msg = banner_text^"\n"^

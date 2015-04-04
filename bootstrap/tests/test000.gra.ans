@@ -1,9 +1,25 @@
-parser The_test = 
+parser TheTest = 
+| TheTest_0_0 
+;
+
+lexer TheTest_0_0 = 
 | "one" 
 ;
 
-parser The_other_test = 
+parser TheOtherTest = 
+| TheOtherTest_0_0 
+| TheOtherTest_1_0 
+| TheOtherTest_2_0 
+;
+
+lexer TheOtherTest_0_0 = 
 | "one" 
+;
+
+lexer TheOtherTest_1_0 = 
 | "two" 
+;
+
+lexer TheOtherTest_2_0 = 
 | "three" 
 ;

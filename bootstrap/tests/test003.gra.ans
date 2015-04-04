@@ -1,5 +1,9 @@
 parser One = 
-| "one" #
+| One_0_0 #
+;
+
+lexer One_0_0 = 
+| "one" 
 ;
 
 parser Two = 
@@ -7,11 +11,19 @@ parser Two =
 ;
 
 parser Two_0_0 = 
-| "one" # :int
+| Two_0_0_0 # :int
+;
+
+lexer Two_0_0_0 = 
+| "one" 
 ;
 
 parser Two_0_1 = 
-| "two" # :string
+| Two_0_1_0 # :string
+;
+
+lexer Two_0_1_0 = 
+| "two" 
 ;
 
 parser Three = 
@@ -23,7 +35,11 @@ parser Three_0_0 =
 ;
 
 parser Three_0_0_0 = 
-| "one" # :int
+| Three_0_0_0_0 # :int
+;
+
+lexer Three_0_0_0_0 = 
+| "one" 
 ;
 
 parser Three_0_1 = 
@@ -31,7 +47,11 @@ parser Three_0_1 =
 ;
 
 parser Three_0_1_0 = 
-| "two" # :string
+| Three_0_1_0_0 # :string
+;
+
+lexer Three_0_1_0_0 = 
+| "two" 
 ;
 
 parser Four = 
@@ -39,11 +59,19 @@ parser Four =
 ;
 
 parser Four_0_0 = 
-| "one" # {code1} :int
+| Four_0_0_0 # {code1} :int
+;
+
+lexer Four_0_0_0 = 
+| "one" 
 ;
 
 parser Four_0_1 = 
-| "two" # {code2} :string
+| Four_0_1_0 # {code2} :string
+;
+
+lexer Four_0_1_0 = 
+| "two" 
 ;
 
 parser Five = 
@@ -51,11 +79,19 @@ parser Five =
 ;
 
 parser Five_0_0 = 
-| "one" @option:=123 @option2:=124 # {code1} :int
+| Five_0_0_0 # {code1} :int
+;
+
+lexer Five_0_0_0 @option:=123 @option2:=124 = 
+| "one" 
 ;
 
 parser Five_0_1 = 
-| "two" @option3:=125 # {code2} :string
+| Five_0_1_0 # {code2} :string
+;
+
+lexer Five_0_1_0 @option3:=125 = 
+| "two" 
 ;
 
 parser Six = 
@@ -67,7 +103,11 @@ parser Six_0_0 =
 ;
 
 parser Six_0_0_0 = 
-| "one" @option:=123 @option2:=124 # {code1}
+| Six_0_0_0_0 # {code1}
+;
+
+lexer Six_0_0_0_0 @option:=123 @option2:=124 = 
+| "one" 
 ;
 
 parser Six_0_1 = 
@@ -79,7 +119,11 @@ parser Six_0_1_0 =
 ;
 
 parser Six_0_1_0_0 = 
-| "two" # :char
+| Six_0_1_0_0_0 # :char
+;
+
+lexer Six_0_1_0_0_0 = 
+| "two" 
 ;
 
 parser Seven = 
@@ -87,11 +131,19 @@ parser Seven =
 ;
 
 parser Seven_0_0 = 
-| "one" # :int
+| Seven_0_0_0 # :int
+;
+
+lexer Seven_0_0_0 = 
+| "one" 
 ;
 
 parser Seven_0_1 = 
-| "two" @option3:=125 
+| Seven_0_1_0 
+;
+
+lexer Seven_0_1_0 @option3:=125 = 
+| "two" 
 ;
 
 parser Eight = 
@@ -107,7 +159,11 @@ parser Eight_0_0_0 =
 ;
 
 parser Eight_0_0_0_0 = 
-| "one" # :string
+| Eight_0_0_0_0_0 # :string
+;
+
+lexer Eight_0_0_0_0_0 = 
+| "one" 
 ;
 
 parser Eight_0_1 = 
@@ -119,7 +175,11 @@ parser Eight_0_1_0 =
 ;
 
 parser Eight_0_1_0_0 = 
-| "two" # {code1}
+| Eight_0_1_0_0_0 # {code1}
+;
+
+lexer Eight_0_1_0_0_0 = 
+| "two" 
 ;
 
 parser Nine = 

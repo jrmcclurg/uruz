@@ -1,9 +1,25 @@
 parser One = 
-| "one" "two" Two "three" 
+| One_0_0 One_0_1 Two One_0_3 
+;
+
+lexer One_0_0 = 
+| "one" 
+;
+
+lexer One_0_1 = 
+| "two" 
 ;
 
 parser Two = 
+| Two_0_0 
+;
+
+lexer Two_0_0 = 
 | "four" 
+;
+
+lexer One_0_3 = 
+| "three" 
 ;
 
 parser Three = 
@@ -13,14 +29,26 @@ parser Three =
 ;
 
 parser TheInt = 
+| TheInt_0_0 
+;
+
+lexer TheInt_0_0 = 
 | "four" 
 ;
 
 parser TheBool = 
+| TheBool_0_0 
+;
+
+lexer TheBool_0_0 = 
 | "five" 
 ;
 
 parser TheString = 
+| TheString_0_0 
+;
+
+lexer TheString_0_0 = 
 | "six" 
 ;
 
@@ -36,6 +64,10 @@ parser Four_0_0 {List.rev x} :(_ list) =
 ;
 
 parser TheInt2 = 
+| TheInt2_0_0 
+;
+
+lexer TheInt2_0_0 = 
 | "four" 
 ;
 
@@ -45,6 +77,10 @@ parser Four_1_0 {List.rev x} :(_ list) =
 ;
 
 parser TheBool2 = 
+| TheBool2_0_0 
+;
+
+lexer TheBool2_0_0 = 
 | "five" 
 ;
 
@@ -54,5 +90,9 @@ parser Four_2_0 :(_ option) =
 ;
 
 parser TheString2 = 
+| TheString2_0_0 
+;
+
+lexer TheString2_0_0 = 
 | "six" 
 ;

@@ -100,6 +100,7 @@
     current_id := result - 1;
     result
 
+  let prec_kw = add_symbol "prec"
   let unit_kw = add_symbol "unit"
   let char_kw = add_symbol "char"
   let int_kw = add_symbol "int"
@@ -163,7 +164,7 @@
    ;;
 }
 
-@PARSER{
+@AST{
    let combine_code a b = match (a,b) with
    | (CodeVal(_,(_,EmptyCode(_))),CodeVal(ps,(_,b))) -> CodeVal(ps,(None,b))
    | (CodeVal(_,(_,a)),CodeVal(ps,(_,EmptyCode(_)))) -> CodeVal(ps,(None,a))
@@ -220,9 +221,6 @@
   | (_,None) -> 1
   | (Some(x),Some(y)) -> compare (get_symbol x) (get_symbol y)) ol2 in
   (ol2,c)
-}
-
-@AST{
 
   let rec norm_typ (t : typ_t) : typ_t = match t with
   (* uppercase singleton type goes to abstract data type *)
