@@ -487,13 +487,15 @@ let rec generate_ast_code file prefix g =
   output_string file "\n\n";
   output_string file ("open "^prefix^"utils;;\n");
   output_string file "\n(* AST Data Structure *)\n\n";
-  match g with Grammar(_,_,_,px,plx) ->
+  match g with Grammar(_,header,footer,px,plx) ->
   let pl = px::plx in
   let (_,_,str,strx,stry,strz,strw) = List.fold_left (fun (flag,prev,str,strx,stry,strz,strw) p -> 
     let (num,str2,str3,str4,str5,str6) = (generate_ast_production_code file prefix flag prev p) in
     (true, num, (str^str2), (strx^str3), (stry^str4), (strz^str5), (strw^str6))
   ) (false,0,"","","","","") pl in
   output_string file (str^";;\n");
+let x = List.filter (fun (c,so) -> match so with Some(s) -> s="ast" | _ -> false) (header@footer) in
+  List.iter (fun (c,so) -> match c with Code(_,s) -> output_string file ("\n"^s) | _ -> ()) x;
   output_string file "\n(* AST Pretty-Print Functions *)\n\n";
   output_string file (strx^";;\n\n");
   output_string file (stry^";;\n\n");
@@ -673,9 +675,9 @@ let generate_parser_code file prefix g (h : ((string*((string*int) option)*typ o
    output_string file ("   open "^prefix^"utils;;\n");
   output_string file "\n";
   if !Flags.footer_is_parser then (match footer with
-  | None -> ()
-  | Some(EmptyCode(_)) -> ()
-  | Some(Code(_,s)) -> output_string file (s^"\n"));
+  | [(Code(_,s),None)] -> output_string file (s^"\n")
+  | _ -> let x = List.filter (fun (c,so) -> match so with Some(s) -> s="parser" | _ -> false) (header@footer) in
+  List.iter (fun (c,so) -> match c with Code(_,s) -> output_string file ("\n"^s) | _ -> ()) x);
    output_string file "%}\n\n";
    SubpatternHashtbl.iter (fun k (s,assoc_str,typo,ps) -> 
       (*print_string (">>> processing terminal symbol: "^s^"\n");*)
@@ -792,9 +794,9 @@ match g with Grammar(_,header,footer,_,_) ->
    output_string file ("   open "^prefix^"ast;;\n");
    output_string file ("   open "^prefix^"utils;;\n");
   if not !Flags.footer_is_parser then (match footer with
-  | None -> ()
-  | Some(EmptyCode(_)) -> ()
-  | Some(Code(_,s)) -> output_string file ("\n"^s));
+  | [(Code(_,s),None)] -> output_string file ("\n"^s)
+  | _ -> let x = List.filter (fun (c,so) -> match so with Some(s) -> s="lexer" | _ -> false) (header@footer) in
+  List.iter (fun (c,so) -> match c with Code(_,s) -> output_string file ("\n"^s) | _ -> ()) x);
    output_string file "}\n\n";
    output_string file ("(* The type \"token\" is defined in "^prefix^"parser.mli *)\n");
    output_string file "rule token = parse\n";
@@ -1076,9 +1078,11 @@ let generate_utils_code file g =
   output_string file "    ) (\"\",true) il))\n";
   output_string file ";;\n";
   (match header with
-  | None -> ()
-  | Some(EmptyCode(_)) -> ()
-  | Some(Code(_,s)) -> output_string file ("\n"^s));
+  | [(Code(_,s),None)] -> output_string file ("\n"^s)
+  | _ ->
+  let x = List.filter (fun (c,so) -> match so with Some(s) -> s="utils" | _ -> false) (header@footer) in
+  List.iter (fun (c,so) -> match c with Code(_,s) -> output_string file ("\n"^s) | _ -> ()) x
+  );
 ;;
 
 let generate_skeleton_makefile file prefix =

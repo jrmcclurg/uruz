@@ -40,11 +40,11 @@
 %type <Ast.grammar> main
 %%
 main:
-   code_block production prod_list code_block EOF {
+   code_blocks production prod_list code_blocks EOF {
       let p = (match $1 with
-      | None -> get_pos (rhs_start_pos 2)
-      | Some(EmptyCode(p)) -> p
-      | Some(Code(p,_)) -> p) in
+      | [] -> get_pos (rhs_start_pos 2)
+      | (EmptyCode(p),_)::_ -> p
+      | (Code(p,_),_)::_ -> p) in
          Grammar(p,$1,$4,$2,$3)
    }
 ;
@@ -52,6 +52,14 @@ main:
 code_block:
           { None }             /* TODO - delete NoPos */
    | CODE { Some(handle_code $1) }
+
+code_blocks:
+          { [] }             /* TODO - delete NoPos */
+   | code_blocks code_block_name CODE { ((handle_code $3),$2)::$1 }
+
+code_block_name:
+          { None }             /* TODO - delete NoPos */
+   | AMP IDENT { Some($2) }
 
 prod_list:
                           { [] }

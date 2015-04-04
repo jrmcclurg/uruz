@@ -16,7 +16,7 @@ open Utils;;
 (** {b AST data structures} *)
 
 (** AST node for a grammar file *)
-type grammar = Grammar of pos * code option * code option * production * production list (**
+type grammar = Grammar of pos * (code * string option) list * (code * string option) list * production * production list (**
                 Grammar file having given
                 pos,
                 header OCaml code,
@@ -201,7 +201,7 @@ and code = EmptyCode of pos (**
     @param g the grammar to normalize *)
 let rec reloc_grammar (g : grammar) =
    match g with
-   | Grammar(p,c1,c2,pr,prl) -> Grammar(NoPos,reloc_code_opt c1,reloc_code_opt c2,
+   | Grammar(p,c1,c2,pr,prl) -> Grammar(NoPos,List.rev (List.rev_map (fun (c,n) -> (reloc_code c, n)) c1),List.rev (List.rev_map (fun (c,n) -> (reloc_code c, n)) c2),
                                         reloc_production pr,List.map (fun p -> reloc_production p) prl)
 
 (** Removes position from code:
@@ -320,15 +320,13 @@ let rec print_grammar (n:int) (g:grammar) : unit =
       print_indent n "Grammar(\n";
       print_pos (n+1) p;
       print_string ",\n";
-      (match c1 with
-      | None -> print_indent (n+1) "None"
-      | Some(c1) -> print_indent (n+1) "Some(\n"; print_code (n+2) c1; 
-                    print_string "\n"; print_indent (n+1) ")" );
+      List.iter (fun (c1,s) ->
+      print_indent (n+1) "(\n"; print_code (n+2) c1; 
+                    print_string ((match s with Some(s) -> (", "^s) | _ -> "")^"\n"); print_indent (n+1) ")" ) c1;
       print_string ",\n";
-      (match c2 with
-      | None -> print_indent (n+1) "None"
-      | Some(c2) -> print_indent (n+1) "Some(\n"; print_code (n+2) c2;
-                    print_string "\n"; print_indent (n+1) ")" );
+      List.iter (fun (c2,s) ->
+      print_indent (n+1) "(\n"; print_code (n+2) c2; 
+                    print_string ((match s with Some(s) -> (", "^s) | _ -> "")^"\n"); print_indent (n+1) ")" ) c2;
       print_string ",\n";
       print_indent (n+1) "[\n";
       let _ = List.fold_left (fun flag pr -> 
