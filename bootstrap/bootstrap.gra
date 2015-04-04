@@ -436,9 +436,16 @@ CompoundType ->
 
 XIdentUpper -> XIdent : {
   let str = get_symbol $1 in
-  let bad = (try let _ = Str.search_forward (Str.regexp "__") str 0 in true with Not_found -> false) in
+  (*let bad = (try let _ = Str.search_forward (Str.regexp "__") str 0 in true with Not_found -> false) in
   if bad || (String.uncapitalize str)=str then parse_error ("identifier '"^str^"' should be capitalized, and have no double-underscores");
-  $1
+  $1*)
+  let str = Str.global_replace (Str.regexp "\\([^_]\\)\\([A-Z][a-z]+\\)") "\\1_\\2" (String.capitalize str) in
+  let str = Str.global_replace (Str.regexp "\\([a-z0-9]\\)\\([A-Z]\\)") "\\1_\\2" str in
+  (*let str = Str.global_substitute (Str.regexp "[^_]+") (fun s -> String.capitalize (String.lowercase s)) str in*)
+  let parts = Str.split (Str.regexp "_+") str in
+  let parts = List.rev_map (fun s -> String.capitalize (String.lowercase s)) parts in
+  let str = List.fold_left (fun acc s -> s^acc) "" parts in
+  add_symbol str
 } ;
 
 XIdent0 -> XIdentUpper : { [$1] } ;
