@@ -1150,8 +1150,29 @@ PatternsHash.iter (fun k (nm,prec,ty,v) ->
 Grammar(p,(combine_decl table d, List.rev (List.rev_map (combine_decl table) dl)))
 
 and combine_decl (table : (symb,symb) Hashtbl.t) (d : decl_t) : decl_t = match d with
-| ProdDecl(p,Production(p2,(rt,(Some(name),(ol,(cd,ty)))),pl)) -> 
-  (try let new_name = Hashtbl.find table name in
-    ProdDecl(p,Production(p2,(rt,(Some(name),((ValOption(p,Some(delete_kw),BoolVal(p,true)))::ol,(cd,ty)))),pl))
-  with Not_found -> d)
+| ProdDecl(p,pr) -> ProdDecl(p,combine_production table pr)
 | _ -> d
+
+and combine_production (table : (symb,symb) Hashtbl.t) (pr : production_t) : production_t = match pr with
+| Production(p,(rt,(Some(name),(ol,(cd,ty)))),pl) -> 
+  let pl2 = List.rev (List.rev_map (combine_pattern table) pl) in
+  (try let _ = Hashtbl.find table name in
+    Production(p,(rt,(Some(name),((ValOption(p,Some(delete_kw),BoolVal(p,true)))::ol,(cd,ty)))),pl2)
+  with Not_found -> Production(p,(rt,(Some(name),(ol,(cd,ty)))),pl2))
+| Production(p,(rt,(nm,(ol,(cd,ty)))),pl) -> 
+  let pl2 = List.rev (List.rev_map (combine_pattern table) pl) in
+  Production(p,(rt,(nm,(ol,(cd,ty)))),pl2)
+
+and combine_pattern (table : (symb,symb) Hashtbl.t) (pa : pattern_t) : pattern_t = match pa with
+| Pattern(p,(anl,x)) ->
+  Pattern(p,(List.rev (List.rev_map (combine_annot_atom table) anl),x))
+
+and combine_annot_atom (table : (symb,symb) Hashtbl.t) (an : annot_atom_t) : annot_atom_t = match an with
+| SingletonAnnotAtom(p,a) -> SingletonAnnotAtom(p,combine_atom table a)
+| QuantAnnotAtom(p,an,q) -> QuantAnnotAtom(p,combine_annot_atom table an,q)
+| OptAnnotAtom(p,an,x) -> OptAnnotAtom(p,combine_annot_atom table an,x)
+
+and combine_atom (table : (symb,symb) Hashtbl.t) (a : atom_t) : atom_t = match a with
+| IdentAtom(p,i) -> (try let i2 = Hashtbl.find table i in IdentAtom(p,i2) with Not_found -> IdentAtom(p,i))
+| ProdAtom(p,pr) -> ProdAtom(p,combine_production table pr)
+| _ -> a

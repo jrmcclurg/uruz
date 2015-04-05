@@ -75,7 +75,7 @@ parser Foo = "one"@prec:=1 | 'c' | Nothing ;
 ast Nothing :int = ~ ;
 ast Noth_ing :int = ~ ;
 
-parser theAXTest = (parser Inner @two:=123 @three:="abc" = "test")@two:=12345:~ Nothing@prec:=123{n}:~ "one" # :(Foobar of string) | Wow [123]@prec:=1234 | "one"@prec:=0 Test # Foobar ;
+parser theAXTest = (parser Inner @two:=123 @three:="abc" = "test")@two:=12345:~ Nothing@prec:=123{n}:~ "one" # :(Foobar of string) | Wow Wow2 Wow3 [123]@prec:=1234 | "one"@prec:=0 Test # Foobar ;
 
 lexer Wow3 @prec:=140  = 'c' 'a' 't' ;
 lexer Wow @prec:=13  = 'c' 'a' 't' ;
@@ -93,5 +93,4 @@ parser TheParser = "one" ;
 //parser One = Two ;
 
 // TODO: collect the auto-generated names when unifying (_ of ...)
-// TODO: hash all lexer tokens
-// TODO: deal with the upper/lowercase idents issues
+// TODO: tokens should be able to be referenced
