@@ -223,7 +223,7 @@
   | (Some(x),Some(y)) -> compare (get_symbol x) (get_symbol y)) ol2 in
   (ol2,c)
 
-  let rec norm_typ (t : typ_t) : typ_t = match t with
+  let rec flatten_typ (t : typ_t) : typ_t = match t with
   (* uppercase singleton type goes to abstract data type *)
   | SimpleType(ps,IdentType(ps2,[name])) ->
     let str = get_symbol name in
@@ -232,12 +232,12 @@
   | SimpleType(ps,st) -> t
   | CompoundType(ps,CommaType(ps2,[])) -> SimpleType(ps,NoType(ps2))
   | CompoundType(ps,CommaType(ps2,[[SingletonConstrType(ps3,t2)]])) -> t2
-  | CompoundType(ps,CommaType(ps2,cll)) -> CompoundType(ps,CommaType(ps2,List.rev (List.rev_map (fun cl -> List.rev (List.rev_map norm_constr_type cl)) cll)))
-  | CompoundType(ps,AbstrType(ps2,an,cl)) -> CompoundType(ps,AbstrType(ps2,an,List.rev (List.rev_map norm_constr_type cl)))
+  | CompoundType(ps,CommaType(ps2,cll)) -> CompoundType(ps,CommaType(ps2,List.rev (List.rev_map (fun cl -> List.rev (List.rev_map flatten_constr_type cl)) cll)))
+  | CompoundType(ps,AbstrType(ps2,an,cl)) -> CompoundType(ps,AbstrType(ps2,an,List.rev (List.rev_map flatten_constr_type cl)))
 
-  and norm_constr_type (ct : constr_type_t) : constr_type_t = match ct with
-  | SingletonConstrType(p,t) -> SingletonConstrType(p,norm_typ t)
-  | InstConstrType(p,ct,sl) -> InstConstrType(p,norm_constr_type ct,sl)
+  and flatten_constr_type (ct : constr_type_t) : constr_type_t = match ct with
+  | SingletonConstrType(p,t) -> SingletonConstrType(p,flatten_typ t)
+  | InstConstrType(p,ct,sl) -> InstConstrType(p,flatten_constr_type ct,sl)
 
 }
 
@@ -412,7 +412,7 @@ FnName ->
 
 TokenKw -> "token" : ;
 
-Typ0 -> Typ : { norm_typ $1 };
+Typ0 -> Typ : { flatten_typ $1 };
 
 Typ ->
   SimpleType          : SimpleType

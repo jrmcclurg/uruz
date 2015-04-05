@@ -512,6 +512,30 @@ and norm_pattern (p : pattern_t) : pattern_t = match p with
 | Pattern(_,(ans,Some((name,(ol,(cd,ty)))))) ->
   Pattern(NoPos,(List.rev (List.rev_map norm_annot_atom ans),Some(name,(List.rev (List.rev_map norm_opt ol),(norm_option norm_code cd,norm_option norm_typ ty)))))
 
+and norm_typ (t : typ_t) : typ_t = match t with
+| SimpleType(p,st) -> SimpleType(NoPos,norm_simple_type st)
+| CompoundType(p,ct) -> CompoundType(NoPos,norm_compound_type ct)
+
+and norm_simple_type (s : simple_type_t) : simple_type_t = match s with
+| TokenType(p) -> TokenType(NoPos)
+| AnyType(p) -> AnyType(NoPos)
+| NoType(p) -> NoType(NoPos)
+| VarType(p,s) -> VarType(NoPos,s)
+| UnitType(p) -> UnitType(NoPos)
+| IdentType(p,sl) -> IdentType(NoPos,sl)
+
+and norm_compound_type (c : compound_type_t) : compound_type_t = match c with
+| CommaType(p,cll) -> CommaType(NoPos,List.rev (List.rev_map (fun l -> List.rev (List.rev_map norm_constr_type l)) cll))
+| AbstrType(p,an,cl) -> AbstrType(NoPos,norm_abstr_name an,List.rev (List.rev_map norm_constr_type cl))
+
+and norm_abstr_name (a : abstr_name_t) : abstr_name_t = match a with
+| IdentName(p,sl) -> IdentName(NoPos,sl)
+| AnyName(p) -> AnyName(NoPos)
+
+and norm_constr_type (ct : constr_type_t) : constr_type_t = match ct with
+| SingletonConstrType(p,t) -> SingletonConstrType(NoPos,norm_typ t)
+| InstConstrType(p,ct,sl) -> InstConstrType(NoPos,norm_constr_type ct,sl)
+
 and norm_opt (o : opt_t) : opt_t = match o with
 | ValOption(_,s,v) -> ValOption(NoPos,s,norm_value v)
 | CodeOption(_,s,c) -> CodeOption(NoPos,s,norm_code c)
@@ -611,7 +635,7 @@ and strip_lexer_decl (d : decl_t) (table : (symb,production_t) Hashtbl.t) (table
   let prec1 = (match vl with Some(IntVal(_,i)) -> i | _ -> max_int) in
   let (nm,pr,tys,temp) = (try PatternsHash.find table2 pl with Not_found -> ((*add_symbol (!Flags.lexer_prefix^(string_of_int index))*)sym, prec1, [], IntSet.empty)) in
   let (nm2,prec) = (if prec1 <= pr then (sym,prec1) else (nm,pr)) in
-  PatternsHash.replace table2 pl (nm2,prec,(match ty1 with Some(t) -> t::tys | _ -> tys),(IntSet.add sym temp));
+  PatternsHash.replace table2 pl (nm2,prec,(match ty1 with Some(t) -> (norm_typ t)::tys | _ -> (SimpleType(NoPos,AnyType(NoPos)))::tys),(IntSet.add sym temp));
   let v = val_to_atom (get_placeholder_value_production prod) in
   ProdDecl(p,Production(p2,name,[Pattern(p2,([SingletonAnnotAtom(p2,v)],None))]))
 | ProdDecl(p,(Production(p2,((Some(Parser),(so,(ol,(olx,ty1))))),pl))) ->
@@ -1142,9 +1166,8 @@ PatternsHash.iter (fun k (nm,prec,ty,v) ->
   let els = (str_x_list get_symbol (IntSet.elements v) ", ") in
   IntSet.iter (fun x -> if x<>nm then Hashtbl.replace table x nm) v;
   Printf.printf "\npatterns = %s\n  new = %s (%s)\n  prec = %d\n  vals = %s\n  types = %s\n" (str_x_list str_pattern_t k ", ") (get_symbol nm) (get_symbol auto) prec els (str_x_list str_typ_t ty ", ");
-  (try
-    let _ = List.fold_left (fun acc t -> match acc with None -> Some(t) | Some(tx) -> Some(unify_typ tx t auto)) None ty in ()
-  with _ -> die_error NoPos (Printf.sprintf "lexers (%s) match equivalent patterns, so they must have equivalent overall types" els))
+  let (check,_) = List.fold_left (fun (check,acc) t -> match acc with None -> (check,Some(t)) | Some(tx) -> ((check && tx=t),Some(t))) (true,None) ty in
+  (if not check then die_error NoPos (Printf.sprintf "lexers (%s) match equivalent patterns, so they must have equivalent overall types" els))
   
 ) lexers;
 Grammar(p,(combine_decl table d, List.rev (List.rev_map (combine_decl table) dl)))
