@@ -70,7 +70,7 @@ ast Test =
 ;
 
 
-parser Foo = "one"@prec:=1 | 'c' | Nothing ;
+parser Foo = "one"@prec:=1 | 'c' | Nothing | MyToken | MyKey ;
 
 ast Nothing :int = ~ ;
 ast Noth_ing :int = ~ ;
@@ -82,10 +82,10 @@ lexer Wow @prec:=13 = 'c' 'a' 't' ;
 
 lexer Wow2 @prec:=14  = 'c' 'a' 't' ;
 
-lexer MyTest :token = "cat" ;
+lexer MyTokens :token = "cat" ;
 
-token MyToken Other :int ;
-keyword MyToken = "foobar" ;
+token MyToken Other :char ;
+keyword MyKey = "foobar" ;
 parser TheParser = "one" ;
 
 parser Final =
@@ -97,4 +97,3 @@ parser Final =
 //parser One = Two ;
 
 // TODO: collect the auto-generated names when unifying (_ of ...)
-// TODO: tokens should be able to be referenced

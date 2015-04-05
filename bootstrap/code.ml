@@ -363,10 +363,10 @@ type simple_graph =
 
 (* Tarjan's algorithm - returns a topological sort of the strongly-connected components *)
 (* http://en.wikipedia.org/wiki/Tarjan%27s_strongly_connected_components_algorithm *)
-let rec topo_sort (graph : simple_graph) (*(vertices : IntSet.t)*) : (int list) list =
+let rec topo_sort (graph : simple_graph) (vertices : IntSet.t) : (int list) list =
   let stack = ((Stack.create ()) : int Stack.t) in
   let result = fst (Hashtbl.fold (fun k (childs,m,_,_) (res,index) ->
-    if true(*(IntSet.mem k vertices)*) then topo_dfs k res graph index stack else (res,index)
+    if (IntSet.mem k vertices) then topo_dfs k res graph index stack else (res,index)
   ) graph ([],0)) in
   (* clear the marks *)
   Hashtbl.iter (fun k (t1,m,t4,t5) ->
@@ -427,34 +427,46 @@ and pop_until (graph : simple_graph) (stack : int Stack.t) (v : int) (res : IntS
 
 (* BUILD DEFINITION GRAPH *)
 
-let rec build_def_graph_grammar (g : grammar_t) (count : int) : simple_graph = match g with
+let rec build_def_graph_grammar (g : grammar_t) (count : int) : (simple_graph*IntSet.t) = match g with
 | Grammar(pos,(d,dl)) ->
   let graph = (Hashtbl.create (10*count)(*TODO XXX - num?*) : simple_graph) in
   (* first go through and find type, position info for all productions *)
-  let _ = List.fold_left (fun indx d -> (match d with
+  let add p2 name ty1 = (
+      let has_type = (match ty1 with None -> false | Some(t) -> is_finalized_typ t) in
+      let str = get_symbol name in
+      Printf.printf ">>>>>> processing name: '%s' = (%b) %s\n%!" str has_type (str_option str_typ_t ty1);
+      let (x,is_def) = (try (Hashtbl.find graph name, true)
+        with Not_found -> ((IntSet.empty,None,false,(p2,if has_type then ty1 else None)),false)) in
+      if is_def then die_error p2 ("multiple definition of '"^str^"'")
+      else Hashtbl.replace graph name x
+  ) in
+  let (prod_ids,_) = List.fold_left (fun (prod_ids,indx) d -> (
+    (match d with
     | ProdDecl(p,Production(p2,(_,(None,_)),patl)) -> die_error p2 "production is not named"
     | ProdDecl(p,Production(p2,(_,(Some(name),(_,(_,ty1)))),patl)) ->
-      let has_type = (match ty1 with None -> false | Some(t) -> is_finalized_typ t) in
-      Printf.printf ">>>>>> processing name: '%s' = (%b) %s\n%!" (get_symbol name) has_type (str_option str_typ_t ty1);
-      let x = (try Hashtbl.find graph name
-        with Not_found -> (IntSet.empty,None,false,(p2,ty1))) in
-      Hashtbl.replace graph name x
-    | _ -> ()); indx+1
-  ) 0 (d::dl) in ();
+      add p2 name ty1;
+      IntSet.add name prod_ids
+    | TokenDecl(p,(name,namel),ty1) ->
+      List.iter(fun name -> add p name ty1) (name::namel);
+      prod_ids
+    | KeywordDecl(p,name,str) ->
+      add p name (Some(SimpleType(p,NoType(p))));
+      prod_ids
+    | _ -> prod_ids), indx+1)
+  ) (IntSet.empty,0) (d::dl) in
   (* now actually build the graph *)
   List.iter (fun d -> (match d with
     | ProdDecl(p,Production(p2,(_,(None,_)),patl)) -> die_error p2 "production is not named"
     | ProdDecl(p,Production(p2,(_,(Some(name),(_,(_,ty1)))),patl)) ->
       let str = get_symbol name in
       let x = (try let (set,m,is_def,ps) = Hashtbl.find graph name in
-        if is_def then die_error p2 ("multiple definition of '"^str^"'")
-        else (set,m,true,ps)
+        (set,m,true,ps)
         with Not_found -> die_error p ("could not find node '"^(get_symbol name)^"' while building graph")) in
       Hashtbl.replace graph name x;
       List.iter (fun pat -> build_def_graph_pattern pat graph name) patl
     | _ -> ())
   ) (d::dl);
-  graph
+  (graph,prod_ids)
 
 and build_def_graph_pattern (p : pattern_t) (g : simple_graph) (parent : symb) : unit =
 (*Printf.printf "building pat: %s\n" (str_pattern_t p); *)
@@ -484,8 +496,8 @@ and build_def_graph_atom (a : atom_t) (g : simple_graph) (parent : symb) (typed 
 | _ -> ()
 
 let get_sorted_defs (result : grammar_t) (count : int) : ((symb*pos_t) list * simple_graph) =
-  let graph = build_def_graph_grammar result count in
-  let comps = topo_sort graph in
+  let (graph,prod_ids) = build_def_graph_grammar result count in
+  let comps = topo_sort graph prod_ids in
   let x = List.rev_map (fun comp -> match comp with
     | [] -> failwith "topological sort returned empty connected component"
     | a::more ->
@@ -646,7 +658,7 @@ and strip_lexer_decl (d : decl_t) (table : (symb,production_t) Hashtbl.t) (table
 (** TYPECHECKING                          **)
 (*******************************************)
 
-type prod_hashtbl = (symb,production_t * typ_t option * int) Hashtbl.t
+type prod_hashtbl = (symb,production_t * int) Hashtbl.t
 
 (* TODO XXX - deal with the upper/lowercase issues of ocamlyacc idents *)
 
@@ -901,7 +913,7 @@ match (an1,an2) with
   let u2 = List.fold_left (fun acc x -> IntSet.add x acc) u s2 in
   IdentName(p,IntSet.elements u2)
 
-let rec infer_type_annot_atom (a : annot_atom_t) (prod_table : prod_hashtbl) (auto_name : symb) : (typ_t*annot_atom_t) =
+let rec infer_type_annot_atom (a : annot_atom_t) (g : simple_graph) (auto_name : symb) : (typ_t*annot_atom_t) =
 match a with
 | SingletonAnnotAtom(p,EmptyAtom(p2)) ->
   let t = SimpleType(p2,NoType(p2)) in (t,OptAnnotAtom(p,a,([],(None,Some(t)))))
@@ -910,7 +922,7 @@ match a with
 | SingletonAnnotAtom(p,StringAtom(p2,s)) ->
   let t = SimpleType(p2,IdentType(p2,[string_kw])) in (t,OptAnnotAtom(p,a,([],(None,Some(t)))))
 | SingletonAnnotAtom(p,IdentAtom(p2,name)) ->
-  let typo = (try let (_,x,_) = Hashtbl.find prod_table name in x with Not_found ->
+  let typo = (try let (_,_,_,(_,x)) = Hashtbl.find g name in x with Not_found ->
     die_error p2 ("wasn't able to typecheck production: "^(get_symbol name))
   ) in
   let t = (match typo with None -> SimpleType(p2,IdentType(p2,[auto_name])) | Some(t) -> t) in
@@ -922,9 +934,9 @@ match a with
   let t = SimpleType(p2,IdentType(p2,[string_kw])) in
   (t,OptAnnotAtom(p,a,([],(None,Some(t)))))
 | OptAnnotAtom(p,a,([],(None,None))) ->
-  infer_type_annot_atom a prod_table auto_name
+  infer_type_annot_atom a g auto_name
 | OptAnnotAtom(p,a,(ol,(None,None))) ->
-  let (t,a2) = infer_type_annot_atom a prod_table auto_name in
+  let (t,a2) = infer_type_annot_atom a g auto_name in
   (t,OptAnnotAtom(p,a2,(ol,(None,None))))
 | SingletonAnnotAtom(p,ProdAtom(_,_))
 | OptAnnotAtom(p,_,_)
@@ -948,7 +960,7 @@ match a with
   (new_ty,OptAnnotAtom(p,a2,(ol,((if needs_cast then cd else cd),Some(new_ty))))) (* TODO XXX - do the cast here? *)
   *)
 
-and infer_type_production (pr : production_t) (prod_table : prod_hashtbl) : (typ_t*production_t) =
+and infer_type_production (pr : production_t) (g : simple_graph) : (typ_t*production_t) =
 match pr with
 | Production(ps,(rt,(name,(ol,(cd,Some(ty))))),patl) -> (ty,pr) (* TODO XXX *)
 | Production(ps,(rt,(name,(ol,(cd,ty)))),patl) -> (SimpleType(ps,AnyType(ps)),pr)
@@ -1013,15 +1025,14 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) (gr : si
     (match d with
     (* NOTE - all productions should be named at this point *)
     | ProdDecl(p,(Production(p2,(rto,(Some(name),(ol,(_,tyo)))),pl) as prod)) ->
-      let ty = (match tyo with None -> None | Some(t) -> if is_finalized_typ t then Some(t) else None) in
-      Hashtbl.replace prod_table name (prod,ty,indx);
+      Hashtbl.replace prod_table name (prod,indx);
       Printf.printf "adding: %s\n%!" (get_symbol name)
     | _ -> ());
     indx+1
   ) 0 (d::dl) in
   Printf.printf "----------------------\n";
   let prods = List.rev (List.fold_left (fun acc (name,ps) ->
-    let ((Production(p,(rt,(name1,(ol1,(cd1,ty1)))),pl) as prod),t,indx) =
+    let ((Production(p,(rt,(name1,(ol1,(cd1,ty1)))),pl) as prod),indx) =
       (try Hashtbl.find prod_table name
       with Not_found -> die_error ps ("could not find production '"^(get_symbol name)^"'")) in
     Printf.printf "starting %s:\n%s\n" (get_symbol name) (str_production_t prod);
@@ -1032,7 +1043,7 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) (gr : si
       [Pattern(p,([a],Some(None,([],(None,Some(ty))))))] else pl) in
     let (pl2,types,ty) = (List.fold_left (fun (acc,acc2,tyo) (Pattern(p,(al,xo))) ->
       let temp = (List.rev_map (fun a ->
-        let (rt,a2) = (infer_type_annot_atom a prod_table auto_name) in
+        let (rt,a2) = (infer_type_annot_atom a gr auto_name) in
         (* TODO XXX - do we need the following check? *)
         (*(if is_finalized_typ rt then () else die_error p "");*)
         (rt,a2)
@@ -1128,16 +1139,17 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) (gr : si
     let result = Production(p,(rt,(name1,(ol1,(typecast cd1 [ty] ty1 true rt,Some(ty1))))),pl2) in
     Printf.printf "success:\n%s\n" (str_production_t result);
     (* add production type to the table *)
-    Hashtbl.replace prod_table name (result,Some(ty1),indx);
+    Hashtbl.replace gr name (IntSet.empty,None,false,(p,Some(ty1))); (* TODO XXX - do we need to Hashtbl.find first? *)
+    Hashtbl.replace prod_table name (result,(*Some(ty1),*)indx);
     if (*rt<>Some(Ast) &&*) fst (opt_list_contains ol1 delete_kw (BoolVal(NoPos,true))) then acc 
     else (ProdDecl(p,result))::acc
   ) [] comps) in
   let prods = List.sort (fun a b ->
     match (a,b) with
     | ((ProdDecl(ps1,Production(_,(_,(Some(name1),_)),_))),(ProdDecl(ps2,Production(_,(_,(Some(name2),_)),_)))) ->
-    let (_,_,i1) = (try Hashtbl.find prod_table name1
+    let (_,i1) = (try Hashtbl.find prod_table name1
       with Not_found -> die_error ps1 ("could not find production '"^(get_symbol name1)^"'")) in
-    let (_,_,i2) = (try Hashtbl.find prod_table name2
+    let (_,i2) = (try Hashtbl.find prod_table name2
       with Not_found -> die_error ps2 ("could not find production '"^(get_symbol name2)^"'")) in
     compare i1 i2
     | _ -> die_error NoPos "could not return productions to original order"
