@@ -77,7 +77,16 @@ ast Noth_ing :int = ~ ;
 
 parser theAXTest = (parser Inner @two:=123 @three:="abc" = "test")@two:=12345:~ Nothing@prec:=123{n}:~ "one" # :(Foobar of string) | Wow [123]@prec:=1234 | "one"@prec:=0 Test # Foobar ;
 
-lexer Wow @prec:=13 = 'c' 'a' 't' ;
+lexer Wow3 @prec:=140  = 'c' 'a' 't' ;
+lexer Wow @prec:=13  = 'c' 'a' 't' ;
+
+lexer Wow2 @prec:=14  = 'c' 'a' 't' ;
+
+lexer MyTest :token = "c" ;
+
+token MyToken Other :int ;
+keyword MyToken = "foobar" ;
+parser TheParser = "one" ;
 
 
 //parser Two:xOne_t = One ;

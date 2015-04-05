@@ -100,6 +100,7 @@
     current_id := result - 1;
     result
 
+  let token_kw = add_symbol "token"
   let prec_kw = add_symbol "prec"
   let unit_kw = add_symbol "unit"
   let char_kw = add_symbol "char"
@@ -283,7 +284,7 @@ SemiDecl -> Decl ';' : { $1 } ;
 
 Decl -> 
   Production : ProdDecl
-| TokenKws<:()@{"token "}> XIdentUpper+<:(symb*(symb list))> : TokenDecl
+| TokenKws<:()@{"token"}> XIdentUpper+<:(symb*(symb list))@{let (x,y)=s in str_x_list (fun x -> " "^(get_symbol x)) (x::y) ","}> OptType<:(typ_t option)@{" :"^(str_option str_typ_t s)}> : TokenDecl
 | KeywordKws<:()@{"keyword "}> XIdentUpper<:symb> Eq<:()@{" = "}> StringQuot<:string@{Printf.sprintf "%S" s}> : KeywordDecl
 | "code"<:()@{"code "}> XIdent<:symb> Eq<:()@{" ="}>
     NamedCode+<:(((symb option)*code)*(((symb option)*code) list))
@@ -295,7 +296,7 @@ NamedCode ->
   XIdent?<:(symb option)> CodeLit<:code> : { ($1,$2) }
 ;
 
-TokenKws -> TokenKw<:()> :  | "tok" :  ;
+TokenKws -> TokenKw<:()@{"token"}> :  | "tok" :  ;
 KeywordKws -> "keyword" : | "kw" : ;
 PropKws -> "property" : | "prop" : ;
 
@@ -419,7 +420,7 @@ Typ ->
 ;
 
 SimpleType ->
-  TokenKw<:()> : TokenType // TODO XXX - maybe there's a need to set the name of this type?
+  TokenKw<:()@{"token"}> : TokenType // TODO XXX - maybe there's a need to set the name of this type?
 | '_'<:()>      : AnyType
 | '~'<:()>      : NoType
 | '\''<:()@{"'"}> XIdent<:symb> : VarType

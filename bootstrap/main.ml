@@ -27,9 +27,8 @@ if !Flags.only_flatten then (
   exit 0
 );
 let (result,lexer_prods,lexers) = strip_lexer_grammar result count in
-(* let combine_grammar result lexers in (* combine identical lexers *) *)
-(*PatternsHash.iter (fun k (nm,prec,v) -> Printf.printf "\npatterns = %s\n  new = %s\n  prec = %d\n  vals = %s\n" (str_x_list str_pattern_t k ", ") (get_symbol nm) prec (str_x_list get_symbol (IntSet.elements v) ", ")) lexers;
-exit 1;*)
+let result = combine_grammar result lexers in (* combine identical lexers *)
+
 let (comps,gr) = get_sorted_defs result count in
 Printf.printf "\n\n***********************************\n\n%!";
 Printf.printf "\n\ncomps = %s\n%!" (str_x_list (fun (x,_) -> get_symbol x) comps ", ");
