@@ -282,7 +282,7 @@ and elim_production (p : production_t) : production_t = match p with
 | Production(ps,(Some(Lexer),_),_) -> p
 | Production(ps,(r,(Some(name),(opts,(cd,ty)))),patl) ->
   (*Printf.printf "before = %s\n" (str_x_list str_opt_t opts "; ");*)
-  let (is_auto,opts'(* <- TODO XXX okay to not use opts' ?*)) = (opt_list_contains opts auto_kw (BoolVal(NoPos,false))) in
+  let (is_auto,opts(* <- TODO XXX okay to not use opts' ?*)) = (opt_list_contains opts auto_kw (BoolVal(NoPos,false))) in
   (*Printf.printf "after = %s\n" (str_x_list str_opt_t opts "; ");*)
   let is_auto = not is_auto in
   let (x,(b,o)) = (List.fold_left (fun (acc,(acc2,acc3)) x -> let (y,(b,o)) = elim_pattern x name is_auto in (List.rev_append y acc, ((b||acc2),

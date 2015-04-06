@@ -136,10 +136,9 @@ parser MyParser = "one"* @recur:="right"  ';' "two" "x" FooBar ;
 ;
 lexer Third :int = "12345" ;*/
 
-parser MyOtherParser  =
+parser MyOtherParser :int =
 | "123":int
-| Third *
-| Third:int Third:string
+| Third 
 ;
 lexer Third :int = "12345" ;
 
@@ -159,5 +158,4 @@ parser XIdent :int = "12334" ;
 //parser Two:xOne_t = One ;
 //parser One = Two ;
 
-// TODO: numbering is backwards for the Foobar_k auto names
 // TODO: fix the "zzz" in code.ml

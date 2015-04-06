@@ -1,8 +1,12 @@
 parser One = 
-| One_0_0 #
+| One_0_0 
 ;
 
-lexer One_0_0 = 
+parser One_0_0 = 
+| One_0_0_0 # :int
+;
+
+lexer One_0_0_0 = 
 | "one" 
 ;
 

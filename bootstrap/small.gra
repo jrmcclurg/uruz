@@ -126,9 +126,11 @@ lexer TestLexBad = [A-Z] # {} ; // this overall production gets type "char"
 lexer TestLex = [A-Z] ; // this overall production gets type "char"
 parser TestParse = "*" TestLex foo foo2 # :(Something of char*string*(~*int*Wacky)*int64) ;
 
-parser foo @auto:=false = ~{(123L,true)}:(~*int64*bool) ;
+//parser foo @auto:=false = ~{(123L,true)}:(~*int64*bool) ;
+parser foo:(~*int64*bool) = ~{(123L,true)} ;
 
-parser foo2 @auto:=false = ~{(123L,true)}:(~*int64) ;
+//parser foo2 @auto:=false = ~{(123L,true)}:(~*int64) ;
+parser foo2 :(~*int64) = ~{(123L,true)} ;
 
 parser foo3 @auto:=true = ~{(123L,true)}:(~*int64) ;
 
