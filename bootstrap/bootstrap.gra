@@ -100,6 +100,7 @@
     current_id := result - 1;
     result
 
+  let map_kw = add_symbol "map"
   let len_kw = add_symbol "len"
   let token_kw = add_symbol "token"
   let assoc_kw = add_symbol "assoc"

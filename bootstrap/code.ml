@@ -772,9 +772,9 @@ let fail p b = die_error p ("don't know how to cast type "^(str_typ_t old_type)^
 (*Printf.printf ">>> trying to convert %s to %s\n" (str_typ_t old_type) (str_typ_t new_type);*)
 match (old_type,new_type) with
 | (SimpleType(p,IdentType(_,[kw])),SimpleType(_,TokenType(_))) when kw=string_kw ->
-  Some(Code(p,"(lookup_token "^arg^")"))
+  Some(Code(p,"(lookup_token "^arg^")")) (* TODO XXX - this is not correct *)
 | (SimpleType(p,IdentType(_,[kw])),SimpleType(_,IdentType(_,[kw2]))) when kw=string_kw && kw2=token_kw ->
-  Some(Code(p,"(lookup_token "^arg^")"))
+  Some(Code(p,"(lookup_token "^arg^")")) (* TODO XXX - this is not correct *)
 | (SimpleType(p,TokenType(_)),SimpleType(_,TokenType(_))) ->
   Some(Code(p,arg))
 | (_,SimpleType(p,TokenType(_))) ->
@@ -1022,13 +1022,22 @@ match ct with
 | SingletonConstrType(p,t) -> SingletonConstrType(p,replace_vars_typ tl t)
 | InstConstrType(p,ct,sl) -> InstConstrType(p,replace_vars_constr_type tl ct,sl)
 
+let get_underscore_name (prod_name : string) : string =
+  let str = prod_name in
+  let str = Str.global_replace (Str.regexp "\\([A-Z]\\)") "_\\1" (String.uncapitalize str) in
+  let str = (String.lowercase str) in
+  str
+
 let get_auto_type_name (prod_name : symb) : symb =
   let str = get_symbol prod_name in
   (*let c = String.get str 0 in
   let str = (if (Char.lowercase c)<>c then ("x"^str) else str)^(!Flags.auto_type_suffix) in*)
-  let str = Str.global_replace (Str.regexp "\\([A-Z]\\)") "_\\1" (String.uncapitalize str) in
-  let str = (String.lowercase str)^(!Flags.auto_type_suffix) in
+  let str = (get_underscore_name str)^(!Flags.auto_type_suffix) in
   add_symbol str
+
+let get_token_name (prod_name : string) : string =
+  let s2 = get_underscore_name prod_name in
+  (String.uppercase (s2))
 
 let rec is_no_type (t : typ_t) : bool =
 match t with
@@ -1289,6 +1298,7 @@ let output_warning_msg (f : out_channel) (s1 : string) (s4 : string) (s2 : strin
 
 let output_lexer_code o prefix g = match g with
 | Grammar(pos,(d,dl)) ->
+  let recur_prefix = "entry_" in
   output_warning_msg o "(*\n" " *" " *" " *)";
   output_string o "\n\n";
   output_string o "{\n";
@@ -1298,7 +1308,60 @@ let output_lexer_code o prefix g = match g with
   (match !Flags.lexer_code with Some(s(*TODO XXX*),c) -> output_string o (str_code_plain c) | _ -> ());
   output_string o "\n}\n\n";
   output_string o ("(* The type \"token\" is defined in "^(String.capitalize (prefix^"parser.mli"))^" *)\n");
-  output_string o "rule token = parse\n"
+  output_string o "rule token = parse\n";
+  let rules = List.fold_left (fun acc d ->
+    match d with
+    (* NOTE - name and type should be Some(_) at this point *)
+    | ProdDecl(_,(Production(ps,(Some(Lexer),(Some(name),(ol,(cd,Some(ty))))),patl) as prod)) ->
+      let (is_key,_) = opt_list_contains ol map_kw (BoolVal(NoPos,true)) in
+      let (vl,_) = opt_list_lookup ol prec_kw in
+      let prec = (match vl with Some(IntVal(_,i)) -> i | _ -> max_int) in
+      let (vl2,_) = opt_list_lookup ol len_kw in
+      let len = (match vl2 with Some(IntVal(_,i)) -> i | _ -> -1(*TODO XXX*)) in
+      (prec,get_symbol name,ty,len,is_key,prod)::acc
+    | _ -> acc
+  ) [] (d::dl) in
+  (* sort by precedence *)
+  let rules = List.sort (fun (p1,_,_,_,_,_) (p2,_,_,_,_,_) -> compare p1 p2) rules in
+  let get_the_code cd name ty len is_key = (match ty with
+        | SimpleType(_,NoType(_)) -> (str_option str_code_plain cd)^"; token lexbuf"
+        | SimpleType(_,TokenType(_)) -> get_token_name name
+        | SimpleType(_,IdentType(_,[kw])) when kw=token_kw -> get_token_name name
+        | SimpleType(_,IdentType(_,[kw])) when kw=string_kw && len=1 -> "let "^ !Flags.param_name^" = String.make 1 "^ !Flags.param_name^" in "^(get_token_name name)^"("^(str_option str_code_plain cd)^")"
+        | _ -> (get_token_name name)^"("^(str_option str_code_plain cd)^")"
+        ) in
+  (* output the normal rules *)
+  List.iter (fun (_,name,ty,len,is_key,(Production(ps,(r,(nameo,(ol,(cd,tyo)))),patl))) ->
+    match patl with
+    | [Pattern(_,([SingletonAnnotAtom(_,RecurAtom(_,s1,s2))],_))] ->
+      Printf.fprintf o "| \"%s\" { %s%s 0 \"\" lexbuf }\n" s1 recur_prefix (String.lowercase name)
+    | _ ->
+      let the_code = get_the_code cd name ty len is_key in
+      Printf.fprintf o "| (%s) as %s {ignore %s; %s} (* %s : %s (len = %d) (kw = %b) *)\n"
+        (str_x_list str_pattern_t patl " ")
+        !Flags.param_name
+        !Flags.param_name
+        (if is_key then ("(try lookup_keyword "^ !Flags.param_name^" with _ -> "^the_code^")") else the_code)
+        (name)
+        (str_typ_t ty)
+        len
+        is_key;
+  ) rules;
+  output_string o "| eof { EOF }\n";
+  output_string o "| _ { lex_error \"lexing error\" lexbuf }\n";
+  (* output the recursive rules *)
+  List.iter (fun (_,name,ty,len,is_key,(Production(ps,(r,(nameo,(ol,(cd,tyo)))),patl))) ->
+    match patl with
+    | [Pattern(_,([SingletonAnnotAtom(_,RecurAtom(_,s1,s2))],_))] ->
+      let the_code = get_the_code cd name ty len is_key in
+      let rule_name = recur_prefix^(String.lowercase name) in
+      Printf.fprintf o "\nand %s n s = parse\n" rule_name;
+      Printf.fprintf o "| \"%s\" { %s (n+1) (s^\"%s\") lexbuf }\n" s1 rule_name s1;
+      Printf.fprintf o "| \"%s\" { if (n=0) then %s else %s (n-1) (s^\"%s\") lexbuf }\n" s2 the_code rule_name s2;
+      Printf.fprintf o "| _ as c { if c='\\n' then do_newline lexbuf;\n";
+      Printf.fprintf o "              %s n (Printf.sprintf \"%%s%%c\" s c) lexbuf }\n" rule_name;
+    | _ -> ()
+  ) rules
 
 let output_code prefix g =
   let o = open_out (prefix^"lexer.mll") in

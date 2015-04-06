@@ -142,15 +142,23 @@ parser MyOtherParser :int =
 ;
 lexer Third :int = "12345" ;
 
+lexer TheTest :~ = "x" ;
+lexer TheTest2 :token = "y" ;
+lexer TheTest3 = "z" ;
+
+lexer Recur {the_code} = "{" .. "}" "(" .. ")" ; // TODO XXX flatten!
+lexer Recur2 :~ = "(*" .. "*)" ; // TODO XXX flatten!
+
 parser XIdentO :(int option) =
 ~ { None }
-| '_'      { None }
+| '_' @map:=true       { None }
 | XIdent:int { Some($1) }
 ;
 //parser XIdent :int = "12334" ;
 keyword XIdent @prec:=123 @assoc:="left" = "123" ;
 
 property lexer_code = {this is a test} ;
+token MyTok ;
 
 /*parser TheTest2 :string =
 | "one" # :string
