@@ -511,7 +511,10 @@ Charset ->
 ;
 
 Chars0 -> Chars<:string> : {
-  let ib = Scanf.Scanning.from_string ("\""^(String.sub $1 1 ((String.length $1)-2))^"\"") in
+  let s = (String.sub $1 1 ((String.length $1)-2)) in
+  let s = Str.global_replace (Str.regexp "]") "093" s in
+  Printf.printf ">>>> global: %s -> %s\n" $1 s;
+  let ib = Scanf.Scanning.from_string ("\""^s^"\"") in
   let cl = string_explode (Scanf.bscanf ib "%S" (fun x -> x)) in
   parse_char_list cl
 } ;

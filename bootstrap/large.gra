@@ -441,15 +441,15 @@ parser Chars0 :(bool*(chars list)) = Chars:string # {
 
 lexer Bool {bool_of_string x} :bool = "true" | "false" ;
 lexer XIdent {add_symbol x} :symb = [a-zA-Z] [a-zA-Z0-9_]* ; // TODO XXX - make sure this works with the ident translator
-//TODO XXX//lexer Chars = ('[' ([^\\\]]* ('\\' _)*)* ']')<:string> : { $1 } ;
-lexer Chars = "" ;
+//lexer Chars = ('[' ([^\\\]]* ('\\' _)*)* ']')<:string> : { $1 } ;
+lexer Chars :string = '[' ([^\\\]]* ('\\' _)*)* ']' ;
 lexer StringQuot { Scanf.sscanf $1 "%S" (fun x -> x) } = '"' (([^\\\"]* ('\\' _)*)*) '"' ;
 lexer CharQuot { (Scanf.sscanf $1 "%C" (fun x -> x)) } = '\'' (([^\\\'] |
          ('\\' ('\\'|'"'|'\''|'n'|'r'|'t'|'b')) |
          ('\\' [0-9] [0-9] [0-9]) )) '\'' ;
 lexer Int {int_of_string x} :int = [0-9]+ ;
-//TODO XXX//lexer CodeLit = "{" .. "}"<:(Lexing.position*string){let p = Lexing.lexeme_start_p lexbuf in (p,s)}> : { handle_code $1 } ;
-lexer CodeLit { handle_code () } :code_t = "xx" ;
+//lexer CodeLit = "{" .. "}"<:(Lexing.position*string){let p = Lexing.lexeme_start_p lexbuf in (p,s)}> : { handle_code $1 } ;
+lexer CodeLit { handle_code (Lexing.lexeme_start_p lexbuf,x) } :code_t = "{" .. "}" ;
 
 lexer SingleComm {} = "//" [^\n]* ;  /* throw away single-line comments */
 lexer MultiComm {} = "/*" .. "*/" ;
