@@ -150,6 +150,8 @@ parser XIdentO :(int option) =
 //parser XIdent :int = "12334" ;
 keyword XIdent @prec:=123 @assoc:="left" = "123" ;
 
+property lexer_code = {this is a test} ;
+
 /*parser TheTest2 :string =
 | "one" # :string
 | "two" # :string
