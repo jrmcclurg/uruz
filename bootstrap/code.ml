@@ -446,10 +446,10 @@ let rec build_def_graph_grammar (g : grammar_t) (count : int) : (simple_graph*In
     | ProdDecl(p,Production(p2,(_,(Some(name),(_,(_,ty1)))),patl)) ->
       add p2 name ty1;
       IntSet.add name prod_ids
-    | TokenDecl(p,(name,namel),ty1) ->
+    | TokenDecl(p,(name,namel),(ol,(cd,ty1))) ->
       List.iter(fun name -> add p name ty1) (name::namel);
       prod_ids
-    | KeywordDecl(p,name,str) ->
+    | KeywordDecl(p,name,ol,str) ->
       add p name (Some(SimpleType(p,NoType(p))));
       prod_ids
     | _ -> prod_ids), indx+1)

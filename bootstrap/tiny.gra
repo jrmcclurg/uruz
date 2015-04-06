@@ -147,7 +147,8 @@ parser XIdentO :(int option) =
 | '_'      { None }
 | XIdent:int { Some($1) }
 ;
-parser XIdent :int = "12334" ;
+//parser XIdent :int = "12334" ;
+keyword XIdent @prec:=123 @assoc:="left" = "123" ;
 
 /*parser TheTest2 :string =
 | "one" # :string

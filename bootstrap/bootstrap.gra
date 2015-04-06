@@ -102,6 +102,7 @@
 
   let len_kw = add_symbol "len"
   let token_kw = add_symbol "token"
+  let assoc_kw = add_symbol "assoc"
   let prec_kw = add_symbol "prec"
   let unit_kw = add_symbol "unit"
   let char_kw = add_symbol "char"
@@ -285,8 +286,8 @@ SemiDecl -> Decl ';' : { $1 } ;
 
 Decl -> 
   Production : ProdDecl
-| TokenKws<:()@{"token"}> XIdentUpper+<:(symb*(symb list))@{let (x,y)=s in str_x_list (fun x -> " "^(get_symbol x)) (x::y) ","}> OptType<:(typ_t option)@{" :"^(str_option str_typ_t s)}> : TokenDecl
-| KeywordKws<:()@{"keyword "}> XIdentUpper<:symb> Eq<:()@{" = "}> StringQuot<:string@{Printf.sprintf "%S" s}> : KeywordDecl
+| TokenKws<:()@{"token"}> XIdentUpper+<:(symb*(symb list))@{let (x,y)=s in str_x_list (fun x -> " "^(get_symbol x)) (x::y) ","}> OptList<:((opt_t list)*((code option) * (typ_t option)))@{let (opts,(cd,ty))=s in Printf.sprintf "%s%s%s" (str_list (fun x -> " "^(str_opt_t x)) opts) (str_x_option str_code cd " ") (str_x_option str_typ_t ty " :")}> : TokenDecl
+| KeywordKws<:()@{"keyword "}> XIdentUpper<:symb> OptList<:((opt_t list)*((code option) * (typ_t option)))@{let (opts,(cd,ty))=s in Printf.sprintf "%s%s%s" (str_list (fun x -> " "^(str_opt_t x)) opts) (str_x_option str_code cd " ") (str_x_option str_typ_t ty " :")}> Eq<:()@{" = "}> StringQuot<:string@{Printf.sprintf "%S" s}> : KeywordDecl
 | "code"<:()@{"code "}> XIdent<:symb> Eq<:()@{" ="}>
     NamedCode+<:(((symb option)*code)*(((symb option)*code) list))
     @{let (x,y) = s in str_list (fun (so,c) -> " "^(str_option (fun x -> (get_symbol x)^"") so)^(str_code c)) (x::y)}> : CodeDecl
