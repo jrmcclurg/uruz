@@ -35,6 +35,7 @@ Printf.printf "\n\ncomps = %s\n%!" (str_x_list (fun (x,_) -> get_symbol x) comps
 print_newline();
 Printf.printf "\n\n***********************************\n\n%!";
 let result = typecheck result comps count gr in
+let result = restore_lexer_grammar result lexer_prods in
 Printf.printf "###################################\n";
 Bootstrap_ast.print_grammar_t result;
 Printf.printf "SUCCESS!\n";

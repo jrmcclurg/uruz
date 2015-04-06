@@ -60,7 +60,7 @@ lexer Var = [a-zA-Z]+ ;*/
 //| "str":string "str2":string
 ;*/
 
-ast Test =
+/*ast Test =
 | ~:string ~:string ~:foobar
 | Foo "123":int
 | "string" * # :(string list)
@@ -91,9 +91,51 @@ parser TheParser = "one" ;
 parser Final =
 | "one":~ "two":~ "three" # :string
 ;
+*/
 
+/*parser TheTest :(pos_t*string) =
+| "one" # :(Foobar of pos_t*string)
+| "two" # :(Baz of pos_t*string)
+| "three" //"four" //# :(Biff of string*string)
+;
+
+parser Final = 
+| John Bob # @str{code2}
+;
+
+parser John = 
+| Ralph @str{code1} 
+;
+
+parser Ralph {List.rev x} :(_ list) = 
+| ~ # {[]} :(_ list)
+| Ralph Frank # {let x = $2 in (x)::$1} :('t2 list)
+;
+
+lexer Frank = 
+| "one" 
+;
+
+lexer Bob = 
+| "two" 
+;*/
+
+ast FooBar =
+| ~:string # FooString
+| ~:char   # FooChar
+| ~:int    # FooInt
+;
+
+parser MyParser = "one"* @recur:="right"  ';' "two" "x" FooBar ;
+
+/*parser TheTest2 :string =
+| "one" # :string
+| "two" # :string
+| 'c'
+;*/
 
 //parser Two:xOne_t = One ;
 //parser One = Two ;
 
-// TODO: collect the auto-generated names when unifying (_ of ...)
+// TODO: reconstruct the lexer definitions after type checking
+// TODO: fix the "zzz" in code.ml

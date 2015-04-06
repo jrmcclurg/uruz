@@ -100,6 +100,7 @@
     current_id := result - 1;
     result
 
+  let len_kw = add_symbol "len"
   let token_kw = add_symbol "token"
   let prec_kw = add_symbol "prec"
   let unit_kw = add_symbol "unit"
