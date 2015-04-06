@@ -120,13 +120,35 @@ lexer Bob =
 | "two" 
 ;*/
 
-ast FooBar =
+/*ast FooBar =
 | ~:string # FooString
 | ~:char   # FooChar
 | ~:int    # FooInt
 ;
 
 parser MyParser = "one"* @recur:="right"  ';' "two" "x" FooBar ;
+*/
+
+// TODO XXX - the following example should work
+/*parser MyOtherParser :int =
+| "123":int
+| Third
+;
+lexer Third :int = "12345" ;*/
+
+parser MyOtherParser  =
+| "123":int
+| Third *
+| Third:int Third:string
+;
+lexer Third :int = "12345" ;
+
+parser XIdentO :(int option) =
+~ { None }
+| '_'      { None }
+| XIdent:int { Some($1) }
+;
+parser XIdent :int = "12334" ;
 
 /*parser TheTest2 :string =
 | "one" # :string
@@ -137,5 +159,5 @@ parser MyParser = "one"* @recur:="right"  ';' "two" "x" FooBar ;
 //parser Two:xOne_t = One ;
 //parser One = Two ;
 
-// TODO: reconstruct the lexer definitions after type checking
+// TODO: numbering is backwards for the Foobar_k auto names
 // TODO: fix the "zzz" in code.ml

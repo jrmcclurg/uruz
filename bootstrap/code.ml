@@ -203,12 +203,12 @@ and flatten_annot_atom (above_opts : opt_t list) (an : annot_atom_t) (defname : 
     (ProdDecl(p,Production(p,((Some(rt)),
     (Some(name),([ValOption(p,Some(auto_kw),BoolVal(p,false))]@
     (match rt with Ast -> [ValOption(p,Some(delete_kw),BoolVal(p,true))] | _ -> []),(None,None)))),
-      [Pattern(p,([y],None))])))::prods,false)
-| OptAnnotAtom(p,an,(o,x)) ->
+      [Pattern(p,([y],Some(None,([],(None,None)))))])))::prods,false)
+| OptAnnotAtom(p,an,(o,(((tcd,tty)) as x))) ->
   if is_processing_lexer deftyp then
     die_error p "lexer productions can only contain annotations on the left-hand-side (i.e. applied to the entire production)";
-  let (a2,prods,consumed) = flatten_annot_atom o an defname deftyp (if is_singleton then nesting else (!Flags.def_prod_index::nesting)) code_table false in
-  if is_singleton then (OptAnnotAtom(p,a2,(o,x)),prods,false)
+  let (a2,prods,consumed) = flatten_annot_atom o an defname deftyp (if tty=None && is_singleton then nesting else (!Flags.def_prod_index::nesting)) code_table false in
+  if tty=None && is_singleton then (OptAnnotAtom(p,a2,(o,x)),prods,false)
   else
     let name = Flags.get_def_prod_name defname nesting in
     let rt = Flags.get_def_prod_type deftyp in
@@ -282,7 +282,7 @@ and elim_production (p : production_t) : production_t = match p with
 | Production(ps,(Some(Lexer),_),_) -> p
 | Production(ps,(r,(Some(name),(opts,(cd,ty)))),patl) ->
   (*Printf.printf "before = %s\n" (str_x_list str_opt_t opts "; ");*)
-  let (is_auto,opts) = (opt_list_contains opts auto_kw (BoolVal(NoPos,false))) in
+  let (is_auto,opts'(* <- TODO XXX okay to not use opts' ?*)) = (opt_list_contains opts auto_kw (BoolVal(NoPos,false))) in
   (*Printf.printf "after = %s\n" (str_x_list str_opt_t opts "; ");*)
   let is_auto = not is_auto in
   let (x,(b,o)) = (List.fold_left (fun (acc,(acc2,acc3)) x -> let (y,(b,o)) = elim_pattern x name is_auto in (List.rev_append y acc, ((b||acc2),
@@ -1101,6 +1101,7 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) (gr : si
     | (None,Some(_)) -> 2
     | (None,None) -> 3) in
     let pl2_types = List.sort (fun (_,_,x1,x2,_) (_,_,y1,y2,_) -> compare (ord x1 x2) (ord y1 y2)) pl2_types in*)
+    let pl2_types = List.rev pl2_types in
 
     (* Step 2 - try to unify the types of the patterns *)
     let (pl2,types,ty) = (List.fold_left (fun (acc,acc2,tyo) ((Pattern(p,(al,xo)) as pat),tys,xty2,xty3,indx) ->
