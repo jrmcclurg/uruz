@@ -19,7 +19,7 @@ let ret = List.fold_left (fun acc f ->
     let i = open_in f in
     let result = get_ast i in
     let prefix = get_prefix () in
-    Printf.printf "prefix = %s\n" prefix;
+    (*Printf.printf "prefix = %s\n" prefix;*)
     (*raise (General_error("x"));*)
     Flags.init_tables ();
     (* set defaults based on the poperties in input file *)

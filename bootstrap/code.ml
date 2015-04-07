@@ -73,9 +73,9 @@ let rec handle_props (g : grammar_t) : (grammar_t*int) = match g with
       | ("parameter_name",StringVal(p,s)) -> Flags.param_name := s
       | ("type_name",StringVal(p,s)) -> Flags.type_name := s
       | ("lexer_code",CodeVal(p,(s,c))) -> Flags.lexer_code := Some(s,c)
-      | ("parser_code",CodeVal(p,(s,c))) -> () (* TODO XXX *)
-      | ("ast_code",CodeVal(p,(s,c))) -> () (* TODO XXX *)
-      | ("util_code",CodeVal(p,(s,c))) -> () (* TODO XXX *)
+      | ("parser_code",CodeVal(p,(s,c))) -> Flags.parser_code := Some(s,c)
+      | ("ast_code",CodeVal(p,(s,c))) -> Flags.ast_code := Some(s,c)
+      | ("utils_code",CodeVal(p,(s,c))) -> Flags.utils_code := Some(s,c)
       | _ -> die_error p "invalid property name or type"
       );
       acc
@@ -466,26 +466,26 @@ let rec build_def_graph_grammar (g : grammar_t) (count : int) : (simple_graph*In
         (set,m,true,ps)
         with Not_found -> die_error p ("could not find node '"^str^"' while building graph")) in
       Hashtbl.replace graph name x;
-      List.iter (fun pat -> build_def_graph_pattern pat graph name) patl
+      List.iter (fun pat -> build_def_graph_pattern pat graph name prod_ids) patl
     | _ -> ())
   ) (d::dl);
   (graph,prod_ids)
 
-and build_def_graph_pattern (p : pattern_t) (g : simple_graph) (parent : symb) : unit =
+and build_def_graph_pattern (p : pattern_t) (g : simple_graph) (parent : symb) (prod_ids : IntSet.t) : unit =
 (*Printf.printf "building pat: %s\n" (str_pattern_t p); *)
 match p with
 | Pattern(p,(anl,x)) ->
-  List.iter (fun an -> build_def_graph_annot_atom an g parent false) anl
+  List.iter (fun an -> build_def_graph_annot_atom an g parent false prod_ids) anl
 
-and build_def_graph_annot_atom (anx : annot_atom_t) (g : simple_graph) (parent : symb) (typed : bool) : unit =
+and build_def_graph_annot_atom (anx : annot_atom_t) (g : simple_graph) (parent : symb) (typed : bool) (prod_ids : IntSet.t) : unit =
 (*Printf.printf "building: %s\n" (str_annot_atom_t anx); *)
 match anx with
-| SingletonAnnotAtom(p,a) -> build_def_graph_atom a g parent typed
-| QuantAnnotAtom(p,an,q) -> build_def_graph_annot_atom an g parent false
-| OptAnnotAtom(p,an,(opts,(cd,Some(ty)))) -> build_def_graph_annot_atom an g parent true
-| OptAnnotAtom(p,an,(opts,(cd,ty))) -> build_def_graph_annot_atom an g parent typed
+| SingletonAnnotAtom(p,a) -> build_def_graph_atom a g parent typed prod_ids
+| QuantAnnotAtom(p,an,q) -> build_def_graph_annot_atom an g parent false prod_ids
+| OptAnnotAtom(p,an,(opts,(cd,Some(ty)))) -> build_def_graph_annot_atom an g parent true prod_ids
+| OptAnnotAtom(p,an,(opts,(cd,ty))) -> build_def_graph_annot_atom an g parent typed prod_ids
 
-and build_def_graph_atom (a : atom_t) (g : simple_graph) (parent : symb) (typed : bool) : unit = match a with
+and build_def_graph_atom (a : atom_t) (g : simple_graph) (parent : symb) (typed : bool) (prod_ids : IntSet.t) : unit = match a with
 | IdentAtom(p,id) -> 
     (* TODO XXX - this "typed" thing doesn't quite work due to the flattening! *)
     let (x1,x2,x3,(x4,tyo)) = (try Hashtbl.find g id with Not_found -> (IntSet.empty,None,false,(p,None))) in
@@ -493,13 +493,15 @@ and build_def_graph_atom (a : atom_t) (g : simple_graph) (parent : symb) (typed 
     Hashtbl.replace g id (x1,x2,x3,(x4,tyo));
     Printf.printf "%s depends on %s (typed = %b)\n" (get_symbol parent) (get_symbol id) has_type;
     let (set,m,is_def,ps) = (try Hashtbl.find g parent with Not_found -> (IntSet.empty,None,false,(p,None))) in
-    Hashtbl.replace g parent ((if has_type then set else IntSet.add id set),m,is_def,ps);
+    Hashtbl.replace g parent ((if has_type || not (IntSet.mem id prod_ids) then set else IntSet.add id set),m,is_def,ps);
 | ProdAtom(p,Production(p2,_,pl)) ->
-  List.iter (fun x -> build_def_graph_pattern x g parent) pl
+  List.iter (fun x -> build_def_graph_pattern x g parent prod_ids) pl
 | _ -> ()
 
 let get_sorted_defs (result : grammar_t) (count : int) : ((symb*pos_t) list * simple_graph) =
   let (graph,prod_ids) = build_def_graph_grammar result count in
+  (*Printf.printf "prod_ids = %s\n" (str_x_list get_symbol (IntSet.elements prod_ids) ", ");
+  exit 1;*)
   let comps = topo_sort graph prod_ids in
   let x = List.rev_map (fun comp -> match comp with
     | [] -> failwith "topological sort returned empty connected component"
@@ -1064,7 +1066,7 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) (gr : si
     (* for each production... *)
     let ((Production(p,(rt,(name1,(ol1,(cd1,ty1)))),pl) as prod),indx) =
       (try Hashtbl.find prod_table name
-      with Not_found -> die_error ps ("could not find production '"^(get_symbol name)^"'")) in
+      with Not_found -> die_error ps ("1 could not find production '"^(get_symbol name)^"'")) in
     Printf.printf "\n\nstarting %s:\n%s\n" (get_symbol name) (str_production_t prod);
     let is_lexer = (match rt with (Some(Lexer)) -> true | _ -> false) in
     let auto_name = get_auto_type_name name in
@@ -1228,9 +1230,9 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) (gr : si
     match (a,b) with
     | ((ProdDecl(ps1,Production(_,(_,(Some(name1),_)),_))),(ProdDecl(ps2,Production(_,(_,(Some(name2),_)),_)))) ->
     let (_,i1) = (try Hashtbl.find prod_table name1
-      with Not_found -> die_error ps1 ("could not find production '"^(get_symbol name1)^"'")) in
+      with Not_found -> die_error ps1 ("2 could not find production '"^(get_symbol name1)^"'")) in
     let (_,i2) = (try Hashtbl.find prod_table name2
-      with Not_found -> die_error ps2 ("could not find production '"^(get_symbol name2)^"'")) in
+      with Not_found -> die_error ps2 ("3 could not find production '"^(get_symbol name2)^"'")) in
     compare i1 i2
     | _ -> die_error NoPos "could not return productions to original order"
   ) prods in
@@ -1296,6 +1298,34 @@ let output_warning_msg (f : out_channel) (s1 : string) (s4 : string) (s2 : strin
    s2^" grammar, which can be edited as desired.\n"^
    s3)
 
+let rec lex_str_pattern (pa : pattern_t) : string = match pa with
+| Pattern(_,(al,_)) -> str_x_list lex_str_annot_atom al " "
+
+and lex_str_annot_atom (an : annot_atom_t) : string = match an with
+| SingletonAnnotAtom(_,a) -> lex_str_atom a
+| QuantAnnotAtom(_,an,StarQuant(_)) -> (lex_str_annot_atom an)^"*"
+| QuantAnnotAtom(_,an,PlusQuant(_)) -> (lex_str_annot_atom an)^"+"
+| QuantAnnotAtom(_,an,QuestionQuant(_)) -> (lex_str_annot_atom an)^"?"
+| OptAnnotAtom(_,an,_) -> lex_str_annot_atom an
+
+and lex_str_atom (a : atom_t) : string = match a with
+| EmptyAtom(ps) -> "\"\""
+| EofAtom(ps) -> "eof"
+| StringAtom(ps,str) -> Printf.sprintf "%S" str
+| CharsetAtom(ps,c1,c2o) -> Printf.sprintf "(%s%s)" (lex_str_charset c1) (str_option (fun c2 -> Printf.sprintf " # %s" (lex_str_charset c2)) c2o)
+| ProdAtom(ps,Production(_,_,patl)) -> Printf.sprintf "(%s)" (str_x_list lex_str_pattern patl " | ")
+| RecurAtom(ps,_,_)
+| IdentAtom(ps,_) -> die_error ps "multiple/nested recursive patterns not allowed in lexer"
+
+and lex_str_charset (c : charset_t) : string = match c with
+| WildcardCharset(_) -> "_"
+| SingletonCharset(_,c) -> Printf.sprintf "%C" c
+| ListCharset(_,(neg,chl)) -> Printf.sprintf "[%s%s]" (if neg then "^ " else "") (str_x_list lex_str_chars chl " ")
+
+and lex_str_chars (ch : chars) : string = match ch with
+| SingletonChar(c) -> Printf.sprintf "%C" c
+| RangeChar(c1,c2) -> Printf.sprintf "%C-%C" c1 c2
+
 let output_lexer_code o prefix g = match g with
 | Grammar(pos,(d,dl)) ->
   let recur_prefix = "entry_" in
@@ -1314,14 +1344,14 @@ let output_lexer_code o prefix g = match g with
     (* NOTE - name and type should be Some(_) at this point *)
     | ProdDecl(_,(Production(ps,(Some(Lexer),(Some(name),(ol,(cd,Some(ty))))),patl) as prod)) ->
       let (is_key,_) = opt_list_contains ol map_kw (BoolVal(NoPos,true)) in
-      let (vl,_) = opt_list_lookup ol prec_kw in
-      let prec = (match vl with Some(IntVal(_,i)) -> i | _ -> max_int) in
+      let (vl,_) = opt_list_lookup ol order_kw in
+      let order = (match vl with Some(IntVal(_,i)) -> i | _ -> max_int) in
       let (vl2,_) = opt_list_lookup ol len_kw in
       let len = (match vl2 with Some(IntVal(_,i)) -> i | _ -> -1(*TODO XXX*)) in
-      (prec,get_symbol name,ty,len,is_key,prod)::acc
+      (order,get_symbol name,ty,len,is_key,prod)::acc
     | _ -> acc
   ) [] (d::dl) in
-  (* sort by precedence *)
+  (* sort by order annotations *)
   let rules = List.sort (fun (p1,_,_,_,_,_) (p2,_,_,_,_,_) -> compare p1 p2) rules in
   let get_the_code cd name ty len is_key = (match ty with
         | SimpleType(_,NoType(_)) -> (str_option str_code_plain cd)^"; token lexbuf"
@@ -1338,7 +1368,7 @@ let output_lexer_code o prefix g = match g with
     | _ ->
       let the_code = get_the_code cd name ty len is_key in
       Printf.fprintf o "| (%s) as %s {ignore %s; %s} (* %s : %s (len = %d) (kw = %b) *)\n"
-        (str_x_list str_pattern_t patl " ")
+        (str_x_list lex_str_pattern patl " ")
         !Flags.param_name
         !Flags.param_name
         (if is_key then ("(try lookup_keyword "^ !Flags.param_name^" with _ -> "^the_code^")") else the_code)

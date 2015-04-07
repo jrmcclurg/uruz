@@ -11,7 +11,7 @@
   This is a multi-line comment
 */
 
-property util_code = {
+property utils_code = {
    type rule_type = Parser | Lexer | Ast
    let eq_rule_type a b = ((compare a b)=0)
    let str_rule_type s = match s with

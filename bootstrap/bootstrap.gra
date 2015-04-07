@@ -24,11 +24,19 @@
    | "ast" -> Ast
    | _ -> die_error p ("production type '"^s^"' does not exist")
 
+   let strip_quotes (s:string) : string = (String.sub s 1 ((String.length s)-2))
+
    (* TODO XXX - does this need pos information? *)
    type chars = SingletonChar of char | RangeChar of char * char
 
    (*let str_chars c = match c with SingletonChar(c) -> "{"^(String.make 1 c)^"}" | RangeChar(c1,c2) -> Printf.sprintf "{%c-%c}" c1 c2*)
-   let str_chars c = match c with SingletonChar(c) -> String.make 1 c | RangeChar(c1,c2) -> Printf.sprintf "%c-%c" c1 c2
+   let str_chars c = 
+   let f c = strip_quotes (Printf.sprintf "%C" c) in
+   match c with
+   | SingletonChar(c) ->
+     f c
+   | RangeChar(c1,c2) -> Printf.sprintf "%s-%s" (f c1) (f c2)
+
    let eq_chars a b = ((compare a b)=0)
 
    let str_x_option f x str = match x with None -> "" | Some(_) -> str^(str_option f x)
@@ -100,6 +108,7 @@
     current_id := result - 1;
     result
 
+  let order_kw = add_symbol "order"
   let map_kw = add_symbol "map"
   let len_kw = add_symbol "len"
   let token_kw = add_symbol "token"
@@ -513,9 +522,9 @@ Charset ->
 ;
 
 Chars0 -> Chars<:string> : {
-  let s = (String.sub $1 1 ((String.length $1)-2)) in
+  let s = strip_quotes $1 in
   let s = Str.global_replace (Str.regexp "]") "093" s in
-  Printf.printf ">>>> global: %s -> %s\n" $1 s;
+  (*Printf.printf ">>>> global: %s -> %s\n" $1 s;*)
   let ib = Scanf.Scanning.from_string ("\""^s^"\"") in
   let cl = string_explode (Scanf.bscanf ib "%S" (fun x -> x)) in
   parse_char_list cl

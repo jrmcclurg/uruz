@@ -16,6 +16,9 @@ let pos_type_name = ref (add_symbol "pos_t")
 let enable_pos = ref true
 
 let lexer_code = ref (None : (symb option * code) option)
+let parser_code = ref (None : (symb option * code) option)
+let ast_code = ref (None : (symb option * code) option)
+let utils_code = ref (None : (symb option * code) option)
 
 let typecast_table = Hashtbl.create 100
 let def_val_table = Hashtbl.create 10
