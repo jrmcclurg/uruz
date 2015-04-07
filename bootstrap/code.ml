@@ -1529,7 +1529,7 @@ let rec ast_str_typ (t : typ_t) : string = match t with
 | SimpleType(p,AnyType(_))
 | SimpleType(p,NoType(_))
 | SimpleType(p,VarType(_)) -> "xxx" (* TODO XXX *) (*die_error p "don't know how to handle non-AST types"*)
-| CompoundType(_,CommaType(_,cll)) -> str_x_list (fun cl -> str_x_list ast_str_constr_type cl " * ") cll ", "
+| CompoundType(_,CommaType(_,cll)) -> "("^(str_x_list (fun cl -> str_x_list ast_str_constr_type cl " * ") cll ", ")^")"
 | CompoundType(_,AbstrType(_,nm,cl)) -> Printf.sprintf "%s of %s" (ast_str_abstr_name nm) (str_x_list ast_str_constr_type cl " * ")
 
 and ast_str_abstr_name (nm : abstr_name_t) : string = match nm with
@@ -1539,7 +1539,7 @@ and ast_str_abstr_name (nm : abstr_name_t) : string = match nm with
 
 and ast_str_constr_type (ct : constr_type_t) : string = match ct with
 | SingletonConstrType(_,t) -> ast_str_typ t
-| InstConstrType(_,ct,sl) -> Printf.sprintf "(%s) %s" (ast_str_constr_type ct) (str_x_list get_symbol sl " ")
+| InstConstrType(_,ct,sl) -> Printf.sprintf "%s %s" (ast_str_constr_type ct) (str_x_list get_symbol sl " ")
 
 let ast_str_pattern (pa : pattern_t) : string = match pa with
 | Pattern(p,(al,Some(name,(ol,(cd,Some(ty)))))) ->

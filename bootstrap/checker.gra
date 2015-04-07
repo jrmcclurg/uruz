@@ -207,6 +207,11 @@ token AKWgraph ; // graph
 token AKWnode ; // node
 token AKWedge ; // edge
 
+ast TheTest =
+| ~:string ~:char ~:(bool*string) # FooBar
+| ~:(int*(int*int)) # Baz
+;
+
 property lexer_code = {
 let tokens = ((Hashtbl.create 100) : ((string,token) Hashtbl.t)) ;;
 
