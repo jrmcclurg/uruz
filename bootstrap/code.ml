@@ -1522,10 +1522,63 @@ let output_parser_code o prefix g = match g with
   Printf.fprintf o "(* footer code *)\n";
   ()
 
+let rec ast_str_typ (t : typ_t) : string = match t with
+| SimpleType(_,TokenType(_)) -> "token"
+| SimpleType(_,UnitType(_)) -> "unit"
+| SimpleType(_,IdentType(_,sl)) -> str_x_list get_symbol sl "."
+| SimpleType(p,AnyType(_))
+| SimpleType(p,NoType(_))
+| SimpleType(p,VarType(_)) -> "xxx" (* TODO XXX *) (*die_error p "don't know how to handle non-AST types"*)
+| CompoundType(_,CommaType(_,cll)) -> str_x_list (fun cl -> str_x_list ast_str_constr_type cl " * ") cll ", "
+| CompoundType(_,AbstrType(_,nm,cl)) -> Printf.sprintf "%s of %s" (ast_str_abstr_name nm) (str_x_list ast_str_constr_type cl " * ")
+
+and ast_str_abstr_name (nm : abstr_name_t) : string = match nm with
+| IdentName(_,[s]) -> get_symbol s
+| IdentName(p,_)
+| AnyName(p) -> "xxx" (* TODO XXX *) (*die_error p "don't know how to handle non-AST abstr. name"*)
+
+and ast_str_constr_type (ct : constr_type_t) : string = match ct with
+| SingletonConstrType(_,t) -> ast_str_typ t
+| InstConstrType(_,ct,sl) -> Printf.sprintf "(%s) %s" (ast_str_constr_type ct) (str_x_list get_symbol sl " ")
+
+let ast_str_pattern (pa : pattern_t) : string = match pa with
+| Pattern(p,(al,Some(name,(ol,(cd,Some(ty)))))) ->
+  ast_str_typ ty
+| _ -> "xxx" (* TODO XXX *)
+
+let output_ast_code o prefix g = match g with
+| Grammar(pos,(d,dl)) ->
+  output_warning_msg o "(*\n" " *" " *" " *)";
+  output_string o "\n\n";
+  output_string o ("   open "^(String.capitalize (prefix^"utils"))^";;\n\n");
+  (match !Flags.parser_code with Some(s(*TODO XXX*),c) -> output_string o (str_code_plain c) | _ -> ());
+  output_string o "\n(* AST Data Structure *)\n";
+  let _ = List.fold_left (fun first d ->
+    match d with
+    (* NOTE - name and type should be Some(_) at this point *)
+    | ProdDecl(_,(Production(ps,(Some(Parser),(Some(name),(ol,(cd,Some(ty))))),patl) as prod))
+    | ProdDecl(_,(Production(ps,(Some(Ast),(Some(name),(ol,(cd,Some(ty))))),patl) as prod)) ->
+      let tn = (get_auto_type_name name) in
+      let is_auto = fst (is_auto_type ty tn) in
+      Printf.fprintf o "\n%s %s = " (if first then "type" else "\n and") (get_symbol tn);
+      if is_auto then (
+        List.iter (fun p ->
+          Printf.fprintf o "\n   | %s" (ast_str_pattern p)
+        ) patl;
+      ) else Printf.fprintf o "%s" (ast_str_typ ty);
+      false
+    | _ -> first
+  ) true (d::dl) in
+  ()
+
+
 let output_code prefix g =
   let o = open_out (prefix^"lexer.mll") in
   output_lexer_code o prefix g;
   close_out o;
   let o = open_out (prefix^"parser.mly") in
   output_parser_code o prefix g;
+  close_out o;
+  let o = open_out (prefix^"ast.ml") in
+  output_ast_code o prefix g;
   close_out o
