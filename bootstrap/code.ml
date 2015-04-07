@@ -63,7 +63,7 @@ Some(Code(p,f (match cd with Some(Code(p,c)) -> c | _ -> default)))
 let lookup_code (cl : (symb option * code) list) (kw : symb option) : code option =
   (try Some(snd (List.find (fun (s,c) -> s=kw) cl)) with Not_found -> None)
 
-let rec handle_props (g : grammar_t) : (grammar_t*int) = match g with
+let rec handle_props_tokens (g : grammar_t) : (grammar_t*int) = match g with
 | Grammar(pos,(d,dl)) ->
   let (dl2,count) = List.fold_left (fun (acc,index) d -> (match d with
     | PropDecl(p,name,value) -> (
@@ -79,6 +79,14 @@ let rec handle_props (g : grammar_t) : (grammar_t*int) = match g with
       | _ -> die_error p "invalid property name or type"
       );
       acc
+    | TokenDecl(p,(name,namel),(ol,(cd,ty1))) -> (
+      let ty2 = (match ty1 with
+      | None -> Some(SimpleType(p,NoType(p)))
+      | Some(SimpleType(p,AnyType(_))) -> Some(SimpleType(p,NoType(p)))
+      | _ -> ty1
+      ) in
+      (TokenDecl(p,(name,namel),(ol,(cd,ty2))))::acc
+    )
     | _ -> (d::acc)), index+1
   ) ([],0) (d::dl) in
   let dl2 = List.rev dl2 in
@@ -453,6 +461,7 @@ let rec build_def_graph_grammar (g : grammar_t) (count : int) : (simple_graph*In
       List.iter(fun name -> add p name ty1) (name::namel);
       prod_ids
     | KeywordDecl(p,name,ol,str) ->
+      Printf.printf "processing: keyword = %s\n" (get_symbol name);
       add p name (Some(SimpleType(p,NoType(p))));
       prod_ids
     | _ -> prod_ids), indx+1)
@@ -740,7 +749,9 @@ let fail p = die_error p ("don't know how to cast type "^(str_constr_type_t old_
       | Some(c) ->
       Some(
         if kw1=list_kw then Code(p1,"(List.rev (List.rev_map (fun "^arg^" -> "^(str_code_plain c)^") "^arg^"))")
-        else Code(p1,"foobarx") (* TODO XXX - handle option etc. *)
+        else if kw1=option_kw then Code(p1,"(match "^arg^" with Some("^arg^") -> "^(str_code_plain c)^" | _ -> None)")
+        (* TODO XXX - we are handling list,option - do we need any more? *)
+        else die_error p1 ("don't have an automatic cast for type "^(get_symbol kw1))
         )
     )
 
@@ -824,13 +835,13 @@ CompoundType(_,CommaType(_,[[SingletonConstrType(_,t2)]]))) ->
     Some(Code(p,"(str_explode "^arg^")"))
 | (SimpleType(p,IdentType(_,[kw])),CompoundType(_,CommaType(_,[a::b::l2]))) ->
   let (indices,x,_) = (try typecast_lists arg p 1 [SingletonConstrType(p,old_type)] (a::b::l2) [] [] with IncompatibleLists(p) -> fail p true) in
-  Some(Code(p,Printf.sprintf "%s(%s)"
+  Some(Code(p,Printf.sprintf "(%s(%s))"
     (if (List.length indices)>0 then Printf.sprintf "let (%s) = %s in " (str_x_list (fun x -> arg^"_"^(string_of_int x)) indices ",") arg else "")
     (str_x_list (str_code_plain) x ",")
   ))
 | (CompoundType(p,CommaType(_,[a::b::l1])),SimpleType(_,IdentType(_,[kw]))) ->
   let (indices,x,_) = (try typecast_lists arg p 1 (a::b::l1) [SingletonConstrType(p,new_type)] [] [] with IncompatibleLists(p) -> fail p true) in
-  Some(Code(p,Printf.sprintf "%s(%s)"
+  Some(Code(p,Printf.sprintf "(%s(%s))"
     (if (List.length indices)>0 then Printf.sprintf "let (%s) = %s in " (str_x_list (fun x -> arg^"_"^(string_of_int x)) indices ",") arg else "")
     (str_x_list (str_code_plain) x ",")
   ))
@@ -839,7 +850,7 @@ CompoundType(_,CommaType(_,[[SingletonConstrType(_,t2)]]))) ->
 | (SimpleType(p,UnitType(_)),CompoundType(_,AbstrType(_,IdentName(_,[name]),l2)))
 | (SimpleType(p,IdentType(_,[_])),CompoundType(_,AbstrType(_,IdentName(_,[name]),l2))) ->
   let (indices,x,_) = (try typecast_lists arg p 1 [SingletonConstrType(p,old_type)] l2 [] [] with IncompatibleLists(p) -> fail p true) in
-  Some(Code(p,Printf.sprintf "%s%s(%s)"
+  Some(Code(p,Printf.sprintf "(%s%s(%s))"
     (if (List.length indices)>0 then Printf.sprintf "let (%s) = %s in " (str_x_list (fun x -> arg^"_"^(string_of_int x)) indices ",") arg else "")
     (get_symbol name)
     (str_x_list (str_code_plain) x ",")
@@ -847,14 +858,14 @@ CompoundType(_,CommaType(_,[[SingletonConstrType(_,t2)]]))) ->
 (* ('s * 't * ...)  ==>  ('s * 't * ...) *)
 | (CompoundType(p,CommaType(_,[l1])),CompoundType(_,CommaType(_,[l2]))) ->
   let (indices,x,_) = (try typecast_lists arg p 1 l1 l2 [] [] with IncompatibleLists(p) -> fail p true) in
-  Some(Code(p,Printf.sprintf "%s(%s)"
+  Some(Code(p,Printf.sprintf "(%s(%s))"
     (if (List.length indices)>0 then Printf.sprintf "let (%s) = %s in " (str_x_list (fun x -> arg^"_"^(string_of_int x)) indices ",") arg else "")
     (str_x_list (str_code_plain) x ",")
   ))
 (* ('s * 't * ...)  ==>  (Foo of 's * 't * ...) *)
 | (CompoundType(p,CommaType(_,[l1])),CompoundType(_,AbstrType(_,IdentName(_,[name]),l2))) ->
   let (indices,x,_) = (try typecast_lists arg p 1 l1 l2 [] [] with ex -> Printf.printf "!!!try again 1:\n%s\n" (Printexc.to_string ex);(try typecast_lists arg p 1 [SingletonConstrType(p,old_type)] l2 [] [] with IncompatibleLists(p) -> fail p true)) in
-  Some(Code(p,Printf.sprintf "%s%s(%s)"
+  Some(Code(p,Printf.sprintf "(%s%s(%s))"
     (if (List.length indices)>0 then Printf.sprintf "let (%s) = %s in " (str_x_list (fun x -> arg^"_"^(string_of_int x)) indices ",") arg else "")
     (get_symbol name)
     (str_x_list (str_code_plain) x ",")
@@ -957,7 +968,7 @@ match a with
   let typo = (try let (_,_,_,(_,x)) = Hashtbl.find g name in x with Not_found ->
     die_error p2 ("wasn't able to typecheck production: "^(get_symbol name))
   ) in
-  let t = (match typo with None -> SimpleType(p2,IdentType(p2,[auto_name])) | Some(t) -> t) in
+  let t = (match typo with None -> SimpleType(p2,IdentType(p2,[auto_name]))(* <- TODO XXX is this right?? *) | Some(t) -> t) in
   (t,OptAnnotAtom(p,a,([],(None,Some(t)))))
 | SingletonAnnotAtom(p,CharsetAtom(p2,cs,cso)) ->
   let t = SimpleType(p2,IdentType(p2,[char_kw])) in
@@ -1391,7 +1402,7 @@ let output_lexer_code o prefix g = match g with
       let rule_name = recur_prefix^(String.lowercase name) in
       Printf.fprintf o "\nand %s n s = parse\n" rule_name;
       Printf.fprintf o "| \"%s\" { %s (n+1) (s^\"%s\") lexbuf }\n" s1 rule_name s1;
-      Printf.fprintf o "| \"%s\" { if (n=0) then %s else %s (n-1) (s^\"%s\") lexbuf }\n" s2 the_code rule_name s2;
+      Printf.fprintf o "| \"%s\" { if (n=0) then (%s) else %s (n-1) (s^\"%s\") lexbuf }\n" s2 the_code rule_name s2;
       Printf.fprintf o "| _ as c { if c='\\n' then do_newline lexbuf;\n";
       Printf.fprintf o "              %s n (Printf.sprintf \"%%s%%c\" s c) lexbuf }\n" rule_name;
     | _ -> ()
@@ -1421,7 +1432,7 @@ and parser_str_annot_atom (g : IntSet.t) (an : annot_atom_t) : string = match an
 
 and parser_str_atom (g : IntSet.t) (a : atom_t) : string = match a with
 | EmptyAtom(_) -> "empty" (* TODO XXX *)
-| EofAtom(_) -> "eof"
+| EofAtom(_) -> "EOF"
 | IdentAtom(_,i) ->
   (if IntSet.mem i g then get_parser_name else get_token_name) (get_symbol i)
 | ProdAtom(p,_)
@@ -1430,7 +1441,7 @@ and parser_str_atom (g : IntSet.t) (a : atom_t) : string = match a with
 | RecurAtom(p,_,_) -> die_error p "not all non-parser elements were eliminated"
 
 
-let output_parser_code o prefix g = match g with
+let output_parser_code o prefix g : string = match g with
 | Grammar(pos,(d,dl)) ->
   output_warning_msg o "/*\n(" "*" " *" " *) */";
   output_string o "\n\n";
@@ -1510,7 +1521,7 @@ let output_parser_code o prefix g = match g with
   output_string o "/*(* ^^ highest precedence *)*/\n";
   let pname = get_parser_name (get_symbol start_prod_name) in
   Printf.fprintf o "%%start %s /*(* the entry point *)*/\n" pname;
-  Printf.fprintf o "%%type <%s> %s\n" (str_typ_t start_prod_ty) pname;
+  Printf.fprintf o "%%type <%s%s> %s\n" (String.capitalize (prefix^"ast.")) (str_typ_t start_prod_ty) pname;
   Printf.fprintf o "%%%%\n";
   (*Printf.fprintf o "%s:\n" pname;*)
   Printf.fprintf o "%s\n\n" (parser_str_production prod_ids start_prod);
@@ -1518,33 +1529,54 @@ let output_parser_code o prefix g = match g with
     Printf.fprintf o "%s\n\n" (parser_str_production prod_ids p);
   ) prods2;
   (* TODO XXX - add the "empty" token (which returns unit?)! *)
+  Printf.fprintf o "\n\nempty:\n| {}\n;\n\n";
   Printf.fprintf o "%%%%\n";
   Printf.fprintf o "(* footer code *)\n";
-  ()
+  pname
 
-let rec ast_str_typ (t : typ_t) : string = match t with
-| SimpleType(_,TokenType(_)) -> "token"
-| SimpleType(_,UnitType(_)) -> "unit"
-| SimpleType(_,IdentType(_,sl)) -> str_x_list get_symbol sl "."
+let str_opt_list f l sep = List.fold_left (fun result x ->
+  match (result,f x) with
+  | (None,a) -> a
+  | (a,None) -> a
+  | (Some(result),Some(y)) ->
+    Some(result^sep^y)
+) None l
+
+let rec ast_str_typ (t : typ_t) : string option = match t with
+| SimpleType(p,NoType(_)) -> None 
+| SimpleType(_,TokenType(_)) -> Some("token")
+| SimpleType(_,UnitType(_)) -> Some("unit")
+| SimpleType(_,IdentType(_,sl)) -> Some(str_x_list get_symbol sl ".")
+| CompoundType(_,CommaType(_,cll)) ->
+  let op = (str_opt_list (fun cl -> str_opt_list ast_str_constr_type cl " * ") cll ", ") in (
+    match op with
+    | None -> Some("()") (* TODO XXX - is this right? *)
+    | Some(x) -> Some("("^x^")")
+  )
+| CompoundType(_,AbstrType(_,nm,cl)) ->
+  Some(Printf.sprintf "%s%s" (ast_str_abstr_name nm)
+    (match (cl,(str_opt_list ast_str_constr_type cl " * ")) with ([],_) -> "" | (_,None) -> "" | (_,Some(yy)) -> " of "^yy))
 | SimpleType(p,AnyType(_))
-| SimpleType(p,NoType(_))
-| SimpleType(p,VarType(_)) -> "xxx" (* TODO XXX *) (*die_error p "don't know how to handle non-AST types"*)
-| CompoundType(_,CommaType(_,cll)) -> "("^(str_x_list (fun cl -> str_x_list ast_str_constr_type cl " * ") cll ", ")^")"
-| CompoundType(_,AbstrType(_,nm,cl)) -> Printf.sprintf "%s of %s" (ast_str_abstr_name nm) (str_x_list ast_str_constr_type cl " * ")
+| SimpleType(p,VarType(_)) -> (* TODO XXX *) die_error p "don't know how to handle non-AST types"
 
 and ast_str_abstr_name (nm : abstr_name_t) : string = match nm with
 | IdentName(_,[s]) -> get_symbol s
 | IdentName(p,_)
-| AnyName(p) -> "xxx" (* TODO XXX *) (*die_error p "don't know how to handle non-AST abstr. name"*)
+| AnyName(p) -> (* TODO XXX *) die_error p "don't know how to handle non-AST abstr. name"
 
-and ast_str_constr_type (ct : constr_type_t) : string = match ct with
+and ast_str_constr_type (ct : constr_type_t) : string option = match ct with
 | SingletonConstrType(_,t) -> ast_str_typ t
-| InstConstrType(_,ct,sl) -> Printf.sprintf "%s %s" (ast_str_constr_type ct) (str_x_list get_symbol sl " ")
+| InstConstrType(_,ct,sl) ->
+  let op = (ast_str_constr_type ct) in (
+    match op with
+    | None -> Some("()") (* TODO XXX - is this right? *)
+    | Some(x) -> Some(Printf.sprintf "%s %s" x (str_x_list get_symbol sl " "))
+  )
 
-let ast_str_pattern (pa : pattern_t) : string = match pa with
+let ast_str_pattern (pa : pattern_t) : string option = match pa with
 | Pattern(p,(al,Some(name,(ol,(cd,Some(ty)))))) ->
   ast_str_typ ty
-| _ -> "xxx" (* TODO XXX *)
+| Pattern(p,(al,_)) -> (* TODO XXX *) die_error p "pattern did not receive name/type"
 
 let output_ast_code o prefix g = match g with
 | Grammar(pos,(d,dl)) ->
@@ -1556,29 +1588,181 @@ let output_ast_code o prefix g = match g with
   let _ = List.fold_left (fun first d ->
     match d with
     (* NOTE - name and type should be Some(_) at this point *)
-    | ProdDecl(_,(Production(ps,(Some(Parser),(Some(name),(ol,(cd,Some(ty))))),patl) as prod))
-    | ProdDecl(_,(Production(ps,(Some(Ast),(Some(name),(ol,(cd,Some(ty))))),patl) as prod)) ->
-      let tn = (get_auto_type_name name) in
-      let is_auto = fst (is_auto_type ty tn) in
-      Printf.fprintf o "\n%s %s = " (if first then "type" else "\n and") (get_symbol tn);
-      if is_auto then (
-        List.iter (fun p ->
-          Printf.fprintf o "\n   | %s" (ast_str_pattern p)
-        ) patl;
-      ) else Printf.fprintf o "%s" (ast_str_typ ty);
-      false
+    | ProdDecl(_,(Production(ps,(Some(Parser),(Some(name),(ol,(cd,Some(ty))))),patl)))
+    | ProdDecl(_,(Production(ps,(Some(Ast),(Some(name),(ol,(cd,Some(ty))))),patl))) ->
+      (match ty with
+      | SimpleType(_,NoType(_)) -> first
+      | _ ->
+        let tn = (get_auto_type_name name) in
+        let is_auto = fst (is_auto_type ty tn) in
+        Printf.fprintf o "\n%s %s = " (if first then "type" else "\n and") (get_symbol tn);
+        if is_auto then (
+          List.iter (fun p ->
+            match (ast_str_pattern p) with None -> () | Some(str) -> Printf.fprintf o "\n   | %s" str
+          ) patl;
+        ) else (match (ast_str_typ ty) with None -> () | Some(str) -> Printf.fprintf o "%s" str);
+        false
+      )
     | _ -> first
   ) true (d::dl) in
   ()
 
+let output_utils_code o prefix g = match g with
+| Grammar(pos,(d,dl)) ->
+  output_warning_msg o "(*\n" " *" " *" " *)";
+  output_string o "open Lexing;;\n";
+  output_string o "open Parsing;;\n";
+  output_string o "(* open Flags;; *)\n";
+  output_string o "\n";
+  output_string o "(* data type for file positions *)\n";
+  output_string o "let filename = ref \"\"\n";
+  let p = (get_symbol !Flags.pos_type_name) in
+  output_string o ("type "^p^" = NoPos | Pos of string*int*int;; (* file,line,col *)\n");
+  output_string o "\n";
+  output_string o "exception Parse_error of string;;\n";
+  output_string o "exception Lexing_error of string;;\n";
+  output_string o "exception General_error of string;;\n";
+  output_string o "\n";
+  output_string o "(* do_error p s\n";
+  output_string o " *\n";
+  output_string o " * Print error message\n";
+  output_string o " *\n";
+  output_string o " * p - the location of the error\n";
+  output_string o " * s - the error message\n";
+  output_string o " *\n";
+  output_string o " * returns unit\n";
+  output_string o " *)\n";
+  output_string o ("let do_error (p : "^p^") (s : string) : string =\n");
+  output_string o "   (\"Error\"^\n";
+  output_string o "   (match p with\n";
+  output_string o "   | NoPos -> \"\"\n";
+  output_string o "   | Pos(file_name,line_num,col_num) -> (\" in '\"^file_name^\n";
+  output_string o "    \"' on line \"^(string_of_int line_num)^\" col \"^(string_of_int\n";
+  output_string o "    col_num))\n";
+  output_string o "   )^\n";
+  output_string o "   (\": \"^s^\"\\n\"))\n";
+  output_string o ";;\n";
+  output_string o "\n";
+  output_string o ("let die_error (p : "^p^") (s : string) =\n");
+  output_string o "   raise (General_error(do_error p s))\n";
+  output_string o ";;\n";
+  output_string o "\n";
+  output_string o "(* gets a pos data structure using the current lexing pos *)\n";
+  output_string o "let get_current_pos () =\n";
+  output_string o "   let p         = symbol_start_pos () in\n";
+  output_string o "   let file_name = !filename (*p.Lexing.pos_fname*)  in\n";
+  output_string o "   let line_num  = p.Lexing.pos_lnum   in\n";
+  output_string o "   let col_num   = (p.Lexing.pos_cnum-p.Lexing.pos_bol+1) in\n";
+  output_string o "   Pos(file_name,line_num,col_num)\n";
+  output_string o ";;\n";
+  output_string o "\n";
+  output_string o "(* gets a pos data structure from a lexing position *)\n";
+  output_string o "let get_pos (p : Lexing.position) =\n";
+  output_string o "   let file_name = !filename (*p.Lexing.pos_fname*) in\n";
+  output_string o "   let line_num  = p.Lexing.pos_lnum  in\n";
+  output_string o "   let col_num   = (p.Lexing.pos_cnum-p.Lexing.pos_bol+1) in\n";
+  output_string o "   Pos(file_name,line_num,col_num)\n";
+  output_string o ";;\n";
+  output_string o "\n";
+  output_string o "(* dies with a general position-based error *)\n";
+  output_string o "let pos_error (s : string) (p : position) = \n";
+  output_string o "   do_error (get_pos p) s\n";
+  output_string o ";;\n";
+  output_string o "\n";
+  output_string o "(* dies with a parse error s *)\n";
+  output_string o "let parse_error (s : string) = \n";
+  output_string o "   raise (Parse_error(pos_error s (symbol_end_pos ())))\n";
+  output_string o ";;\n";
+  output_string o "\n";
+  output_string o "(* dies with a lexing error *)\n";
+  output_string o "let lex_error (s : string) (lexbuf : Lexing.lexbuf) = \n";
+  output_string o "   raise (Lexing_error(pos_error s (Lexing.lexeme_end_p lexbuf)))\n";
+  output_string o ";;\n";
+  output_string o "\n";
+  output_string o "(* updates the lexer position to the next line\n";
+  output_string o " * (this is used since we skip newlines in the\n";
+  output_string o " *  lexer, but we still wish to remember them\n";
+  output_string o " *  for proper line positions) *)\n";
+  output_string o "let do_newline lb = \n";
+  output_string o "   Lexing.new_line lb\n";
+  output_string o ";;\n";
+  output_string o "\n";
+  output_string o "(* dies with a system error s *)\n";
+  output_string o "let die_system_error (s : string) =\n";
+  output_string o "   output_string stderr s;\n";
+  output_string o "   output_string stderr \"\\n\";\n";
+  output_string o "   exit 1\n";
+  output_string o ";;\n";
+  output_string o "\n";
+  output_string o "let rec count_newlines s lb = match s with\n";
+  output_string o "  | \"\" -> 0\n";
+  output_string o "  | _  -> let c = String.sub s 0 1 in\n";
+  output_string o "          let cs = String.sub s 1 ((String.length s)-1) in\n";
+  output_string o "          if (c=\"\\n\") then (do_newline lb; 1+(count_newlines cs lb))\n";
+  output_string o "                      else (count_newlines cs lb)\n";
+  output_string o ";;\n";
+  output_string o "\n";
+  output_string o "let eq_base (a : 'a) (b : 'a) : bool = (a = b) ;;\n";
+  output_string o "let rec eq_option (f : 'a -> 'a -> bool) (a : 'a option) (b : 'a option) : bool =\n";
+  output_string o "   match (a,b) with\n";
+  output_string o "   | (None,None) -> true\n";
+  output_string o "   | (Some(a),Some(b)) -> (f a b)\n";
+  output_string o "   | _ -> false\n";
+  output_string o ";;\n";
+  output_string o "let eq_pair (f1 : 'a -> 'a -> bool) (f2 : 'b -> 'b -> bool) ((p1a,p1b) : 'a * 'b) ((p2a,p2b) : 'a * 'b) : bool = ((f1 p1a p2a) && (f2 p1b p2b)) ;;\n";
+  output_string o "let eq_list (f : 'a -> 'a -> bool) (l1 : 'a list) (l2 : 'a list) : bool = try List.fold_left2 (fun res l1i l2i -> res && (f l1i l2i)) true l1 l2 with _ -> false;;\n";
+  output_string o "\n";
+  output_string o "let rec str_option (f : 'a -> string) (o : 'a option) : string =\n";
+  output_string o "   match o with\n";
+  output_string o "   | None -> \"\"\n";
+  output_string o "   | Some(a) -> (f a)\n";
+  output_string o ";;\n";
+  output_string o "\n";
+  output_string o "let rec str_pair (f : 'a -> string) (g : 'b -> string) ((a,b) : ('a * 'b)) : string =\n";
+  output_string o "   (f a)^\"\"^\n";
+  output_string o "   (g b)\n";
+  output_string o ";;\n";
+  output_string o "\n";
+  output_string o "let rec str_list (f : 'a -> string) (l : 'a list) : string =\n";
+  output_string o "   str_list_helper f l true\n";
+  output_string o "\n";
+  output_string o "and str_list_helper (f : 'a -> string) (l : 'a list) (first : bool) : string =\n";
+  output_string o "   match l with\n";
+  output_string o "   | [] -> \"\"\n";
+  output_string o "   | a::more -> ((if (not first) then \"\" else \"\")^(f a)^(str_list_helper f more false))\n";
+  output_string o "let rec str_x_list (f : 'a -> string) (il : 'a list) (comma : string) : string = \n";
+  output_string o "    (fst (List.fold_left\n";
+  output_string o "    (fun (str,flag) i ->\n";
+  output_string o "      (str^(if flag then \"\" else comma)^(f i), false)\n";
+  output_string o "    ) (\"\",true) il))\n";
+  output_string o ";;\n";
+  (match !Flags.utils_code with Some(s(*TODO XXX*),c) -> output_string o (str_code_plain c) | _ -> ())
 
-let output_code prefix g =
-  let o = open_out (prefix^"lexer.mll") in
+let output_main_code o prefix g pname = match g with
+| Grammar(pos,(d,dl)) ->
+  output_warning_msg o "(*\n" " *" " *" " *)";
+  output_string o "\n\n";
+  output_string o ("open "^(String.capitalize (prefix^"parser"))^";;\n");
+  output_string o ("open "^(String.capitalize (prefix^"lexer"))^";;\n");
+  output_string o "\n";
+  output_string o "let get_ast (i : in_channel) = \n";
+  output_string o ("   "^(String.capitalize (prefix^"parser."^pname^""))^" "^(String.capitalize (prefix^"lexer.token"))^" (Lexing.from_channel i)\n");
+  output_string o ";;\n"
+
+let output_code dir prefix g =
+  let dir_prefix = (match dir with None -> "" | Some(d) -> d^Filename.dir_sep) in
+  let o = open_out (dir_prefix^prefix^"lexer.mll") in
   output_lexer_code o prefix g;
   close_out o;
-  let o = open_out (prefix^"parser.mly") in
-  output_parser_code o prefix g;
+  let o = open_out (dir_prefix^prefix^"parser.mly") in
+  let start_name = output_parser_code o prefix g in
   close_out o;
-  let o = open_out (prefix^"ast.ml") in
+  let o = open_out (dir_prefix^prefix^"ast.ml") in
   output_ast_code o prefix g;
+  close_out o;
+  let o = open_out (dir_prefix^prefix^"utils.ml") in
+  output_utils_code o prefix g;
+  close_out o;
+  let o = open_out (dir_prefix^prefix^"main.ml") in
+  output_main_code o prefix g start_name;
   close_out o

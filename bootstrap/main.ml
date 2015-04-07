@@ -12,18 +12,18 @@ match x with
 | (_) -> ()
 ;
 let fs = parse_command_line () in
-let ret = List.fold_left (fun acc f ->
+let ret = List.fold_left (fun acc (dir,f) ->
   try
     (* parse the input file *)
     filename := f;
+    let prefix = get_prefix () in
+    (*Printf.printf "prefix = %s (%s) (%s)\n" prefix (str_option Filename.dirname dir) f;*)
     let i = open_in f in
     let result = get_ast i in
-    let prefix = get_prefix () in
-    (*Printf.printf "prefix = %s\n" prefix;*)
     (*raise (General_error("x"));*)
     Flags.init_tables ();
     (* set defaults based on the poperties in input file *)
-    let (result,count) = handle_props result in
+    let (result,count) = handle_props_tokens result in
     let (result,code_table) = collect_named_code result count in
     let result = inline_grammar result code_table in
     (* flatten the grammar *)
@@ -46,7 +46,7 @@ let ret = List.fold_left (fun acc f ->
     Printf.printf "###################################\n";
     Bootstrap_ast.print_grammar_t result;
     Printf.printf "SUCCESS (%s)!\n" f;
-    output_code prefix result;
+    output_code dir prefix result;
     acc
   with ex ->
     Printf.printf "%s\n" (Printexc.to_string ex);

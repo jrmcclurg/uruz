@@ -1,9 +1,9 @@
-parser Model = Empty:bool@str{""} ElementSemi* 
-:(element_t list)@str{
+parser Model = TheEmpty@str{""}:bool ElementSemi* 
+@str{
   fst (List.fold_left (fun (res,flag) e ->
-    (res^(if flag then "\n" else "")^(str_element_t e),true)) ("",false) s)}
+    (res^(if flag then "\n" else "")^(str_element_t e),true)) ("",false) s)}:(element_t list)
 eof # Model
-| AKWgraph:() AAYlsquare GraphElement*:((bool*(int list)) list) AAYrsquare eof # Graph {
+| AKWgraph:~ AAYlsquare GraphElement*:((bool*(int list)) list) AAYrsquare eof # Graph {
    Model(NoPos,true,List.fold_left (fun acc x -> match x with
    (_,[]) -> acc
    | (false,l) -> (
@@ -22,7 +22,7 @@ eof # Model
    )
    ) [] $3)
 } ;
-parser Empty { false } :bool = ~;
+parser TheEmpty { false } :bool = ~;
 
 parser ElementSemi :element_t = Element OptSemi # { $1 };
 parser OptSemi =
@@ -30,16 +30,16 @@ parser OptSemi =
 | ';';
 
 parser Element =
- | AKWswitch:()@str{"switch "} Node # NodeElement
- | AKWlink:()@str{"link "} Edge # EdgeElement
- | AKWspec:()@str{"spec "} Exp  # SpecElement
- | AKWtraffic:()@str{"traffic "} Traffic  # TrafficElement
+ | AKWswitch@str{"switch "}:~ Node # NodeElement
+ | AKWlink@str{"link "}:~ Edge # EdgeElement
+ | AKWspec@str{"spec "}:~ Exp  # SpecElement
+ | AKWtraffic@str{"traffic "}:~ Traffic  # TrafficElement
 ;
 
 parser GraphElement :(bool*(int list)) =
  | GraphField # { (false,[]) }
- | AKWnode:() GraphBlock # { (false,$2) }
- | AKWedge:() GraphBlock # { (true,$2) }
+ | AKWnode:~ GraphBlock # { (false,$2) }
+ | AKWedge:~ GraphBlock # { (true,$2) }
 ;
 
 parser GraphBlock = AAYlsquare GraphField* AAYrsquare # { $2 } ;
@@ -55,81 +55,83 @@ parser GraphValue =
 parser Traffic =
   Names@str{fst (List.fold_left (fun (res,flag) x ->
     (res^(if flag then "" else ", ")^(get_symbol x),false)) ("",true) s)}:(int list)
-  ExpListOpt:(exp_t list)@str{" ["^(fst (List.fold_left (fun (res,flag) p ->
-    (res^(if flag then ", " else "")^(str_exp_t p),true)) ("",false) s))^"]"}
+  ExpListOpt@str{" ["^(fst (List.fold_left (fun (res,flag) p ->
+    (res^(if flag then ", " else "")^(str_exp_t p),true)) ("",false) s))^"]"}:(exp_t list)
   FloatValP:float
     ;
-parser Node = Name@str{get_symbol s}:int Ports:(int list)@{" ("^(fst (List.fold_left (fun (res,flag) i ->
-    (res^(if flag then ", " else "")^(get_symbol i),true)) ("",false) s))^")"}
-  ExpListOpt:(exp_t list)@str{" ["^(fst (List.fold_left (fun (res,flag) p ->
-    (res^(if flag then ", " else "")^(str_exp_t p),true)) ("",false) s))^"]"} 
-  Rules:(edge_t list)@str{" \123"^(fst (List.fold_left (fun (res,flag) i ->
-    (res^(if flag then "" else "")^"\n  rule "^(str_edge_t i),true)) ("",false) s))^"\n\125"}
-  FinalRules:(edge_t list)@str{" final \123"^(fst (List.fold_left (fun (res,flag) i ->
-    (res^(if flag then "" else "")^"\n  rule "^(str_edge_t i),true)) ("",false) s))^"\n\125"}
+parser Node = Name@str{get_symbol s}:int Ports@str{" ("^(fst (List.fold_left (fun (res,flag) i ->
+    (res^(if flag then ", " else "")^(get_symbol i),true)) ("",false) s))^")"}:(int list)
+  ExpListOpt@str{" ["^(fst (List.fold_left (fun (res,flag) p ->
+    (res^(if flag then ", " else "")^(str_exp_t p),true)) ("",false) s))^"]"}:(exp_t list) 
+  Rules@str{" \123"^(fst (List.fold_left (fun (res,flag) i ->
+    (res^(if flag then "" else "")^"\n  rule "^(str_edge_t i),true)) ("",false) s))^"\n\125"}:(edge_t list)
+  FinalRules@str{" final \123"^(fst (List.fold_left (fun (res,flag) i ->
+    (res^(if flag then "" else "")^"\n  rule "^(str_edge_t i),true)) ("",false) s))^"\n\125"}:(edge_t list)
+# Node
 ;
 parser Edge =  UniqueId@str{""}:int
   //EdgeConstraint<@{" ["^(string_of_int s)^"] "}:int>
   Name?@str{(match s with None -> "" | Some(s) -> get_symbol s)}:(int option)
-  "=>":()@str{" => "} NamesOpt@str{fst (List.fold_left (fun (res,flag) x ->
+  "=>"@str{" => "}:~ NamesOpt@str{fst (List.fold_left (fun (res,flag) x ->
   (res^(if flag then "" else ", ")^(get_symbol x),false)) ("",true) s)}:(int list)
-  ExpList:(exp_t list)@str{" ["^(fst (List.fold_left (fun (res,flag) p ->
-    (res^(if flag then ", " else "")^(str_exp_t p),true)) ("",false) s))^"]"}
+  ExpList@str{" ["^(fst (List.fold_left (fun (res,flag) p ->
+    (res^(if flag then ", " else "")^(str_exp_t p),true)) ("",false) s))^"]"}:(exp_t list)
   FloatValP:float
+# Edge
     ;
 
 parser UniqueId { get_unique_id () } :int = ~;
 
 parser Ports :(int list) =
  | ~                         #     { [] }
- | AAYlparen:() AAYrparen:() # { [] }
- | AAYlparen:() Names:(int list) AAYrparen:() # { $2 }
+ | AAYlparen:~ AAYrparen:~ # { [] }
+ | AAYlparen:~ Names:(int list) AAYrparen:~ # { $2 }
 ;
 
 parser FinalRules :(edge_t list) =
                      #  { [] }
- | AKWfinal:() Rules:(edge_t list) # { $2 }
+ | AKWfinal:~ Rules:(edge_t list) # { $2 }
 ;
 
 parser Rules :(edge_t list) =
  | ~                               #  { [] }
- | AAYlbrack:() Rule*:(edge_t list) AAYrbrack:() # { $2 }
+ | AAYlbrack:~ Rule*:(edge_t list) AAYrbrack:~ # { $2 }
 ;
 
 parser Rule :edge_t =
-  AKWrule:()@str{"rule"} Edge # { $2 }
+  AKWrule@str{"rule"}:~ Edge # { $2 }
 ;
 
 parser ExpList :(exp_t list) =
-   AAYlsquare:() AAYrsquare:() # { [] }
- | AAYlsquare:() Exp ComExp* AAYrsquare:() # { $2::$3 }
+   AAYlsquare:~ AAYrsquare:~ # { [] }
+ | AAYlsquare:~ Exp ComExp* AAYrsquare:~ # { $2::$3 }
 ;
 parser ExpListOpt :(exp_t list) =
  | ~                                 #  { [] }
- | AAYlsquare:() AAYrsquare:() # { [] }
- | AAYlsquare:() Exp ComExp* AAYrsquare:() # { $2::$3 }
+ | AAYlsquare:~ AAYrsquare:~ # { [] }
+ | AAYlsquare:~ Exp ComExp* AAYrsquare:~ # { $2::$3 }
 ;
 
-parser ComExp = ',':() Exp # { $2 } ;
+parser ComExp = ',':~ Exp # { $2 } ;
 
 parser Prop =
-   Name@str{"("^(get_symbol s)}:int '=':() Name@{(get_symbol s)^")"}:int # EqProp
+   Name@str{"("^(get_symbol s)}:int '=':~ Name@{(get_symbol s)^")"}:int # EqProp
 ;
 
 parser Exp :exp_t =
  | BoolVal                      # BoolExp
  | Prop                         # PropExp
- | '!'@prec:=1:() Exp                   # NotExp   // highest precedence
- | 'G'@prec:=2:() Exp                   # GExp
- | 'F'@prec:=2:() Exp                   # FExp
- | 'X'@prec:=2:() Exp                   # XExp
- | Exp@str{} "&"@prec:=3:()@str{"("^(str_exp_t s0)^" & "^(str_exp_t s1)^")"} Exp@str{}     # AndExp
- | Exp@str{} "|"@prec:=4:()@str{"("^(str_exp_t s0)^" | "^(str_exp_t s1)^")"} Exp@str{}     # OrExp
- | Exp@str{} "<->"@prec:=5:()@str{"("^(str_exp_t s0)^" <-> "^(str_exp_t s1)^")"} Exp@str{}   # IffExp
- | Exp@str{} "->"@prec:=6:()@str{"("^(str_exp_t s0)^" -> "^(str_exp_t s1)^")"} Exp@str{}     # IfExp
- | Exp@str{} 'U'@prec:=7:()@str{"("^(str_exp_t s0)^" U "^(str_exp_t s1)^")"} Exp@str{}       # UExp
- | Exp@str{} 'V'@prec:=7:()@str{"("^(str_exp_t s0)^" V "^(str_exp_t s1)^")"} Exp@str{}       # RExp    // lowest precedence
- | AAYlparen:() Exp AAYrparen:()                  # ParenExp
+ | '!'@prec:=1:~ Exp                   # NotExp   // highest precedence
+ | 'G'@prec:=2:~ Exp                   # GExp
+ | 'F'@prec:=2:~ Exp                   # FExp
+ | 'X'@prec:=2:~ Exp                   # XExp
+ | Exp@str{} "&"@prec:=3:~@str{"("^(str_exp_t s0)^" & "^(str_exp_t s1)^")"} Exp@str{}     # AndExp
+ | Exp@str{} "|"@prec:=4:~@str{"("^(str_exp_t s0)^" | "^(str_exp_t s1)^")"} Exp@str{}     # OrExp
+ | Exp@str{} "<->"@prec:=5:~@str{"("^(str_exp_t s0)^" <-> "^(str_exp_t s1)^")"} Exp@str{}   # IffExp
+ | Exp@str{} "->"@prec:=6:~@str{"("^(str_exp_t s0)^" -> "^(str_exp_t s1)^")"} Exp@str{}     # IfExp
+ | Exp@str{} 'U'@prec:=7:~@str{"("^(str_exp_t s0)^" U "^(str_exp_t s1)^")"} Exp@str{}       # UExp
+ | Exp@str{} 'V'@prec:=7:~@str{"("^(str_exp_t s0)^" V "^(str_exp_t s1)^")"} Exp@str{}       # RExp    // lowest precedence
+ | AAYlparen:~ Exp AAYrparen:~                  # ParenExp
 ;
 
 parser Name :int = Value # { add_symbol (str_value_t $1) } ;
@@ -139,7 +141,7 @@ parser NamesOpt :(int list)  =
 | ~              #  { [] }
 | Value ComVal* # { List.map (fun x -> add_symbol (str_value_t x)) ($1::$2) } ;
 
-parser ComVal = ',':() Value # { $2 } ;
+parser ComVal = ',':~ Value # { $2 } ;
 
 parser FloatVal :float =
   FloatP
@@ -163,8 +165,8 @@ parser IntegerVal :int =
 ;
 
 parser BoolVal =
-   AKWtrue:()@str{"TRUE"}  # TrueBoolVal
- | AKWfalse:()@str{"FALSE"} # FalseBoolVal
+   AKWtrue@str{"TRUE"}:~  # TrueBoolVal
+ | AKWfalse@str{"FALSE"}:~ # FalseBoolVal
 ;
 
 parser UInt32 :int =
@@ -221,38 +223,41 @@ let add_token str vl =
   with _ -> Hashtbl.replace tokens str vl
 ;;
 
-let lookup_token str =
+let lookup_keyword str =
    (*print_string ("LOOKING UP: '"^str^"' -> ");*)
    try (let x = Hashtbl.find tokens str in (*print_string "found\n";*) x)
    (* TODO - here is our default - does it work? *)
-   with _ -> (*print_string "returning default\n";*) XIDENT str
+   with _ -> (*print_string "returning default\n";*) X_IDENT str
 ;;
 
-add_token "final" AKWFINAL ;;
-add_token "TRUE" AKWTRUE ;;
-add_token "FALSE" AKWFALSE ;;
-add_token "switch" AKWSWITCH ;;
-add_token "link" AKWLINK ;;
-add_token "rule" AKWRULE ;;
-add_token "spec" AKWSPEC ;;
-add_token "traffic" AKWTRAFFIC ;;
-add_token "graph" AKWGRAPH ;;
-add_token "node" AKWNODE ;;
-add_token "edge" AKWEDGE ;;
+add_token "final" AK_WFINAL ;;
+add_token "TRUE" AK_WTRUE ;;
+add_token "FALSE" AK_WFALSE ;;
+add_token "switch" AK_WSWITCH ;;
+add_token "link" AK_WLINK ;;
+add_token "rule" AK_WRULE ;;
+add_token "spec" AK_WSPEC ;;
+add_token "traffic" AK_WTRAFFIC ;;
+add_token "graph" AK_WGRAPH ;;
+add_token "node" AK_WNODE ;;
+add_token "edge" AK_WEDGE ;;
 
 } ;
 
 property utils_code = {
-(*module IntSet = Set.Make(
+module IntSet = Set.Make(
 struct
   type t = int
   let compare = (Pervasives.compare : (int -> int -> int))
-end);;*)
+end);;
+let intset_fold = IntSet.fold
+let intset_elements = IntSet.elements
+let intset_subset = IntSet.subset
 
-module IntSet = Reins.PatriciaSet.MonoSet;;
+(*module IntSet = Reins.PatriciaSet.MonoSet;;
 let intset_fold f set init = let g a b = f b a in IntSet.fold g init set
 let intset_elements (ps:IntSet.t) : IntSet.elt list = List.rev (IntSet.fold (fun acc p -> p::acc) [] ps)
-let intset_subset a b = IntSet.is_empty (IntSet.diff a b)
+let intset_subset a b = IntSet.is_empty (IntSet.diff a b)*)
 
   let strip_quotes (s : string) : (string*bool) =
     let len = String.length s in

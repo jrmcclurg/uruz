@@ -16,6 +16,7 @@ let pos_type_name = ref (add_symbol "pos_t")
 let enable_pos = ref true
 let def_assoc = ref "left"
 let start_prod = ref (None : symb option)
+let out_dir = ref (None : string option)
 
 let lexer_code = ref (None : (symb option * code) option)
 let parser_code = ref (None : (symb option * code) option)
@@ -114,8 +115,8 @@ let usage_msg = banner_text^"\n"^
 
 (* parse the command-line arguments *)
 let args = Arg.align [
-   (*("-o",        Arg.String(fun x -> out_file := Some(x)),
-                    "<file> Location for the result");*)
+   ("-d",        Arg.String(fun x -> out_dir := Some(x)),
+                    "<dir> Location for the result files");
 
    ("-flatten",        Arg.Unit(fun () -> only_flatten := true),
                     " Only flatten the grammar and exit");
@@ -133,9 +134,9 @@ let die_system_error (s : string) =
    exit 1
 ;;
 
-let parse_command_line () : string list =
-   let fs = ref ([] : string list) in
-   Arg.parse args (fun x -> fs := x::(!fs)) banner_text;
+let parse_command_line () : (string option*string) list =
+   let fs = ref ([] : (string option*string) list) in
+   Arg.parse args (fun x -> fs := (!out_dir,x)::(!fs)) banner_text;
    (* use the command-line filename if one exists, otherwise use stdin *)
    match (List.rev !fs) with
    | [] -> error_usage_msg ()
