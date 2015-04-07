@@ -14,6 +14,8 @@ let lexer_prefix = ref "Lex"
 let auto_type_suffix = ref "_t"
 let pos_type_name = ref (add_symbol "pos_t")
 let enable_pos = ref true
+let def_assoc = ref "left"
+let start_prod = ref (None : symb option)
 
 let lexer_code = ref (None : (symb option * code) option)
 let parser_code = ref (None : (symb option * code) option)

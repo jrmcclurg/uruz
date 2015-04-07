@@ -824,13 +824,13 @@ CompoundType(_,CommaType(_,[[SingletonConstrType(_,t2)]]))) ->
     Some(Code(p,"(str_explode "^arg^")"))
 | (SimpleType(p,IdentType(_,[kw])),CompoundType(_,CommaType(_,[a::b::l2]))) ->
   let (indices,x,_) = (try typecast_lists arg p 1 [SingletonConstrType(p,old_type)] (a::b::l2) [] [] with IncompatibleLists(p) -> fail p true) in
-  Some(Code(p,Printf.sprintf "%s(%s))"
+  Some(Code(p,Printf.sprintf "%s(%s)"
     (if (List.length indices)>0 then Printf.sprintf "let (%s) = %s in " (str_x_list (fun x -> arg^"_"^(string_of_int x)) indices ",") arg else "")
     (str_x_list (str_code_plain) x ",")
   ))
 | (CompoundType(p,CommaType(_,[a::b::l1])),SimpleType(_,IdentType(_,[kw]))) ->
   let (indices,x,_) = (try typecast_lists arg p 1 (a::b::l1) [SingletonConstrType(p,new_type)] [] [] with IncompatibleLists(p) -> fail p true) in
-  Some(Code(p,Printf.sprintf "%s(%s))"
+  Some(Code(p,Printf.sprintf "%s(%s)"
     (if (List.length indices)>0 then Printf.sprintf "let (%s) = %s in " (str_x_list (fun x -> arg^"_"^(string_of_int x)) indices ",") arg else "")
     (str_x_list (str_code_plain) x ",")
   ))
@@ -839,7 +839,7 @@ CompoundType(_,CommaType(_,[[SingletonConstrType(_,t2)]]))) ->
 | (SimpleType(p,UnitType(_)),CompoundType(_,AbstrType(_,IdentName(_,[name]),l2)))
 | (SimpleType(p,IdentType(_,[_])),CompoundType(_,AbstrType(_,IdentName(_,[name]),l2))) ->
   let (indices,x,_) = (try typecast_lists arg p 1 [SingletonConstrType(p,old_type)] l2 [] [] with IncompatibleLists(p) -> fail p true) in
-  Some(Code(p,Printf.sprintf "%s%s(%s))"
+  Some(Code(p,Printf.sprintf "%s%s(%s)"
     (if (List.length indices)>0 then Printf.sprintf "let (%s) = %s in " (str_x_list (fun x -> arg^"_"^(string_of_int x)) indices ",") arg else "")
     (get_symbol name)
     (str_x_list (str_code_plain) x ",")
@@ -847,14 +847,14 @@ CompoundType(_,CommaType(_,[[SingletonConstrType(_,t2)]]))) ->
 (* ('s * 't * ...)  ==>  ('s * 't * ...) *)
 | (CompoundType(p,CommaType(_,[l1])),CompoundType(_,CommaType(_,[l2]))) ->
   let (indices,x,_) = (try typecast_lists arg p 1 l1 l2 [] [] with IncompatibleLists(p) -> fail p true) in
-  Some(Code(p,Printf.sprintf "%s(%s))"
+  Some(Code(p,Printf.sprintf "%s(%s)"
     (if (List.length indices)>0 then Printf.sprintf "let (%s) = %s in " (str_x_list (fun x -> arg^"_"^(string_of_int x)) indices ",") arg else "")
     (str_x_list (str_code_plain) x ",")
   ))
 (* ('s * 't * ...)  ==>  (Foo of 's * 't * ...) *)
 | (CompoundType(p,CommaType(_,[l1])),CompoundType(_,AbstrType(_,IdentName(_,[name]),l2))) ->
   let (indices,x,_) = (try typecast_lists arg p 1 l1 l2 [] [] with ex -> Printf.printf "!!!try again 1:\n%s\n" (Printexc.to_string ex);(try typecast_lists arg p 1 [SingletonConstrType(p,old_type)] l2 [] [] with IncompatibleLists(p) -> fail p true)) in
-  Some(Code(p,Printf.sprintf "%s%s(%s))"
+  Some(Code(p,Printf.sprintf "%s%s(%s)"
     (if (List.length indices)>0 then Printf.sprintf "let (%s) = %s in " (str_x_list (fun x -> arg^"_"^(string_of_int x)) indices ",") arg else "")
     (get_symbol name)
     (str_x_list (str_code_plain) x ",")
@@ -1040,6 +1040,10 @@ let get_auto_type_name (prod_name : symb) : symb =
 let get_token_name (prod_name : string) : string =
   let s2 = get_underscore_name prod_name in
   (String.uppercase (s2))
+
+let get_parser_name (prod_name : string) : string =
+  let s2 = get_underscore_name prod_name in
+  (String.lowercase (s2))
 
 let rec is_no_type (t : typ_t) : bool =
 match t with
@@ -1393,6 +1397,135 @@ let output_lexer_code o prefix g = match g with
     | _ -> ()
   ) rules
 
+module TypHash = Hashtbl.Make(
+struct
+  type t = typ_t
+  let hash a = Hashtbl.hash (norm_typ a)
+  let equal a b = ((norm_typ a)=(norm_typ b))
+end);;
+
+let rec parser_str_production (g : IntSet.t) (pr : production_t) : string = match pr with
+| (Production(ps,(Some(Parser),(Some(name),(ol,(cd,Some(ty))))),patl)) ->
+  let pname = get_parser_name (get_symbol name) in
+  Printf.sprintf "%s:\n%s\n;" pname (str_x_list (fun p -> "| "^(parser_str_pattern g p)) patl "\n")
+| _ -> "" (* TODO XXX what do we do here? *)
+
+and parser_str_pattern (g : IntSet.t) (pa : pattern_t) : string = match pa with
+| Pattern(p,(al,Some(name,(ol,(cd,ty))))) -> (str_x_list (parser_str_annot_atom g) al " ")^(match cd with None -> "" | Some(c) -> " "^(str_code c))
+| Pattern(p,(al,None)) -> (str_x_list (parser_str_annot_atom g) al " ")
+
+and parser_str_annot_atom (g : IntSet.t) (an : annot_atom_t) : string = match an with
+| SingletonAnnotAtom(_,a) -> parser_str_atom g a
+| QuantAnnotAtom(_,an,_) -> parser_str_annot_atom g an
+| OptAnnotAtom(_,an,_) -> parser_str_annot_atom g an
+
+and parser_str_atom (g : IntSet.t) (a : atom_t) : string = match a with
+| EmptyAtom(_) -> "empty" (* TODO XXX *)
+| EofAtom(_) -> "eof"
+| IdentAtom(_,i) ->
+  (if IntSet.mem i g then get_parser_name else get_token_name) (get_symbol i)
+| ProdAtom(p,_)
+| StringAtom(p,_)
+| CharsetAtom(p,_,_)
+| RecurAtom(p,_,_) -> die_error p "not all non-parser elements were eliminated"
+
+
+let output_parser_code o prefix g = match g with
+| Grammar(pos,(d,dl)) ->
+  output_warning_msg o "/*\n(" "*" " *" " *) */";
+  output_string o "\n\n";
+  output_string o "%{\n";
+  output_string o ("   open "^(String.capitalize (prefix^"ast"))^";;\n");
+  output_string o ("   open "^(String.capitalize (prefix^"utils"))^";;\n\n");
+  (match !Flags.parser_code with Some(s(*TODO XXX*),c) -> output_string o (str_code_plain c) | _ -> ());
+  output_string o "\n%}\n\n";
+  output_string o "%token EOF\n";
+
+  let tok_table = TypHash.create 100 in (* TODO XXX - size? *)
+  let prec_table = Hashtbl.create 100 in
+
+  let add ps ty names ol = (
+      let set = (try TypHash.find tok_table ty with Not_found -> IntSet.empty) in
+      let set2 = List.fold_left (fun acc name -> IntSet.add name acc) set names in
+      TypHash.replace tok_table ty set2;
+
+      let (vl,_) = opt_list_lookup ol prec_kw in
+      let (prec,b1) = (match vl with Some(IntVal(_,i)) -> (i,true) | _ -> (max_int,false)) in
+      let (vl2,_) = opt_list_lookup ol assoc_kw in
+      let (assoc,b2) = (match vl2 with Some(StringVal(_,s)) -> (Some(s),true) | _ -> (None,false)) in
+      if b1 || b2 then (
+        let (set,assoc2) = (try Hashtbl.find prec_table prec with Not_found -> (IntSet.empty,None)) in
+        let set2 = List.fold_left (fun acc name -> IntSet.add name acc) set names in
+        let assoc2 = (match (assoc,assoc2) with
+        | (None,_) -> assoc2
+        | (_,None) -> assoc
+        | (Some(a),Some(a2)) -> if a=a2 then assoc2 else die_error ps ("multiple associativities being used at precedence level "^(string_of_int prec))) in
+        Hashtbl.replace prec_table prec (set2,assoc2)
+      )
+  ) in
+
+  (* add all tokens to the table *)
+  let (fp,prods2,prod_ids) = List.fold_left (fun (fp,acc,acc2) d ->
+    match d with
+    (* NOTE - name and type should be Some(_) at this point *)
+    | ProdDecl(_,(Production(ps,(Some(Parser),(Some(name),(ol,(cd,Some(ty))))),patl) as prod)) ->
+      let (fp2,b) = (match fp with None -> (match !Flags.start_prod with Some(pn) -> (if pn=name then (Some(name,ty,prod),true) else (fp,false)) | _ -> (Some(name,ty,prod),true)) | _ -> (fp,false)) in
+      (fp2,(if not b then prod::acc else acc),IntSet.add name acc2)
+    | ProdDecl(_,(Production(ps,(Some(Lexer),(Some(name),(ol,(cd,Some(ty))))),patl))) ->
+      add ps ty [name] ol;
+      (fp,acc,acc2)
+    | TokenDecl(p,(name,namel),(ol,(cd,ty1))) ->
+      (match ty1 with Some(ty) -> add p ty (name::namel) ol | _ -> add p (SimpleType(p,NoType(p))) (name::namel) ol);
+      (fp,acc,acc2)
+    | KeywordDecl(p,name,(ol,(cd,ty)),str) ->
+      add p (SimpleType(p,NoType(p))) [name] ol;
+      (fp,acc,acc2)
+    | _ -> (fp,acc,acc2)
+  ) (None,[],IntSet.empty) (d::dl) in
+  let prods2 = List.rev prods2 in
+  let (start_prod_name,start_prod_ty,start_prod) = (match fp with
+  | None -> die_error pos "could not determine start production"
+  | Some(x) -> x
+  ) in
+  let tok_types = TypHash.fold (fun k _ acc -> k::acc) tok_table [] in
+  let tok_types = List.sort (fun a b -> compare (str_typ_t a) (str_typ_t b)) tok_types in
+
+  List.iter (fun k ->
+    let set = (try TypHash.find tok_table k with Not_found -> IntSet.empty) in
+    let l = List.rev_map get_symbol (IntSet.elements set) in
+    let l = List.sort compare l in
+    if l<>[] then Printf.fprintf o "%%token %s%s\n" (match k with SimpleType(_,NoType(_)) -> "" | _ -> "<"^(str_typ_t k)^"> ") (str_x_list get_token_name l " ")
+  ) tok_types;
+
+  let tok_precs = Hashtbl.fold (fun k _ acc -> k::acc) prec_table [] in
+  let tok_precs = List.rev (List.sort compare tok_precs) in
+
+  output_string o "/*(* starting with lowest precedence:*)*/\n";
+  List.iter (fun prec ->
+    let (set,assoc) = (try Hashtbl.find prec_table prec with Not_found -> (IntSet.empty,None)) in
+    let assoc = (match assoc with None -> !Flags.def_assoc | Some(a) -> a) in
+    if not (IntSet.is_empty set) then Printf.fprintf o "%%%s %s /*(* %d *)*/\n" assoc
+    (str_x_list get_token_name (List.rev_map get_symbol (IntSet.elements set)) " ") prec
+  ) tok_precs;
+  output_string o "/*(* ^^ highest precedence *)*/\n";
+  let pname = get_parser_name (get_symbol start_prod_name) in
+  Printf.fprintf o "%%start %s /*(* the entry point *)*/\n" pname;
+  Printf.fprintf o "%%type <%s> %s\n" (str_typ_t start_prod_ty) pname;
+  Printf.fprintf o "%%%%\n";
+  (*Printf.fprintf o "%s:\n" pname;*)
+  Printf.fprintf o "%s\n\n" (parser_str_production prod_ids start_prod);
+  List.iter (fun p ->
+    Printf.fprintf o "%s\n\n" (parser_str_production prod_ids p);
+  ) prods2;
+  (* TODO XXX - add the "empty" token (which returns unit?)! *)
+  Printf.fprintf o "%%%%\n";
+  Printf.fprintf o "(* footer code *)\n";
+  ()
+
 let output_code prefix g =
   let o = open_out (prefix^"lexer.mll") in
-  output_lexer_code o prefix g
+  output_lexer_code o prefix g;
+  close_out o;
+  let o = open_out (prefix^"parser.mly") in
+  output_parser_code o prefix g;
+  close_out o
