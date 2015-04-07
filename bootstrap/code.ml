@@ -1229,10 +1229,11 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) (gr : si
       ;
 
     let ty1xx = if fst (is_auto_type ty1 auto_name) then SimpleType(p,IdentType(p,[auto_name])) else ty1 in
+    let ol2 = if is_auto then ol1 else ((ValOption(p,Some(auto_kw),BoolVal(p,false)))::ol1) in
     Printf.printf ">>>>>>>> prod type final = %s\n" (str_typ_t ty1xx);
 
     (*Printf.printf ">> trying to cast %s  =>  %s\n" (str_typ_t ty) (str_typ_t ty1);*)
-    let result = Production(p,(rt,(name1,(ol1,(typecast cd1 [ty] ty1 true rt auto_name,Some(ty1xx))))),pl2) in
+    let result = Production(p,(rt,(name1,(ol2,(typecast cd1 [ty] ty1 true rt auto_name,Some(ty1xx))))),pl2) in
     Printf.printf "success:\n%s\n" (str_production_t result);
     (* add production type to the table *)
     Hashtbl.replace gr name (IntSet.empty,None,false,(p,Some(ty1xx))); (* TODO XXX - do we need to Hashtbl.find first? *)
@@ -1594,7 +1595,7 @@ let output_ast_code o prefix g = match g with
       | SimpleType(_,NoType(_)) -> first
       | _ ->
         let tn = (get_auto_type_name name) in
-        let is_auto = fst (is_auto_type ty tn) in
+        let is_auto = not (fst (opt_list_contains ol auto_kw (BoolVal(NoPos,false)))) in
         Printf.fprintf o "\n%s %s = " (if first then "type" else "\n and") (get_symbol tn);
         if is_auto then (
           List.iter (fun p ->
