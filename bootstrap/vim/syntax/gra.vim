@@ -12,31 +12,6 @@ endif
 syn case match
 syn sync minlines=50
 
-function! TextEnableCodeSnip2(filetype,pattern,textSnipHl,thename) abort
-  let ft=toupper(a:filetype)
-  let group='textGroupKey'.a:thename
-  if exists('b:current_syntax')
-    let s:current_syntax=b:current_syntax
-    " Remove current syntax definition, as some syntax files (e.g. cpp.vim)
-    " do nothing if b:current_syntax is defined.
-    unlet b:current_syntax
-  endif
-  execute 'syntax include @'.group.' syntax/'.a:filetype.'.vim'
-  try
-    execute 'syntax include @'.group.' after/syntax/'.a:filetype.'.vim'
-  catch
-  endtry
-  if exists('s:current_syntax')
-    let b:current_syntax=s:current_syntax
-  else
-    unlet b:current_syntax
-  endif
-  execute 'syntax match ocamlKey'.a:thename.'
-  \ "'.a:pattern.'"
-  \ contained nextgroup=pggType skipwhite
-  \ contains=@'.group
-endfunction
-
 function! TextEnableCodeSnip(filetype,start,end,start2,end2,pattern,textSnipHl,thename,thename2) abort
   let ft=toupper(a:filetype)
   let group='textGroupMatch'.a:thename
@@ -120,7 +95,8 @@ syn match pggAnnotName "@[a-zA-Z0-9_]\+" nextgroup=ocamlMatchCode skipwhite
 "syn match pggType ":\s*\(=>\s*\)\?[._$a-zA-Z0-9]\+\(\[[^]]*\]\+\)\?\(\s*\(<:\|>:\|#\|=>\)\s*[._$a-zA-Z0-9]\+\(\[[^]]*\]\+\)*\)*" contained
 syn match pggType ":\s*" nextgroup=pggNoType,ocamlMatchType,ocamlKeyType skipwhite
 syn match pggNoType "[~]" contained nextgroup=ocamlMatchCode skipwhite
-syn match pggOp "[*?+#|=;()]" nextgroup=ocamlMatchCode,pggType skipwhite
+syn match pggOp "[*?+|=;()]" nextgroup=ocamlMatchCode,pggType skipwhite
+syn match pggName "#[ a-zA-Z0-9_]*" nextgroup=ocamlMatchCode,pggType skipwhite
 syn match pggEqOp ":=" nextgroup=ocamlMatchCode skipwhite
 "
 "" comments
@@ -193,6 +169,7 @@ hi link pggLineComment Comment
 hi link pggTodo Todo
 hi link pggType SpecialComment
 hi link pggNoType Type
+hi link pggName SpecialComment
 "hi link pggTypeSpecializer pggType
 "hi link pggXml String
 "hi link pggXmlTag Include
