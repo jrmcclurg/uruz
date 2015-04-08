@@ -125,12 +125,12 @@ parser Exp :exp_t =
  | 'G'@prec:=2:~ Exp                   # GExp
  | 'F'@prec:=2:~ Exp                   # FExp
  | 'X'@prec:=2:~ Exp                   # XExp
- | Exp@str{} "&"@prec:=3:~@str{"("^(str_exp_t s0)^" & "^(str_exp_t s1)^")"} Exp@str{}     # AndExp
- | Exp@str{} "|"@prec:=4:~@str{"("^(str_exp_t s0)^" | "^(str_exp_t s1)^")"} Exp@str{}     # OrExp
- | Exp@str{} "<->"@prec:=5:~@str{"("^(str_exp_t s0)^" <-> "^(str_exp_t s1)^")"} Exp@str{}   # IffExp
- | Exp@str{} "->"@prec:=6:~@str{"("^(str_exp_t s0)^" -> "^(str_exp_t s1)^")"} Exp@str{}     # IfExp
- | Exp@str{} 'U'@prec:=7:~@str{"("^(str_exp_t s0)^" U "^(str_exp_t s1)^")"} Exp@str{}       # UExp
- | Exp@str{} 'V'@prec:=7:~@str{"("^(str_exp_t s0)^" V "^(str_exp_t s1)^")"} Exp@str{}       # RExp    // lowest precedence
+ | Exp "&"@prec:=3@str{"("^(str_exp_t s0)^" & "^(str_exp_t s1)^")"}:~ Exp     # AndExp
+ | Exp "|"@prec:=4@str{"("^(str_exp_t s0)^" | "^(str_exp_t s1)^")"}:~ Exp     # OrExp
+ | Exp "<->"@prec:=5@str{"("^(str_exp_t s0)^" <-> "^(str_exp_t s1)^")"}:~ Exp   # IffExp
+ | Exp "->"@prec:=6@str{"("^(str_exp_t s0)^" -> "^(str_exp_t s1)^")"}:~ Exp     # IfExp
+ | Exp 'U'@prec:=7@str{"("^(str_exp_t s0)^" U "^(str_exp_t s1)^")"}:~ Exp       # UExp
+ | Exp 'V'@prec:=7@str{"("^(str_exp_t s0)^" V "^(str_exp_t s1)^")"}:~ Exp       # RExp    // lowest precedence
  | AAYlparen:~ Exp AAYrparen:~                  # ParenExp
 ;
 

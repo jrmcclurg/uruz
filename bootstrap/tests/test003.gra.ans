@@ -142,11 +142,7 @@ lexer Seven_0_0_0 =
 | "one" 
 ;
 
-parser Seven_0_1 = 
-| Seven_0_1_0 
-;
-
-lexer Seven_0_1_0 @option3:=125 = 
+lexer Seven_0_1 @option3:=125 = 
 | "two" 
 ;
 

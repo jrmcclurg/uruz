@@ -218,8 +218,12 @@ and flatten_annot_atom (above_opts : opt_t list) (an : annot_atom_t) (defname : 
 | OptAnnotAtom(p,an,(o,(((tcd,tty)) as x))) ->
   if is_processing_lexer deftyp then
     die_error p "lexer productions can only contain annotations on the left-hand-side (i.e. applied to the entire production)";
-  let (a2,prods,consumed) = flatten_annot_atom o an defname deftyp (if tty=None && is_singleton then nesting else (!Flags.def_prod_index::nesting)) code_table false in
-  if tty=None && is_singleton then (OptAnnotAtom(p,a2,(o,x)),prods,false)
+  let is_simple = (match an with SingletonAnnotAtom(_,(ProdAtom(_,_))) -> false | _ -> true) in
+  let is_notype = (match tty with None -> true | Some(SimpleType(_,NoType(_))) -> true | _ -> false) in
+  (* tty=None && is_singleton *)
+  let check = (is_notype && (is_singleton || (is_simple && tcd=None))) in (* check=true iff we don't need more flattening *)
+  let (a2,prods,consumed) = flatten_annot_atom o an defname deftyp (if check then nesting else (!Flags.def_prod_index::nesting)) code_table false in
+  if check then (OptAnnotAtom(p,a2,((if consumed then [] else o),x)),prods,false)
   else
     let name = Flags.get_def_prod_name defname nesting in
     let rt = Flags.get_def_prod_type deftyp in
@@ -272,7 +276,7 @@ and flatten_atom (above_opts : opt_t list) (a : atom_t) (defname : symb option) 
 | CharsetAtom(p,_,_)
 | RecurAtom(p,_,_)
 | StringAtom(p,_) ->
-  if not (is_processing_parser deftyp) then (SingletonAnnotAtom(p,a),[],false)
+  if ((not (is_processing_parser deftyp))(* || is_singleton*)) then (SingletonAnnotAtom(p,a),[],false)
   else
   let name = Flags.get_def_prod_name defname nesting in
   (SingletonAnnotAtom(p,IdentAtom(p,name)),[ProdDecl(p,Production(p,(Some(Lexer),(Some(name),(above_opts,(None,None)))),[Pattern(p,([SingletonAnnotAtom(p,a)],None))]))],true)
@@ -983,6 +987,8 @@ match a with
 | OptAnnotAtom(p,a,(ol,(None,None))) ->
   let (t,a2) = infer_type_annot_atom a g auto_name in
   (t,OptAnnotAtom(p,a2,(ol,(None,None))))
+| OptAnnotAtom(p,a,(ol,(None,(Some(SimpleType(_,NoType(_)) as ty))))) ->
+  (ty,OptAnnotAtom(p,a,(ol,(None,Some(ty)))))
 | SingletonAnnotAtom(p,ProdAtom(_,_))
 | OptAnnotAtom(p,_,_)
 | QuantAnnotAtom(p,_,_) -> die_error p "atom was not flattened properly"
