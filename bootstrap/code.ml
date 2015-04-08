@@ -76,6 +76,7 @@ let rec handle_props_tokens (g : grammar_t) : (grammar_t*int) = match g with
       | ("parser_code",CodeVal(p,(s,c))) -> Flags.parser_code := Some(s,c)
       | ("ast_code",CodeVal(p,(s,c))) -> Flags.ast_code := Some(s,c)
       | ("utils_code",CodeVal(p,(s,c))) -> Flags.utils_code := Some(s,c)
+      | ("libs",StringVal(p,s)) -> Hashtbl.clear Flags.libs; List.iter (fun lib -> Hashtbl.replace Flags.libs lib ()) (Str.split (Str.regexp "[ \t\r\n]*,[ \t\r\n]*") s)
       | _ -> die_error p "invalid property name or type"
       );
       acc
@@ -662,7 +663,7 @@ and strip_lexer_decl (d : decl_t) (table : (symb,production_t) Hashtbl.t) (table
   | None -> die_error p2 "un-named lexer production") in
   let (vl,ol2) = opt_list_lookup ol prec_kw in
   Hashtbl.replace table sym prod;
-  let prec1 = (match vl with Some(IntVal(_,i)) -> i | _ -> max_int) in
+  let prec1 = (match vl with Some(IntVal(_,i)) -> i | _ -> !Flags.def_precedence) in
   let (nm,pr,tys,temp) = (try PatternsHash.find table2 pl with Not_found -> ((*add_symbol (!Flags.lexer_prefix^(string_of_int index))*)sym, prec1, [], IntSet.empty)) in
   let (nm2,prec) = (if prec1 <= pr then (sym,prec1) else (nm,pr)) in
   PatternsHash.replace table2 pl (nm2,prec,(match ty1 with Some(t) -> (norm_typ t)::tys | _ -> (SimpleType(NoPos,AnyType(NoPos)))::tys),(IntSet.add sym temp));
@@ -1369,7 +1370,7 @@ let output_lexer_code o prefix g = match g with
     | ProdDecl(_,(Production(ps,(Some(Lexer),(Some(name),(ol,(cd,Some(ty))))),patl) as prod)) ->
       let (is_key,_) = opt_list_contains ol map_kw (BoolVal(NoPos,true)) in
       let (vl,_) = opt_list_lookup ol order_kw in
-      let order = (match vl with Some(IntVal(_,i)) -> i | _ -> max_int) in
+      let order = (match vl with Some(IntVal(_,i)) -> i | _ -> !Flags.def_precedence) in
       let (vl2,_) = opt_list_lookup ol len_kw in
       let len = (match vl2 with Some(IntVal(_,i)) -> i | _ -> -1(*TODO XXX*)) in
       (order,get_symbol name,ty,len,is_key,prod)::acc
@@ -1471,7 +1472,7 @@ let output_parser_code o prefix g : string = match g with
       TypHash.replace tok_table ty set2;
 
       let (vl,_) = opt_list_lookup ol prec_kw in
-      let (prec,b1) = (match vl with Some(IntVal(_,i)) -> (i,true) | _ -> (max_int,false)) in
+      let (prec,b1) = (match vl with Some(IntVal(_,i)) -> (i,true) | _ -> (!Flags.def_precedence,false)) in
       let (vl2,_) = opt_list_lookup ol assoc_kw in
       let (assoc,b2) = (match vl2 with Some(StringVal(_,s)) -> (Some(s),true) | _ -> (None,false)) in
       if b1 || b2 then (
@@ -1760,7 +1761,169 @@ let output_main_code o prefix g pname = match g with
   output_string o ("   "^(String.capitalize (prefix^"parser."^pname^""))^" "^(String.capitalize (prefix^"lexer.token"))^" (Lexing.from_channel i)\n");
   output_string o ";;\n"
 
-let output_code dir prefix g =
+let generate_makefile_vars o =
+   let olevel = (match !Flags.opt_level with
+   | None -> ""
+   | Some(l) -> " -ccopt -O"^l) in
+   let static = (match !Flags.compile_static with
+   | false -> ""
+   | true -> " -ccopt -static") in
+   let debug = (match !Flags.debug_symbols with
+   | false -> ""
+   | true -> " -p -g") in
+   let (command,xo,xa) = (match !Flags.compiler with
+   | OCamlC -> ("ocamlc","o","")
+   | OCamlOpt -> ("ocamlopt"^olevel^static^debug, "x", "x")
+   | OCamlCp -> ("ocamlcp -p a", "o", "")) in
+   output_string o ("OCAMLC = "^command^"\n");
+   output_string o ("CMO = cm"^xo^"\n");
+   output_string o ("CMA = cm"^xa^"a\n")
+
+let output_makefile_code o prefix =
+  output_warning_msg o "#\n" "#" "#" "#";
+  output_string o "\n\n";
+  output_string o "ifndef OCAMLC\n";
+  generate_makefile_vars o;
+  output_string o "endif\n";
+  output_string o (prefix^"main.$(CMO):\t"^prefix^"main.ml "^prefix^"parser.$(CMO) "^prefix^"lexer.$(CMO) "^
+                      prefix^"ast.$(CMO) "^prefix^"utils.$(CMO)\n");
+  output_string o ("\t\t$(OCAMLC) -c "^prefix^"main.ml\n");
+  output_string o ("\n");
+  output_string o (""^prefix^"parser.$(CMO):\t"^prefix^"parser.ml "^prefix^"parser.cmi "^
+                      prefix^"utils.$(CMO)\n");
+  output_string o ("\t\t$(OCAMLC) -c "^prefix^"parser.ml\n");
+  output_string o ("\n");
+  output_string o (""^prefix^"lexer.$(CMO):\t"^prefix^"lexer.ml "^prefix^"parser.cmi "^
+                      prefix^"ast.$(CMO) "^prefix^"utils.$(CMO)\n");
+  output_string o ("\t\t$(OCAMLC) -c "^prefix^"lexer.ml\n");
+  output_string o ("\n");
+  output_string o (""^prefix^"parser.cmi:\t"^prefix^"parser.mli "^prefix^"ast.$(CMO) "^
+                      prefix^"utils.$(CMO)\n");
+  output_string o ("\t\t$(OCAMLC) -c "^prefix^"parser.mli\n");
+  output_string o ("\n");
+  output_string o (""^prefix^"ast.$(CMO):\t"^prefix^"ast.ml "^prefix^"utils.$(CMO)\n");
+  output_string o ("\t\t$(OCAMLC) -c "^prefix^"ast.ml\n");
+  output_string o ("\n");
+  output_string o (""^prefix^"parser.ml:\t"^prefix^"parser.mly\n");
+  output_string o ("\t\tocamlyacc -v "^prefix^"parser.mly\n");
+  output_string o ("\n");
+  output_string o (""^prefix^"parser.mli:\t"^prefix^"parser.mly\n");
+  output_string o ("\t\tocamlyacc -v "^prefix^"parser.mly\n");
+  output_string o ("\n");
+  output_string o (""^prefix^"lexer.ml:\t"^prefix^"lexer.mll\n");
+  output_string o ("\t\tocamllex "^prefix^"lexer.mll\n");
+  output_string o ("\n");
+  output_string o (""^prefix^"utils.$(CMO):\t"^prefix^"utils.ml\n");
+  output_string o ("\t\t$(OCAMLC) -c "^prefix^"utils.ml\n");
+  output_string o ("\n");
+  output_string o (prefix^"clean:\t\t\t\n");
+  output_string o ("\t\t\trm -rf *.cm* *.mli "^prefix^"parser.ml "^prefix^"lexer.ml\n")
+
+let generate_skeleton_makefile o prefix bin_name grammar_filename =
+   generate_makefile_vars o;
+   output_string o "\n";
+   output_string o "LIBS =";
+   Hashtbl.iter (fun k v ->
+      output_string o (" "^k^".$(CMA)")
+   ) Flags.libs;
+   output_string o "\n\n";
+   output_string o (bin_name^":\tflags.$(CMO) "^prefix^"utils.$(CMO) "^prefix^"ast.$(CMO) "^
+                      prefix^"parser.$(CMO) "^prefix^"lexer.$(CMO) "^prefix^"main.$(CMO) main.$(CMO)\n");
+   output_string o ("\t$(OCAMLC) -o "^bin_name^" $(LIBS) flags.$(CMO) "^prefix^"utils.$(CMO) "^
+                      prefix^"ast.$(CMO) "^prefix^"parser.$(CMO) "^prefix^"lexer.$(CMO) "^
+                      prefix^"main.$(CMO) main.$(CMO)\n");
+   output_string o "\n";
+   output_string o ("main.$(CMO):\tmain.ml "^prefix^"main.$(CMO) "^prefix^"parser.$(CMO) "^
+                      prefix^"lexer.$(CMO) "^
+                      prefix^"ast.$(CMO) "^prefix^"utils.$(CMO) flags.$(CMO)\n");
+   output_string o "\t$(OCAMLC) -c main.ml\n";
+   output_string o "\n";
+   output_string o "flags.$(CMO):\tflags.ml\n";
+   output_string o "\t$(OCAMLC) -c flags.ml\n";
+   output_string o "\n";
+   output_string o (prefix^"Makefile:\t"^(grammar_filename)^"\n");
+   output_string o ("\tpgg "^(grammar_filename)^"\n");
+   output_string o "\n";
+   output_string o ("clean:\t"^prefix^"clean\n");
+   (*output_string o ("\trm -rf *.o *.cm* *.mli "^prefix^"main.ml "^prefix^"utils.ml "^
+                      prefix^"ast.ml "^
+                      prefix^"parser.ml "^prefix^"parser.mly "^prefix^"lexer.ml "^
+                      prefix^"lexer.mll "^prefix^"Makefile\n");*)
+   output_string o ("\trm -rf *.o *.cm* *.mli "^prefix^"parser.ml "^prefix^"lexer.ml\n");
+   output_string o "\n";
+   output_string o ("include "^prefix^"Makefile\n")
+
+let generate_skeleton_main o prefix =
+   output_string o ("open "^(String.capitalize (prefix^"main"))^";;\n");
+   output_string o ("open Flags;;\n");
+   output_string o "\n";
+   output_string o "let i = parse_command_line () in\n";
+   output_string o "let result = get_ast i in\n";
+   output_string o "ignore result;\n";
+   output_string o "(* Ast.print_grammar 0 result;\n";
+   output_string o "print_newline(); *)\n";
+   output_string o "exit 0;;\n"
+
+let generate_skeleton_flags o prefix =
+   output_string o "(* flag defaults *)\n";
+   output_string o "let filename = ref \"\";; (* TODO - this will always be set *)\n";
+   output_string o "let out_file = ref (None : string option)\n";
+   output_string o "\n";
+   output_string o ("let banner_text = \"Welcome to "^prefix^" v. 1.0\";;\n");
+   output_string o "let usage_msg = banner_text^\"\\n\"^\n";
+   output_string o ("                \"Usage: "^prefix^" [options] <file>\";;\n");
+   output_string o "\n";
+   output_string o "(* parse the command-line arguments *)\n";
+   output_string o "let args = Arg.align [\n";
+   output_string o "   (\"-o\",        Arg.String(fun x -> out_file := Some(x)),\n";
+   output_string o "                    \"<file> Location for the result\");\n";
+   output_string o "];;\n";
+   output_string o "\n";
+   output_string o "let error_usage_msg () =\n";
+   output_string o "   Arg.usage args usage_msg;\n";
+   output_string o "   exit 1\n";
+   output_string o ";;\n";
+   output_string o "\n";
+   output_string o "(* dies with a system error s *)\n";
+   output_string o "let die_system_error (s : string) =\n";
+   output_string o "   output_string stderr s;\n";
+   output_string o "   output_string stderr \"\\n\";\n";
+   output_string o "   exit 1\n";
+   output_string o ";;\n";
+   output_string o "\n";
+   output_string o "let parse_command_line () : in_channel =\n";
+   output_string o "   let f_set = ref false in\n";
+   output_string o "   Arg.parse args (fun x -> f_set := true; filename := x) banner_text;\n";
+   output_string o "   (* use the command-line filename if one exists, otherwise use stdin *)\n";
+   output_string o "   match !f_set with\n";
+   output_string o "   | false -> error_usage_msg ()\n";
+   output_string o "   | true -> (\n";
+   output_string o "      try (open_in !filename)\n";
+   output_string o "      with _ -> die_system_error (\"can't read from file: \"^(!filename))\n";
+   output_string o "   )\n";
+   output_string o ";;\n"
+
+let generate_skeleton dir prefix bin_name grammar_filename =
+   let makefile_path = dir^"Makefile" in
+   if not (Sys.file_exists makefile_path) then (
+      let file = open_out makefile_path in
+      generate_skeleton_makefile file prefix bin_name grammar_filename;
+      close_out file
+   );
+   let main_path = dir^"main.ml" in
+   if not (Sys.file_exists main_path) then (
+      let file = open_out main_path in
+      generate_skeleton_main file prefix;
+      close_out file
+   );
+   let flags_path = dir^"flags.ml" in
+   if not (Sys.file_exists flags_path) then (
+      let file = open_out flags_path in
+      generate_skeleton_flags file prefix;
+      close_out file
+   )
+
+let output_code dir prefix g bin_name grammar_filename =
   let dir_prefix = (match dir with None -> "" | Some(d) -> d^Filename.dir_sep) in
   let o = open_out (dir_prefix^prefix^"lexer.mll") in
   output_lexer_code o prefix g;
@@ -1776,4 +1939,9 @@ let output_code dir prefix g =
   close_out o;
   let o = open_out (dir_prefix^prefix^"main.ml") in
   output_main_code o prefix g start_name;
-  close_out o
+  close_out o;
+  let o = open_out (dir_prefix^prefix^"Makefile") in
+  output_makefile_code o prefix;
+  close_out o;
+  (* generate the skeleton files *)
+  generate_skeleton dir_prefix prefix bin_name grammar_filename

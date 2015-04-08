@@ -7,6 +7,7 @@ let def_prod_type = ref Parser
 let def_prod_name = ref "Production" (* TODO XXX - make this unique? *)
 let def_prod_index = ref 0
 
+let def_precedence = ref 100
 let file_prefix = ref None
 let param_name = ref "x"
 let type_name = ref "t"
@@ -19,7 +20,14 @@ let pos_type_name = ref (add_symbol "pos_t")
 let enable_pos = ref true
 let def_assoc = ref "left"
 let start_prod = ref (None : symb option)
+type compiler_type = OCamlC | OCamlOpt | OCamlCp;;
+
 let out_dir = ref (None : string option)
+let compiler = ref OCamlOpt;;
+let opt_level = ref (None : string option)
+let compile_static = ref false
+let debug_symbols = ref false
+let libs = (Hashtbl.create 5 : (string,unit) Hashtbl.t)
 
 let lexer_code = ref (None : (symb option * code) option)
 let parser_code = ref (None : (symb option * code) option)
@@ -28,6 +36,12 @@ let utils_code = ref (None : (symb option * code) option)
 
 let typecast_table = Hashtbl.create 100
 let def_val_table = Hashtbl.create 10
+
+let get_abs_filename (filename : string) =
+  if Filename.is_relative filename then (
+    (Sys.getcwd ())^Filename.dir_sep^filename
+  ) else filename
+  
 
 (* prefix functionality *)
 let get_filename_dir filename = 
@@ -45,7 +59,7 @@ let get_filename_prefix filename =
 
 let get_prefix () = match (!filename,!file_prefix) with
   | (_,Some(pr)) -> pr
-  | (f,_) -> (get_filename f)^"_"
+  | (f,_) -> (get_filename f)(*^"_"*)
 
 let init_tables () =
 (* default values *)

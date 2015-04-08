@@ -15,8 +15,10 @@ let fs = parse_command_line () in
 let ret = List.fold_left (fun acc (dir,f) ->
   try
     (* parse the input file *)
+    (*Printf.printf ">>> dirname: %s\n" (get_abs_filename f);*)
     filename := f;
-    let prefix = get_prefix () in
+    let bin_name = get_prefix () in
+    let prefix = bin_name^"_" in
     (*Printf.printf "prefix = %s (%s) (%s)\n" prefix (str_option Filename.dirname dir) f;*)
     let i = open_in f in
     let result = get_ast i in
@@ -46,7 +48,7 @@ let ret = List.fold_left (fun acc (dir,f) ->
     Printf.printf "###################################\n";
     Bootstrap_ast.print_grammar_t result;
     Printf.printf "SUCCESS (%s)!\n" f;
-    output_code dir prefix result;
+    output_code dir prefix result bin_name (get_abs_filename f);
     acc
   with ex ->
     Printf.printf "%s\n" (Printexc.to_string ex);

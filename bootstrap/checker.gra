@@ -1,3 +1,5 @@
+property libs = "str,unix" ;
+
 parser Model = TheEmpty@str{""}:bool ElementSemi* 
 @str{
   fst (List.fold_left (fun (res,flag) e ->
@@ -149,7 +151,7 @@ parser FloatVal :float =
 ;
 
 parser FloatValP :float =
- | ~      # { !Flags.default_edge_weight }
+ | ~      # { 0.0 }
  | IntP   # { float $1 }
  | FloatP # { $1 }
 ;
@@ -179,7 +181,7 @@ lexer IntN :int = '-' [0-9]+ ;
 lexer IntP :int = [0-9]+ ;
 lexer FloatP :float = [0-9]+ '.' [0-9]* ;
 lexer FloatN :float = '-' [0-9]+ '.' [0-9]* ;
-lexer XIdent @map:=true = [a-zA-Z_] [0-9a-zA-Z_]* ;
+lexer XIdent @map:=true @order:=200 = [a-zA-Z_] [0-9a-zA-Z_]* ;
 lexer String {fst (strip_quotes x)} = '"' (('\\' ('\\' | [0-9a-fA-F] [0-9a-fA-F])) | [^\\\"])* '"' ;
 
 lexer SingleComm :~ = "//" [^\n]* ;  /* throw away single-line comments */
@@ -271,7 +273,7 @@ let intset_subset a b = IntSet.is_empty (IntSet.diff a b)*)
 
   let str_label (s : string) (id : string) : string =
     let result = (*"s"^*)id in
-    let result = if s="" || not !Flags.use_labels then result else result^"_"^(Str.global_substitute (Str.regexp "[^A-Za-z0-9 \t\r\n]") (fun s -> Printf.sprintf "#%03d" (Char.code (String.get s 0))) s) in
+    let result = if s="" || not (*!Flags.use_labels*)false then result else result^"_"^(Str.global_substitute (Str.regexp "[^A-Za-z0-9 \t\r\n]") (fun s -> Printf.sprintf "#%03d" (Char.code (String.get s 0))) s) in
     (Str.global_replace (Str.regexp "[ \t\r\n]+") "_" result)
 
   let current_id = ref (-1) ;;
