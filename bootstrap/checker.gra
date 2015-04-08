@@ -244,6 +244,11 @@ add_token "edge" AK_WEDGE ;;
 
 } ;
 
+property ast_code = {
+  let str_value_t x = ""
+  let str_xident_t x = ""
+} ;
+
 property utils_code = {
 module IntSet = Set.Make(
 struct
