@@ -1395,7 +1395,7 @@ let output_lexer_code o prefix g = match g with
         len
         is_key;
   ) rules;
-  output_string o "| eof { EOF }\n";
+  Printf.fprintf o "| eof { %s }\n" !Flags.lexer_eof_token_name;
   output_string o "| _ { lex_error \"lexing error\" lexbuf }\n";
   (* output the recursive rules *)
   List.iter (fun (_,name,ty,len,is_key,(Production(ps,(r,(nameo,(ol,(cd,tyo)))),patl))) ->
@@ -1421,8 +1421,8 @@ end);;
 let rec parser_str_production (g : IntSet.t) (pr : production_t) : string = match pr with
 | (Production(ps,(Some(Parser),(Some(name),(ol,(cd,Some(ty))))),patl)) ->
   let pname = get_parser_name (get_symbol name) in
-  let s1 = Printf.sprintf "%s:\n| X%s {%s}\n;\n\n" pname pname (match cd with None -> "$1" | Some(cd) -> ("let "^ !Flags.param_name^" = $1 in ("^(str_code_plain cd)^")")) in
-  Printf.sprintf "%sX%s:\n%s\n;" s1 pname (str_x_list (fun p -> "| "^(parser_str_pattern g p)) patl "\n")
+  let s1 = Printf.sprintf "%s:\n| %s%s {%s}\n;\n\n" pname pname !Flags.parser_ident_suffix (match cd with None -> "$1" | Some(cd) -> ("let "^ !Flags.param_name^" = $1 in ("^(str_code_plain cd)^")")) in
+  Printf.sprintf "%s%s%s:\n%s\n;" s1 pname !Flags.parser_ident_suffix (str_x_list (fun p -> "| "^(parser_str_pattern g p)) patl "\n")
 | _ -> "" (* TODO XXX what do we do here? *)
 
 and parser_str_pattern (g : IntSet.t) (pa : pattern_t) : string = match pa with
@@ -1435,8 +1435,8 @@ and parser_str_annot_atom (g : IntSet.t) (an : annot_atom_t) : string = match an
 | OptAnnotAtom(_,an,_) -> parser_str_annot_atom g an
 
 and parser_str_atom (g : IntSet.t) (a : atom_t) : string = match a with
-| EmptyAtom(_) -> "empty" (* TODO XXX *)
-| EofAtom(_) -> "EOF"
+| EmptyAtom(_) -> !Flags.parser_empty_ident_name (* TODO XXX *)
+| EofAtom(_) -> !Flags.lexer_eof_token_name
 | IdentAtom(_,i) ->
   (if IntSet.mem i g then get_parser_name else get_token_name) (get_symbol i)
 | ProdAtom(p,_)
@@ -1454,7 +1454,7 @@ let output_parser_code o prefix g : string = match g with
   output_string o ("   open "^(String.capitalize (prefix^"utils"))^";;\n\n");
   (match !Flags.parser_code with Some(s(*TODO XXX*),c) -> output_string o (str_code_plain c) | _ -> ());
   output_string o "\n%}\n\n";
-  output_string o "%token EOF\n";
+  Printf.fprintf o "%%token %s\n" !Flags.lexer_eof_token_name;
 
   let tok_table = TypHash.create 100 in (* TODO XXX - size? *)
   let prec_table = Hashtbl.create 100 in
@@ -1532,8 +1532,8 @@ let output_parser_code o prefix g : string = match g with
   List.iter (fun p ->
     Printf.fprintf o "%s\n\n" (parser_str_production prod_ids p);
   ) prods2;
-  (* TODO XXX - add the "empty" token (which presumably returns empty string) *)
-  Printf.fprintf o "empty:\n| {}\n;\n\n";
+  (* add the "empty" token (which presumably returns empty string) *)
+  Printf.fprintf o "%s:\n| {}\n;\n\n" !Flags.parser_empty_ident_name;
   Printf.fprintf o "%%%%\n";
   Printf.fprintf o "(* footer code *)\n";
   pname
