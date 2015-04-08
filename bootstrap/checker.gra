@@ -1,270 +1,342 @@
 property libs = "str,unix" ;
 
-parser Model = TheEmpty@str{""}:bool ElementSemi* 
-@str{
-  fst (List.fold_left (fun (res,flag) e ->
-    (res^(if flag then "\n" else "")^(str_element_t e),true)) ("",false) s)}:(element_t list)
-eof # Model
-| AKWgraph:~ AAYlsquare GraphElement*:((bool*(int list)) list) AAYrsquare eof # Graph {
-   Model(NoPos,true,List.fold_left (fun acc x -> match x with
-   (_,[]) -> acc
-   | (false,l) -> (
-   let (id,label) = List.fold_left (fun (acc1,acc2) (name,v) -> ((if name="id" then Some(v) else acc1),(if name="label" then Some(v) else acc2))) (None,None) l in
-   match (id,label) with
-   | (Some(id),Some(label)) ->
-     NodeElement(get_current_pos (),Node(get_current_pos (),force_add_symbol (str_label label id) (int_of_string id) true,[],[],[],[]))::acc
-   | _ -> failwith "malformed node"
-   )
-   | (true,l) -> (
-   let (id,source,target) = List.fold_left (fun (acc1,acc2,acc3) (name,v) -> ((if name="id" then Some(v) else acc1),(if name="source" then Some(v) else acc2),(if name="target" then Some(v) else acc3))) (None,None,None) l in
-   match (id,source,target) with
-   | (id,Some(src),Some(dst)) ->
-     EdgeElement(get_current_pos (),Edge(get_current_pos (),(match id with Some(id) -> add_symbol id | _ -> get_unique_id ()),Some(int_of_string src),[int_of_string dst],[],1.0))::acc
-   | _ -> failwith "malformed node"
-   )
-   ) [] $3)
-} ;
-parser TheEmpty { false } :bool = ~;
+parser Model =
+  | TheEmpty @str{""} :bool
+    ElementSemi* @str{fst (List.fold_left (fun (res,flag) e ->
+      (res^(if flag then "\n" else "")^(str_element_t e),true)) ("",false) s)} :(element_t list)
+    eof # Model
+  | KwGraph :~ OpLsquare GraphElement* :((bool*(int list)) list) OpRsquare eof # Graph {
+     Model(NoPos,true,List.fold_left (fun acc x -> match x with
+       (_,[]) -> acc
+       | (false,l) -> (
+         let (id,label) = List.fold_left (fun (acc1,acc2) (name,v) ->
+           ((if name="id" then Some(v) else acc1),(if name="label" then Some(v) else acc2))
+         ) (None,None) l in
+         match (id,label) with
+         | (Some(id),Some(label)) ->
+           NodeElement(get_current_pos (),
+             Node(get_current_pos (),force_add_symbol (str_label label id) (int_of_string id) true,
+             [],[],[],[]))::acc
+         | _ -> failwith "malformed node")
+       | (true,l) -> (
+         let (id,source,target) = List.fold_left (fun (acc1,acc2,acc3) (name,v) ->
+           ((if name="id" then Some(v) else acc1),(if name="source" then Some(v) else acc2),
+           (if name="target" then Some(v) else acc3))
+         ) (None,None,None) l in
+         match (id,source,target) with
+         | (id,Some(src),Some(dst)) ->
+           EdgeElement(get_current_pos (),Edge(get_current_pos (),
+             (match id with
+             | Some(id) -> add_symbol id
+             | _ -> get_unique_id ()),Some(int_of_string src),[int_of_string dst],[],1.0)
+           )::acc
+         | _ -> failwith "malformed node")
+       ) [] $3)
+    }
+;
 
-parser ElementSemi :element_t = Element OptSemi # { $1 };
+parser TheEmpty { false } :bool = 
+  | ~
+;
+
+parser ElementSemi :element_t =
+  | Element OptSemi # { $1 }
+;
 parser OptSemi =
-| ~
-| ';';
+  | ~
+  | ';'
+;
 
 parser Element =
- | AKWswitch@str{"switch "}:~ Node # NodeElement
- | AKWlink@str{"link "}:~ Edge # EdgeElement
- | AKWspec@str{"spec "}:~ Exp  # SpecElement
- | AKWtraffic@str{"traffic "}:~ Traffic  # TrafficElement
+  | KwSwitch @str{"switch "} :~   Node     # NodeElement
+  | KwLink @str{"link "} :~       Edge     # EdgeElement
+  | KwSpec @str{"spec "} :~       Exp      # SpecElement
+  | KwTraffic @str{"traffic "} :~ Traffic  # TrafficElement
 ;
 
 parser GraphElement :(bool*(int list)) =
- | GraphField # { (false,[]) }
- | AKWnode:~ GraphBlock # { (false,$2) }
- | AKWedge:~ GraphBlock # { (true,$2) }
+  | GraphField            # { (false,[]) }
+  | KwNode :~ GraphBlock # { (false,$2) }
+  | KwEdge :~ GraphBlock # { (true,$2) }
 ;
 
-parser GraphBlock = AAYlsquare GraphField* AAYrsquare # { $2 } ;
+parser GraphBlock =
+  | OpLsquare GraphField* OpRsquare # { $2 }
+;
 
-parser GraphField = XIdent GraphValue # { (str_xident_t $1,$2) } ;
+parser GraphField =
+  | XIdent GraphValue # { (str_xident_t $1,$2) }
+;
 
 parser GraphValue =
-| IntegerVal:int # { string_of_int $1 }
-| FloatVal:float # { string_of_float $1 }
-| String:string  # { $1 }
+  | IntegerVal :int # { string_of_int $1 }
+  | FloatVal :float # { string_of_float $1 }
+  | String :string  # { $1 }
 ;
 
 parser Traffic =
-  Names@str{fst (List.fold_left (fun (res,flag) x ->
-    (res^(if flag then "" else ", ")^(get_symbol x),false)) ("",true) s)}:(int list)
-  ExpListOpt@str{" ["^(fst (List.fold_left (fun (res,flag) p ->
-    (res^(if flag then ", " else "")^(str_exp_t p),true)) ("",false) s))^"]"}:(exp_t list)
-  FloatValP:float
-    ;
-parser Node = Name@str{get_symbol s}:int Ports@str{" ("^(fst (List.fold_left (fun (res,flag) i ->
-    (res^(if flag then ", " else "")^(get_symbol i),true)) ("",false) s))^")"}:(int list)
-  ExpListOpt@str{" ["^(fst (List.fold_left (fun (res,flag) p ->
-    (res^(if flag then ", " else "")^(str_exp_t p),true)) ("",false) s))^"]"}:(exp_t list) 
-  Rules@str{" \123"^(fst (List.fold_left (fun (res,flag) i ->
-    (res^(if flag then "" else "")^"\n  rule "^(str_edge_t i),true)) ("",false) s))^"\n\125"}:(edge_t list)
-  FinalRules@str{" final \123"^(fst (List.fold_left (fun (res,flag) i ->
-    (res^(if flag then "" else "")^"\n  rule "^(str_edge_t i),true)) ("",false) s))^"\n\125"}:(edge_t list)
-# Node
+  | Names @str{fst (List.fold_left (fun (res,flag) x ->
+      (res^(if flag then "" else ", ")^(get_symbol x),false)) ("",true) s)} :(int list)
+    ExpListOpt @str{" ["^(fst (List.fold_left (fun (res,flag) p ->
+      (res^(if flag then ", " else "")^(str_exp_t p),true)) ("",false) s))^"]"} :(exp_t list)
+    FloatValP :float
 ;
-parser Edge =  UniqueId@str{""}:int
-  //EdgeConstraint<@{" ["^(string_of_int s)^"] "}:int>
-  Name?@str{(match s with None -> "" | Some(s) -> get_symbol s)}:(int option)
-  "=>"@str{" => "}:~ NamesOpt@str{fst (List.fold_left (fun (res,flag) x ->
-  (res^(if flag then "" else ", ")^(get_symbol x),false)) ("",true) s)}:(int list)
-  ExpList@str{" ["^(fst (List.fold_left (fun (res,flag) p ->
-    (res^(if flag then ", " else "")^(str_exp_t p),true)) ("",false) s))^"]"}:(exp_t list)
-  FloatValP:float
-# Edge
-    ;
 
-parser UniqueId { get_unique_id () } :int = ~;
+parser Node =
+| Name @str{get_symbol s} :int
+  Ports @str{" ("^(fst (List.fold_left (fun (res,flag) i ->
+    (res^(if flag then ", " else "")^(get_symbol i),true)) ("",false) s))^")"} :(int list)
+  ExpListOpt @str{" ["^(fst (List.fold_left (fun (res,flag) p ->
+    (res^(if flag then ", " else "")^(str_exp_t p),true)) ("",false) s))^"]"} :(exp_t list) 
+  Rules @str{" \123"^(fst (List.fold_left (fun (res,flag) i ->
+    (res^(if flag then "" else "")^"\n  rule "^(str_edge_t i),true)) ("",false) s))^"\n\125"} :(edge_t list)
+  FinalRules @str{" final \123"^(fst (List.fold_left (fun (res,flag) i ->
+    (res^(if flag then "" else "")^"\n  rule "^(str_edge_t i),true)) ("",false) s))^"\n\125"} :(edge_t list)
+  # Node
+;
+
+parser Edge =
+| UniqueId @str{""} :int
+  Name? @str{(match s with None -> "" | Some(s) -> get_symbol s)} :(int option)
+  "=>" @str{" => "} :~
+  NamesOpt @str{fst (List.fold_left (fun (res,flag) x ->
+  (res^(if flag then "" else ", ")^(get_symbol x),false)) ("",true) s)} :(int list)
+  ExpList @str{" ["^(fst (List.fold_left (fun (res,flag) p ->
+    (res^(if flag then ", " else "")^(str_exp_t p),true)) ("",false) s))^"]"} :(exp_t list)
+  FloatValP :float
+  # Edge
+;
+
+parser UniqueId { get_unique_id () } :int =
+  | ~
+;
 
 parser Ports :(int list) =
- | ~                         #     { [] }
- | AAYlparen:~ AAYrparen:~ # { [] }
- | AAYlparen:~ Names:(int list) AAYrparen:~ # { $2 }
+  | ~                                         # { [] }
+  | OpLparen :~ OpRparen :~                   # { [] }
+  | OpLparen :~ Names :(int list) OpRparen :~ # { $2 }
 ;
 
 parser FinalRules :(edge_t list) =
-                     #  { [] }
- | AKWfinal:~ Rules:(edge_t list) # { $2 }
+                                     # { [] }
+  | KwFinal :~ Rules :(edge_t list) # { $2 }
 ;
 
 parser Rules :(edge_t list) =
- | ~                               #  { [] }
- | AAYlbrack:~ Rule*:(edge_t list) AAYrbrack:~ # { $2 }
+  | ~                                            # { [] }
+  | OpLbrack :~ Rule* :(edge_t list) OpRbrack :~ # { $2 }
 ;
 
 parser Rule :edge_t =
-  AKWrule@str{"rule"}:~ Edge # { $2 }
+  | KwRule @str{"rule"} :~ Edge # { $2 }
 ;
 
 parser ExpList :(exp_t list) =
-   AAYlsquare:~ AAYrsquare:~ # { [] }
- | AAYlsquare:~ Exp ComExp* AAYrsquare:~ # { $2::$3 }
-;
-parser ExpListOpt :(exp_t list) =
- | ~                                 #  { [] }
- | AAYlsquare:~ AAYrsquare:~ # { [] }
- | AAYlsquare:~ Exp ComExp* AAYrsquare:~ # { $2::$3 }
+   OpLsquare :~ OpRsquare :~             # { [] }
+ | OpLsquare :~ Exp ComExp* OpRsquare :~ # { $2::$3 }
 ;
 
-parser ComExp = ',':~ Exp # { $2 } ;
+parser ExpListOpt :(exp_t list) =
+ | ~                                     # { [] }
+ | OpLsquare :~ OpRsquare :~             # { [] }
+ | OpLsquare :~ Exp ComExp* OpRsquare :~ # { $2::$3 }
+;
+
+parser ComExp =
+  | ',' :~ Exp # { $2 }
+;
 
 parser Prop =
-   Name@str{"("^(get_symbol s)}:int '=':~ Name@str{(get_symbol s)^")"}:int # EqProp
+  | Name @str{"("^(get_symbol s)} :int '=' :~
+    Name @str{(get_symbol s)^")"} :int
+    # EqProp
 ;
 
 parser Exp :exp_t =
- | BoolVal                      # BoolExp
- | Prop                         # PropExp
- | '!'@prec:=1:~ Exp                   # NotExp   // highest precedence
- | 'G'@prec:=2:~ Exp                   # GExp
- | 'F'@prec:=2:~ Exp                   # FExp
- | 'X'@prec:=2:~ Exp                   # XExp
- | Exp "&"@prec:=3@str{"("^(str_exp_t s0)^" & "^(str_exp_t s1)^")"}:~ Exp     # AndExp
- | Exp "|"@prec:=4@str{"("^(str_exp_t s0)^" | "^(str_exp_t s1)^")"}:~ Exp     # OrExp
- | Exp "<->"@prec:=5@str{"("^(str_exp_t s0)^" <-> "^(str_exp_t s1)^")"}:~ Exp   # IffExp
- | Exp "->"@prec:=6@str{"("^(str_exp_t s0)^" -> "^(str_exp_t s1)^")"}:~ Exp     # IfExp
- | Exp 'U'@prec:=7@str{"("^(str_exp_t s0)^" U "^(str_exp_t s1)^")"}:~ Exp       # UExp
- | Exp 'V'@prec:=7@str{"("^(str_exp_t s0)^" V "^(str_exp_t s1)^")"}:~ Exp       # RExp    // lowest precedence
- | AAYlparen:~ Exp AAYrparen:~                  # ParenExp
+  | BoolVal                                      # BoolExp
+  | Prop                                         # PropExp
+  | '!' @prec:=1 :~ Exp                          # NotExp   // highest precedence
+  | 'G' @prec:=2 :~ Exp                          # GExp
+  | 'F' @prec:=2 :~ Exp                          # FExp
+  | 'X' @prec:=2 :~ Exp                          # XExp
+  | Exp "&" @prec:=3 @str{"("^(str_exp_t s0)^
+    " & "^(str_exp_t s1)^")"} :~ Exp             # AndExp
+  | Exp "|" @prec:=4 @str{"("^(str_exp_t s0)^
+    " | "^(str_exp_t s1)^")"} :~ Exp             # OrExp
+  | Exp "<->" @prec:=5 @str{"("^(str_exp_t s0)^
+    " <-> "^(str_exp_t s1)^")"} :~ Exp           # IffExp
+  | Exp "->" @prec:=6 @str{"("^(str_exp_t s0)^
+    " -> "^(str_exp_t s1)^")"} :~ Exp            # IfExp
+  | Exp 'U' @prec:=7 @str{"("^(str_exp_t s0)^
+    " U "^(str_exp_t s1)^")"} :~ Exp             # UExp
+  | Exp 'V' @prec:=7 @str{"("^(str_exp_t s0)^
+    " V "^(str_exp_t s1)^")"} :~ Exp             # RExp    // lowest precedence
+  | OpLparen :~ Exp OpRparen :~                  # ParenExp
 ;
 
-parser Name :int = Value # { add_symbol (str_value_t $1) } ;
-parser Names :(int list) = 
- Value ComVal* # { List.map (fun x -> add_symbol (str_value_t x)) ($1::$2) } ;
-parser NamesOpt :(int list)  =
-| ~              #  { [] }
-| Value ComVal* # { List.map (fun x -> add_symbol (str_value_t x)) ($1::$2) } ;
+parser Name :int =
+  | Value # { add_symbol (str_value_t $1) }
+;
 
-parser ComVal = ',':~ Value # { $2 } ;
+parser Names :(int list) = 
+  | Value ComVal* # { List.map (fun x -> add_symbol (str_value_t x)) ($1::$2) }
+;
+ 
+parser NamesOpt :(int list)  =
+  | ~             # { [] }
+  | Value ComVal* # { List.map (fun x -> add_symbol (str_value_t x)) ($1::$2) }
+;
+
+parser ComVal =
+  | ',' :~ Value # { $2 }
+;
 
 parser FloatVal :float =
-  FloatP
-| FloatN
+  | FloatP
+  | FloatN
 ;
 
 parser FloatValP :float =
- | ~      # { 0.0 }
- | IntP   # { float $1 }
- | FloatP # { $1 }
+  | ~      # { 0.0 }
+  | IntP   # { float $1 }
+  | FloatP # { $1 }
 ;
 
 parser Value =
-   IntegerVal:int  # IntValue
- | XIdent             # IdentValue
+  | IntegerVal :int # IntValue
+  | XIdent          # IdentValue
 ;
 
 parser IntegerVal :int =
-   UInt32
- | IntN
+  | UInt32
+  | IntN
 ;
 
 parser BoolVal =
-   AKWtrue@str{"TRUE"}:~  # TrueBoolVal
- | AKWfalse@str{"FALSE"}:~ # FalseBoolVal
+  | KwTrue @str{"TRUE"} :~   # TrueBoolVal
+  | KwFalse @str{"FALSE"} :~ # FalseBoolVal
 ;
 
 parser UInt32 :int =
-   HexInt
- | IntP 
+  | HexInt
+  | IntP 
 ;
 
-lexer HexInt :int = "0x" [0-9a-fA-F]+ ;
-lexer IntN :int = '-' [0-9]+ ;
-lexer IntP :int = [0-9]+ ;
-lexer FloatP :float = [0-9]+ '.' [0-9]* ;
-lexer FloatN :float = '-' [0-9]+ '.' [0-9]* ;
-lexer XIdent @map:=true @order:=200 = [a-zA-Z_] [0-9a-zA-Z_]* ;
-lexer String {fst (strip_quotes x)} = '"' (('\\' ('\\' | [0-9a-fA-F] [0-9a-fA-F])) | [^\\\"])* '"' ;
+lexer HexInt :int =
+  | "0x" [0-9a-fA-F]+
+;
 
-lexer SingleComm :~ = "//" [^\n]* ;  /* throw away single-line comments */
-lexer MultiComm  :~ = "/*" .. "*/" ;
-/* ^^ throw away recursive multiline comments */
+lexer IntN :int =
+  | '-' [0-9]+
+;
 
-lexer Blanks :~ = [\r\t ]* ;
-lexer Newlines {do_newline lexbuf} :~ = '\n' ;
+lexer IntP :int =
+  | [0-9]+
+;
 
-lexer AAYlbrack = "{" ;
-lexer AAYrbrack = "}" ;
-lexer AAYlsquare = "[" ;
-lexer AAYrsquare = "]" ;
-lexer AAYlparen = "(" ;
-lexer AAYrparen = ")" ;
+lexer FloatP :float =
+  | [0-9]+ '.' [0-9]*
+;
 
+lexer FloatN :float =
+  | '-' [0-9]+ '.' [0-9]*
+;
 
-token AKWfinal ; // final
-token AKWtrue ; // true
-token AKWfalse ; // false
-token AKWswitch ; // switch
-token AKWlink ; // link
-token AKWrule ; // rule
-token AKWspec ; // spec
-token AKWtraffic ; // traffic
-token AKWgraph ; // graph
-token AKWnode ; // node
-token AKWedge ; // edge
+lexer XIdent @map:=true @order:=200 =
+  | [a-zA-Z_] [0-9a-zA-Z_]*
+;
 
+lexer String {fst (strip_quotes x)} =
+  | '"' (('\\' ('\\' | [0-9a-fA-F] [0-9a-fA-F])) | [^\\\"])* '"'
+;
+
+// throw away single-line comments
+lexer SingleComm :~ =
+  | "//" [^\n]*
+;
+
+// throw away recursive multiline comments
+lexer MultiComm  :~ =
+  | "/*" .. "*/"
+;
+
+// throw away whitespace
+lexer Blanks :~ =
+  | [\r\t ]*
+;
+
+// throw away newlines (while remembering the position info)
+lexer Newlines {do_newline lexbuf} :~ =
+  | '\n'
+;
+
+lexer OpLbrack = "{" ;
+lexer OpRbrack = "}" ;
+lexer OpLsquare = "[" ;
+lexer OpRsquare = "]" ;
+lexer OpLparen = "(" ;
+lexer OpRparen = ")" ;
+
+token KwFinal KwTrue KwFalse KwSwitch KwLink
+      KwRule KwSpec KwTraffic KwGraph KwNode KwEdge ;
+
+// example AST production
 ast TheTest =
-| ~:string ~:char ~:(bool*string) # FooBar
-| ~:(int*(int*int)) # Baz
+  | ~:string ~:char ~:(bool*string) # FooBar
+  | ~:(int*(int*int))               # Other
 ;
 
 property lexer_code = {
-let tokens = ((Hashtbl.create 100) : ((string,token) Hashtbl.t)) ;;
+  let tokens = ((Hashtbl.create 100) : ((string,token) Hashtbl.t)) ;;
 
-let add_token str vl =
-  (*print_string ("Adding token: \""^str^"\"\n");*)
-  try let _ = Hashtbl.find tokens str in (parse_error ("token \""^str^"\" already exists")) (* TODO XXX - why does this not exit? *)
-  with _ -> Hashtbl.replace tokens str vl
-;;
+  let add_token str vl =
+    (*print_string ("Adding token: \""^str^"\"\n");*)
+    try let _ = Hashtbl.find tokens str in
+      (parse_error ("token \""^str^"\" already exists"))
+    with _ -> Hashtbl.replace tokens str vl
+  ;;
 
-let lookup_keyword str =
-   (*print_string ("LOOKING UP: '"^str^"' -> ");*)
-   try (let x = Hashtbl.find tokens str in (*print_string "found\n";*) x)
-   (* TODO - here is our default - does it work? *)
-   with _ -> (*print_string "returning default\n";*) X_IDENT str
-;;
+  let lookup_keyword str =
+     (*print_string ("LOOKING UP: '"^str^"' -> ");*)
+     try (let x = Hashtbl.find tokens str in (*print_string "found\n";*) x)
+     (* TODO - here is our default - does it work? *)
+     with _ -> (*print_string "returning default\n";*) X_IDENT str
+  ;;
 
-add_token "final" AK_WFINAL ;;
-add_token "TRUE" AK_WTRUE ;;
-add_token "FALSE" AK_WFALSE ;;
-add_token "switch" AK_WSWITCH ;;
-add_token "link" AK_WLINK ;;
-add_token "rule" AK_WRULE ;;
-add_token "spec" AK_WSPEC ;;
-add_token "traffic" AK_WTRAFFIC ;;
-add_token "graph" AK_WGRAPH ;;
-add_token "node" AK_WNODE ;;
-add_token "edge" AK_WEDGE ;;
-
+  add_token "final" KW_FINAL ;;
+  add_token "TRUE" KW_TRUE ;;
+  add_token "FALSE" KW_FALSE ;;
+  add_token "switch" KW_SWITCH ;;
+  add_token "link" KW_LINK ;;
+  add_token "rule" KW_RULE ;;
+  add_token "spec" KW_SPEC ;;
+  add_token "traffic" KW_TRAFFIC ;;
+  add_token "graph" KW_GRAPH ;;
+  add_token "node" KW_NODE ;;
+  add_token "edge" KW_EDGE ;;
 } ;
 
 property ast_code = {
+  (* stub out these functions for now *)
   let str_value_t x = ""
   let str_xident_t x = ""
 } ;
 
 property utils_code = {
-module IntSet = Set.Make(
-struct
-  type t = int
-  let compare = (Pervasives.compare : (int -> int -> int))
-end);;
-let intset_fold = IntSet.fold
-let intset_elements = IntSet.elements
-let intset_subset = IntSet.subset
+  module IntSet = Set.Make(
+  struct
+    type t = int
+    let compare = (Pervasives.compare : (int -> int -> int))
+  end);;
+  let intset_fold = IntSet.fold
+  let intset_elements = IntSet.elements
+  let intset_subset = IntSet.subset
 
-(*module IntSet = Reins.PatriciaSet.MonoSet;;
-let intset_fold f set init = let g a b = f b a in IntSet.fold g init set
-let intset_elements (ps:IntSet.t) : IntSet.elt list = List.rev (IntSet.fold (fun acc p -> p::acc) [] ps)
-let intset_subset a b = IntSet.is_empty (IntSet.diff a b)*)
+  (*module IntSet = Reins.PatriciaSet.MonoSet;;
+  let intset_fold f set init = let g a b = f b a in IntSet.fold g init set
+  let intset_elements (ps:IntSet.t) : IntSet.elt list =
+    List.rev (IntSet.fold (fun acc p -> p::acc) [] ps)
+  let intset_subset a b = IntSet.is_empty (IntSet.diff a b)*)
 
   let strip_quotes (s : string) : (string*bool) =
     let len = String.length s in
@@ -273,7 +345,9 @@ let intset_subset a b = IntSet.is_empty (IntSet.diff a b)*)
 
   let str_label (s : string) (id : string) : string =
     let result = (*"s"^*)id in
-    let result = if s="" || not (*!Flags.use_labels*)false then result else result^"_"^(Str.global_substitute (Str.regexp "[^A-Za-z0-9 \t\r\n]") (fun s -> Printf.sprintf "#%03d" (Char.code (String.get s 0))) s) in
+    let result = if s="" || not (*!Flags.use_labels*)false then result
+      else result^"_"^(Str.global_substitute (Str.regexp "[^A-Za-z0-9 \t\r\n]")
+      (fun s -> Printf.sprintf "#%03d" (Char.code (String.get s 0))) s) in
     (Str.global_replace (Str.regexp "[ \t\r\n]+") "_" result)
 
   let current_id = ref (-1) ;;
@@ -287,7 +361,8 @@ let intset_subset a b = IntSet.is_empty (IntSet.diff a b)*)
     ) symbol_table_inv
 
   let force_add_symbol (s : string) (result : int) (complain : bool) : int =
-    (*if complain && (try let _ = Hashtbl.find symbol_table s in true with _ -> false) then failwith "multiply-defined symbol";*)
+    (*if complain && (try let _ = Hashtbl.find symbol_table s in true with _ -> false)
+      then failwith "multiply-defined symbol";*)
     Hashtbl.replace symbol_table s result;
     Hashtbl.replace symbol_table_inv result s;
     result
@@ -326,7 +401,8 @@ let intset_subset a b = IntSet.is_empty (IntSet.diff a b)*)
   let tcp_keyword = add_symbol "tcp" ;;
   let udp_keyword = add_symbol "udp" ;;
 
-  let string_of_id i = ("p"^(if (i < 0) then ("_"^(string_of_int (abs i))) else string_of_int i)) ;;
+  let string_of_id i = ("p"^(if (i < 0) then ("_"^(string_of_int (abs i)))
+    else string_of_int i)) ;;
 
   let str_string_list (sl : string list) : string =
     "{"^(List.fold_left (fun acc s -> acc^", \""^s^"\"") "" sl)^"}"
