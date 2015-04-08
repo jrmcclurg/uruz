@@ -721,7 +721,7 @@ match (rt,cd,new_type) with
   (* if this is a conversion between two equivalent types, there's no need for a cast operation *)
   if eq_typ_t old_t2 new_type || (fst (is_auto_type old_t2 auto_name) && fst (is_auto_type new_type auto_name)) then Some(Code(p,if single_param then !Flags.param_name else ("("^left_params^")")))
   else (modify_code p ((typecast_typ !Flags.param_name old_t2 new_type)) (fun x -> (if single_param then "" else ("let "^ !Flags.param_name^" = ("^
-  left_params^") in "))^"("^x^")") "")
+  left_params^") in ignore "^ !Flags.param_name^"; "))^"("^x^")") "")
 
 and typecast_constr (arg : string) (old_type : constr_type_t) (new_type : constr_type_t) : code option =
 let fail p = die_error p ("don't know how to cast type "^(str_constr_type_t old_type)^" to "^(str_constr_type_t new_type)) in
@@ -1421,7 +1421,7 @@ end);;
 let rec parser_str_production (g : IntSet.t) (pr : production_t) : string = match pr with
 | (Production(ps,(Some(Parser),(Some(name),(ol,(cd,Some(ty))))),patl)) ->
   let pname = get_parser_name (get_symbol name) in
-  let s1 = Printf.sprintf "%s:\n| %s%s {%s}\n;\n\n" pname pname !Flags.parser_ident_suffix (match cd with None -> "$1" | Some(cd) -> ("let "^ !Flags.param_name^" = $1 in ("^(str_code_plain cd)^")")) in
+  let s1 = Printf.sprintf "%s:\n| %s%s {%s}\n;\n\n" pname pname !Flags.parser_ident_suffix (match cd with None -> "$1" | Some(cd) -> ("let "^ !Flags.param_name^" = $1 in ignore "^ !Flags.param_name^"; ("^(str_code_plain cd)^")")) in
   Printf.sprintf "%s%s%s:\n%s\n;" s1 pname !Flags.parser_ident_suffix (str_x_list (fun p -> "| "^(parser_str_pattern g p)) patl "\n")
 | _ -> "" (* TODO XXX what do we do here? *)
 
