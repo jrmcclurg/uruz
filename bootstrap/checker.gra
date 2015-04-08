@@ -132,7 +132,7 @@ parser Rule :edge_t =
 ;
 
 parser ExpList :(exp_t list) =
-   OpLsquare :~ OpRsquare :~             # { [] }
+ | OpLsquare :~ OpRsquare :~             # { [] }
  | OpLsquare :~ Exp ComExp* OpRsquare :~ # { $2::$3 }
 ;
 
@@ -290,17 +290,14 @@ property lexer_code = {
   let tokens = ((Hashtbl.create 100) : ((string,token) Hashtbl.t)) ;;
 
   let add_token str vl =
-    (*print_string ("Adding token: \""^str^"\"\n");*)
     try let _ = Hashtbl.find tokens str in
       (parse_error ("token \""^str^"\" already exists"))
     with _ -> Hashtbl.replace tokens str vl
   ;;
 
   let lookup_keyword str =
-     (*print_string ("LOOKING UP: '"^str^"' -> ");*)
-     try (let x = Hashtbl.find tokens str in (*print_string "found\n";*) x)
-     (* TODO - here is our default - does it work? *)
-     with _ -> (*print_string "returning default\n";*) X_IDENT str
+     try (let x = Hashtbl.find tokens str in x)
+     with _ -> X_IDENT str
   ;;
 
   add_token "final" KW_FINAL ;;
@@ -317,7 +314,6 @@ property lexer_code = {
 } ;
 
 property ast_code = {
-  (* stub out these functions for now *)
   let str_value_t x = ""
   let str_xident_t x = ""
 } ;
@@ -332,20 +328,14 @@ property utils_code = {
   let intset_elements = IntSet.elements
   let intset_subset = IntSet.subset
 
-  (*module IntSet = Reins.PatriciaSet.MonoSet;;
-  let intset_fold f set init = let g a b = f b a in IntSet.fold g init set
-  let intset_elements (ps:IntSet.t) : IntSet.elt list =
-    List.rev (IntSet.fold (fun acc p -> p::acc) [] ps)
-  let intset_subset a b = IntSet.is_empty (IntSet.diff a b)*)
-
   let strip_quotes (s : string) : (string*bool) =
     let len = String.length s in
     if ((len >= 2) && (String.get s 0)='"' && (String.get s (len-1))='"')
     then (String.sub s 1 (len-2),true) else (s,false)
 
   let str_label (s : string) (id : string) : string =
-    let result = (*"s"^*)id in
-    let result = if s="" || not (*!Flags.use_labels*)false then result
+    let result = id in
+    let result = if s="" || not false then result
       else result^"_"^(Str.global_substitute (Str.regexp "[^A-Za-z0-9 \t\r\n]")
       (fun s -> Printf.sprintf "#%03d" (Char.code (String.get s 0))) s) in
     (Str.global_replace (Str.regexp "[ \t\r\n]+") "_" result)
@@ -354,15 +344,12 @@ property utils_code = {
   let symbol_table = ((Hashtbl.create 1000) : (string,int) Hashtbl.t) ;;
   let symbol_table_inv = ((Hashtbl.create 1000) : (int,string) Hashtbl.t) ;;
 
-
   let print_symbol_table () =
     Hashtbl.iter (fun k v ->
       print_string ((string_of_int k)^" --> "^v^"\n")
     ) symbol_table_inv
 
   let force_add_symbol (s : string) (result : int) (complain : bool) : int =
-    (*if complain && (try let _ = Hashtbl.find symbol_table s in true with _ -> false)
-      then failwith "multiply-defined symbol";*)
     Hashtbl.replace symbol_table s result;
     Hashtbl.replace symbol_table_inv result s;
     result
@@ -375,7 +362,6 @@ property utils_code = {
       Hashtbl.find symbol_table s
      with _ ->
        let result = !current_id in
-       (*print_string (">> ADD SYMBOL: "^s^" = "^(string_of_int result)^"\n");*)
        let _ = force_add_symbol s result false in
        current_id := result - 1;
        result
