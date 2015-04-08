@@ -1,3 +1,5 @@
+// :set syntax=gra
+
 property libs = "str,unix" ;
 
 parser Model =
@@ -314,6 +316,7 @@ property lexer_code = {
 } ;
 
 property ast_code = {
+  (* stub out these functions for now *)
   let str_value_t x = ""
   let str_xident_t x = ""
 } ;

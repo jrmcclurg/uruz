@@ -12,9 +12,9 @@ endif
 syn case match
 syn sync minlines=50
 
-function! TextEnableCodeSnip(filetype,start,end,textSnipHl,thename) abort
+function! TextEnableCodeSnip2(filetype,pattern,textSnipHl,thename) abort
   let ft=toupper(a:filetype)
-  let group='textGroup'.ft
+  let group='textGroupKey'.a:thename
   if exists('b:current_syntax')
     let s:current_syntax=b:current_syntax
     " Remove current syntax definition, as some syntax files (e.g. cpp.vim)
@@ -31,15 +31,50 @@ function! TextEnableCodeSnip(filetype,start,end,textSnipHl,thename) abort
   else
     unlet b:current_syntax
   endif
-  execute 'syntax region textSnip'.ft.a:thename.'
-  \ matchgroup='.a:textSnipHl.'
-  \ start="'.a:start.'" end="'.a:end.'"
-  \ contained nextgroup=pggType,textSnipocamltype skipwhite
+  execute 'syntax match ocamlKey'.a:thename.'
+  \ "'.a:pattern.'"
+  \ contained nextgroup=pggType skipwhite
   \ contains=@'.group
 endfunction
 
-call TextEnableCodeSnip('ocaml', '{', '}', 'Comment', 'code')
-call TextEnableCodeSnip('ocaml', ':(', ')', 'Comment', 'type')
+function! TextEnableCodeSnip(filetype,start,end,start2,end2,pattern,textSnipHl,thename,thename2) abort
+  let ft=toupper(a:filetype)
+  let group='textGroupMatch'.a:thename
+  if exists('b:current_syntax')
+    let s:current_syntax=b:current_syntax
+    " Remove current syntax definition, as some syntax files (e.g. cpp.vim)
+    " do nothing if b:current_syntax is defined.
+    unlet b:current_syntax
+  endif
+  execute 'syntax include @'.group.' syntax/'.a:filetype.'.vim'
+  try
+    execute 'syntax include @'.group.' after/syntax/'.a:filetype.'.vim'
+  catch
+  endtry
+  if exists('s:current_syntax')
+    let b:current_syntax=s:current_syntax
+  else
+    unlet b:current_syntax
+  endif
+  execute 'syntax region ocamlMatch'.a:thename.'
+  \ matchgroup='.a:textSnipHl.'
+  \ start="'.a:start.'" end="'.a:end.'"
+  \ contained nextgroup=pggType,ocamlMatchCode skipwhite
+  \ contains=@'.group
+  execute 'syntax region ocamlMatch'.a:thename2.'
+  \ matchgroup='.a:textSnipHl.'
+  \ start="'.a:start2.'" end="'.a:end2.'"
+  \ contained nextgroup=pggType,ocamlMatchCode skipwhite
+  \ contains=@'.group
+  execute 'syntax match ocamlKey'.a:thename2.'
+  \ "'.a:pattern.'"
+  \ contained nextgroup=pggType skipwhite
+  \ contains=@'.group
+endfunction
+
+call TextEnableCodeSnip('ocaml', '{', '}', '(', ')', '[a-zA-Z0-9_~.]\+', 'SpecialComment', 'Code', 'Type')
+"call TextEnableCodeSnip('ocaml', '(', ')', 'SpecialComment', 'Type')
+"call TextEnableCodeSnip2('ocaml', '[a-zA-Z0-9_~.]\+', 'SpecialComment', 'Type')
 
 " most keywords
 syn keyword pggKeyword property keyword token eof
@@ -65,8 +100,8 @@ syn keyword pggDef parser lexer ast nextgroup=pggDefName skipwhite
 "syn keyword pggClass class nextgroup=pggClassName skipwhite
 "syn keyword pggObject object nextgroup=pggClassName skipwhite
 "syn keyword pggTrait trait nextgroup=pggClassName skipwhite
-syn match pggDefName "[a-zA-Z0-9_~]\+" nextgroup=textSnipocamlcode,pggType,textSnipocamltype,pggEqOp skipwhite
-syn match pggAnnotName "@[a-zA-Z0-9_]\+" nextgroup=textSnipocamlcode,pggType,textSnipocamltype skipwhite
+syn match pggDefName "[a-zA-Z0-9_~]\+" nextgroup=ocamlMatchCode,pggType,pggEqOp skipwhite
+syn match pggAnnotName "@[a-zA-Z0-9_]\+" nextgroup=ocamlMatchCode skipwhite
 "syn match pggValName "[^ =:;([]\+" contained
 "syn match pggVarName "[^ =:;([]\+" contained 
 "syn match pggClassName "[^ =:;(\[]\+" contained nextgroup=pggClassSpecializer skipwhite
@@ -83,9 +118,10 @@ syn match pggAnnotName "@[a-zA-Z0-9_]\+" nextgroup=textSnipocamlcode,pggType,tex
 "
 "" type declarations in val/var/def
 "syn match pggType ":\s*\(=>\s*\)\?[._$a-zA-Z0-9]\+\(\[[^]]*\]\+\)\?\(\s*\(<:\|>:\|#\|=>\)\s*[._$a-zA-Z0-9]\+\(\[[^]]*\]\+\)*\)*" contained
-syn match pggType ":[a-zA-Z0-9_~]\+" nextgroup=textSnipocamlcode skipwhite
-syn match pggOp "[*?+#|]" nextgroup=textSnipocamlcode,pggType,textSnipocamltype skipwhite
-syn match pggEqOp "[=]" contained nextgroup=textSnipocamlcode,pggType,textSnipocamltype skipwhite
+syn match pggType ":\s*" nextgroup=pggNoType,ocamlMatchType,ocamlKeyType skipwhite
+syn match pggNoType "[~]" contained nextgroup=ocamlMatchCode skipwhite
+syn match pggOp "[*?+#|=;()]" nextgroup=ocamlMatchCode,pggType skipwhite
+syn match pggEqOp ":=" nextgroup=ocamlMatchCode skipwhite
 "
 "" comments
 syn match pggTodo "[tT][oO][dD][oO]" contained
@@ -134,9 +170,9 @@ syn match pggNumber "\<\d\+\([eE][-+]\=\d\+\)\=[fFdD]\>"
 "
 "" map groups to standard groups
 hi link pggKeyword Keyword
-hi link pggAnnotName Comment
+hi link pggAnnotName SpecialComment
 hi link pggOp Keyword
-hi link pggEqOp Keyword
+hi link pggEqOp SpecialComment
 "hi link pggPackage Include
 "hi link pggImport Include
 hi link pggBoolean Boolean
@@ -155,7 +191,8 @@ hi link pggLineComment Comment
 "hi link pggDocComment Comment
 "hi link pggDocTags Special
 hi link pggTodo Todo
-hi link pggType Type
+hi link pggType SpecialComment
+hi link pggNoType Type
 "hi link pggTypeSpecializer pggType
 "hi link pggXml String
 "hi link pggXmlTag Include
