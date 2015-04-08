@@ -115,7 +115,7 @@ parser ExpListOpt :(exp_t list) =
 parser ComExp = ',':~ Exp # { $2 } ;
 
 parser Prop =
-   Name@str{"("^(get_symbol s)}:int '=':~ Name@{(get_symbol s)^")"}:int # EqProp
+   Name@str{"("^(get_symbol s)}:int '=':~ Name@str{(get_symbol s)^")"}:int # EqProp
 ;
 
 parser Exp :exp_t =

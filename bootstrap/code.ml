@@ -873,7 +873,8 @@ CompoundType(_,CommaType(_,[[SingletonConstrType(_,t2)]]))) ->
 (* (Foo of 's * 't * ...)  ==>  ('s * 't * ...) *)
 | (CompoundType(p,AbstrType(_,IdentName(_,names),l1)),CompoundType(p2,CommaType(_,[l2]))) ->
   let (indices,x,_) = (try typecast_lists arg p 1 l1 l2 [] [] with _ -> Printf.printf "!!!try again 2\n";(try typecast_lists arg p 1 l1 [SingletonConstrType(p2,new_type)] [] [] with IncompatibleLists(p) -> fail p true)) in
-  let args = (str_x_list (fun x -> arg^"_"^(string_of_int x)) indices ",") in
+  (*let args = (str_x_list (fun x -> arg^"_"^(string_of_int x)) indices ",") in*)
+  let args = (str_x_list (fun x -> arg^"_"^(string_of_int x)) (range 1 (List.length l1)) ",") in
   let c = (str_x_list (str_code_plain) x ",") in
   let str = Printf.sprintf "(match %s with %s)" arg
     (str_x_list (fun sy -> (get_symbol sy)^"("^args^") -> ("^c^")") names " | ") in
@@ -881,7 +882,8 @@ CompoundType(_,CommaType(_,[[SingletonConstrType(_,t2)]]))) ->
 (* (Foo of 't)  ==>  't *)
 | (CompoundType(p,AbstrType(_,IdentName(_,names),l1)),SimpleType(p2,IdentType(_,[kw]))) ->
   let (indices,x,_) = (try typecast_lists arg p 1 l1 [SingletonConstrType(p2,new_type)] [] [] with IncompatibleLists(p) -> fail p true) in
-  let args = (str_x_list (fun x -> arg^"_"^(string_of_int x)) indices ",") in
+  (*let args = (str_x_list (fun x -> arg^"_"^(string_of_int x)) indices ",") in*)
+  let args = (str_x_list (fun x -> arg^"_"^(string_of_int x)) (range 1 (List.length l1)) ",") in
   let c = (str_x_list (str_code_plain) x ",") in
   let str = Printf.sprintf "(match %s with %s)" arg
     (str_x_list (fun sy -> (get_symbol sy)^"("^args^") -> ("^c^")") names " | ") in
