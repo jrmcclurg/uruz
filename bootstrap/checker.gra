@@ -57,7 +57,7 @@ parser Element =
 ;
 
 parser GraphElement :(bool*(int list)) =
-  | GraphField            # { (false,[]) }
+  | GraphField           # { (false,[]) }
   | KwNode :~ GraphBlock # { (false,$2) }
   | KwEdge :~ GraphBlock # { (true,$2) }
 ;
@@ -120,7 +120,7 @@ parser Ports :(int list) =
 ;
 
 parser FinalRules :(edge_t list) =
-                                     # { [] }
+                                    # { [] }
   | KwFinal :~ Rules :(edge_t list) # { $2 }
 ;
 

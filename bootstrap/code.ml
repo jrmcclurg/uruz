@@ -1593,7 +1593,7 @@ let output_ast_code o prefix g = match g with
 | Grammar(pos,(d,dl)) ->
   output_warning_msg o "(*\n" " *" " *" " *)";
   output_string o "\n\n";
-  output_string o ("   open "^(String.capitalize (prefix^"utils"))^";;\n\n");
+  output_string o ("open "^(String.capitalize (prefix^"utils"))^";;\n");
   (match !Flags.parser_code with Some(s(*TODO XXX*),c) -> output_string o (str_code_plain c) | _ -> ());
   output_string o "\n(* AST Data Structure *)\n";
   let _ = List.fold_left (fun first d ->
@@ -1622,7 +1622,7 @@ let output_ast_code o prefix g = match g with
 let output_utils_code o prefix g = match g with
 | Grammar(pos,(d,dl)) ->
   output_warning_msg o "(*\n" " *" " *" " *)";
-  output_string o "open Lexing;;\n";
+  output_string o "\n\nopen Lexing;;\n";
   output_string o "open Parsing;;\n";
   output_string o "(* open Flags;; *)\n";
   output_string o "\n";
