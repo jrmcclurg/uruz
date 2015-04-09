@@ -11,6 +11,14 @@
   This is a multi-line comment
 */
 
+property libs = "str,unix" ;
+
+property ast_code = {
+  (* stubs *)
+  let combine_opt_list a = (a,None)
+  let norm_typ t = t
+} ;
+
 property utils_code = {
    type rule_type = Parser | Lexer | Ast
    let eq_rule_type a b = ((compare a b)=0)
@@ -47,7 +55,7 @@ property utils_code = {
   (is_neg, List.rev csl)
 )
 
-   type code = EmptyCode of pos_t (**
+   type code_t = EmptyCode of pos_t (**
            Empty code having given
            position *)
          | Code of pos_t * string (**
@@ -153,7 +161,7 @@ property utils_code = {
    | [] -> unknown
    ;;
 
-   let handle_code ((p,s) : (Lexing.position * string)) : code =
+   let handle_code ((p,s) : (Lexing.position * string)) : code_t =
       let p2 = get_pos p in
       (if (is_string_empty (strip_ocaml_comments s)) then EmptyCode(p2) else Code(p2, s))
    ;;
@@ -161,7 +169,7 @@ property utils_code = {
 
 parser Grammar =
   SemiDecl+
-  :(xDecl_t list)
+  :(decl_t list)
   @str{(str_list (fun y -> "\n\n"^(str_decl_t y)^"\n;") x)}
 ;
 
@@ -207,20 +215,20 @@ parser BarPattern0 =
 | BarPattern0 '|' Pattern # { if (match $3 with Pattern(_,([],_)) -> true | _ -> false) then $1 else ($3::$1) } :('t3 list)
 ;
 
-lexer ProdKw { str_to_rule_type (get_current_pos ()) $1 } :rule_type =
-  "parse" | "parser" | "lex" | "lexer" | "ast"
+parser ProdKw { str_to_rule_type (get_current_pos ()) $1 } :rule_type =
+  (lexer : string = "parse" | "parser" | "lex" | "lexer" | "ast") # :string
 ;
 
-parser SemiDecl : xDecl_t = Decl ';' # { $1 } ;
+parser SemiDecl : decl_t = Decl ';' # { $1 } ;
 
 parser Decl =
   Production : ProdDecl
-| TokenKws:()@{"token "} XIdent+:(symb list) : TokenDecl
-| KeywordKws:()@{"keyword "} XIdent:symb Eq:()@{" = "} StringQuot:string@{Printf.sprintf "%S" s} : KeywordDecl
-| "code":()@{"code "} XIdent:symb Eq:()@{" ="}
+| TokenKws@str{"token "}:~ XIdent+:(symb list) # TokenDecl
+| KeywordKws@str{"keyword "}:~ XIdent:symb Eq@str{" = "}:~ StringQuot:string@str{Printf.sprintf "%S" s} # KeywordDecl
+| "code"@str{"code "}:~ XIdent:symb Eq@str{" ="}:~
     NamedCode+:(((symb option)*code_t) list)
-    @{let (x,y) = s in str_list (fun (so,c) -> " "^(str_option (fun x -> (get_symbol x)^"") so)^(str_code c)) (x::y)} : CodeDecl
-| PropKws:()@{"property "} XIdent:symb Eq:()@{" = "} Value : PropDecl
+    @str{let (x,y) = s in str_list (fun (so,c) -> " "^(str_option (fun x -> (get_symbol x)^"") so)^(str_code c)) (x::y)} # CodeDecl
+| PropKws@str{"property "}:~ XIdent:symb Eq@str{" = "}:~ Value # PropDecl
  ; 
 
 parser NamedCode :(symb option*code_t) =
@@ -234,13 +242,13 @@ lexer PropKws = "property" | "prop" ;
 parser Value =
   Bool:bool         # BoolVal
 | Int:int           # IntVal
-| StringQuot:string@{Printf.sprintf "%S" s} # StringVal
-| CharQuot:char@{Printf.sprintf "%C" s}   # CharVal
-| NamedCode:((symb option)*code_t)
-    @{let (x,y) = s in " "^(str_option (fun x -> (get_symbol x)^"") x)^(str_code y)} # CodeVal
+| StringQuot@str{Printf.sprintf "%S" s}:string # StringVal
+| CharQuot@str{Printf.sprintf "%C" s}:char   # CharVal
+| NamedCode
+    @str{let (x,y) = s in " "^(str_option (fun x -> (get_symbol x)^"") x)^(str_code y)}:((symb option)*code_t) # CodeVal
 ;
 
-parser Eq = '='@{" = "} ;
+parser Eq = '='@str{" = "} ;
 
 parser Pattern =
   //OptList<:((opt_t list)*((code option) * (typ_t option)))
@@ -248,11 +256,12 @@ parser Pattern =
   //(str_pair (str_option (fun c -> (str_code c)^" ")) (str_option (fun t -> ":"^(str_typ_t t)^" ")))
   //s}>
   AnnotAtoms
-  :((annot_atom_t list)*(((symb option) * ((opt_t list) * ((code_t option) * (typ_t option)))) option))
-  @{let (s,s2) = s in Printf.sprintf "%s%s" (str_list (fun x -> (str_annot_atom_t x)^" ") s)
+  @str{let (s,s2) = s in Printf.sprintf "%s%s" (str_list (fun x -> (str_annot_atom_t x)^" ") s)
   (str_option (fun (name,(opts,(cd,ty))) ->
   Printf.sprintf "#%s%s%s%s" (str_x_option get_symbol name " ")
   (str_list (fun x -> " "^(str_opt_t x)) opts) (str_x_option str_code cd " ") (str_x_option str_typ_t ty " :")) s2)}
+  :((annot_atom_t list)*(((symb option) * ((opt_t list) * ((code_t option) * (typ_t option)))) option))
+  # Pattern
 ;
 
 parser TempOpt
@@ -310,7 +319,7 @@ parser AnnotAtoms
 parser AnnotAtom =
   Atom            # SingletonAnnotAtom
 | AnnotAtom Quant # QuantAnnotAtom
-| AnnotAtom Opt2:((opt_t list)*((code_t option)*(typ_t option)))@{str_pair (fun l -> str_list (fun x -> " "^(str_opt_t x)) l) (str_pair (str_option (fun x -> " "^(str_code x))) (str_option (fun x -> " :"^(str_typ_t x)))) s}  # OptAnnotAtom
+| AnnotAtom Opt2@str{str_pair (fun l -> str_list (fun x -> " "^(str_opt_t x)) l) (str_pair (str_option (fun x -> " "^(str_code x))) (str_option (fun x -> " :"^(str_typ_t x)))) s}:((opt_t list)*((code_t option)*(typ_t option)))  # OptAnnotAtom
 ;
 
 parser OptList :(opt_t list*(code_t option*typ_t option)) = Opt*:(opt_t list) OptType:(typ_t option) # {
@@ -337,14 +346,14 @@ parser OptType :(typ_t option) =
 parser Opt =
 //| Int<:int>                               # PrecOption
 //| Assoc                                   # AssocOption
- FnName:(symb option)@{"@"^(str_option str_symb s)} ":=":()@{":="} Value # ValOption
-|FnName:(symb option)@{"@"^(str_option str_symb s)} CodeLit:code_t # CodeOption
-| '@':()@{"@"} '$':()@{"$"} XIdent:symb      # CodeNameOption
+ FnName@str{"@"^(str_option str_symb s)}:(symb option) ":="@str{":="}:~ Value # ValOption
+|FnName@str{"@"^(str_option str_symb s)}:(symb option) CodeLit:code_t # CodeOption
+| '@'@str{"@"}:~ '$'@str{"$"}:~ XIdent:symb      # CodeNameOption
 ;
 
 parser FnName :(symb option) =
 ~                                   # { None }
-| '@':()@{"@"} XIdent?:(symb option) # { $2 }
+| '@'@str{"@"}:~ XIdent?:(symb option) # { $2 }
 ;
 
 lexer TokenKw = "token" ;
@@ -353,21 +362,21 @@ parser Typ0 : typ_t = Typ # { norm_typ $1 };
 
 parser Typ : typ_t =
   SimpleType          # SimpleType
-| '(':() CompoundType ')':() # CompoundType
+| '(':~ CompoundType ')':~ # CompoundType
 ;
 
 parser SimpleType =
-  TokenKw:() # TokenType // TODO XXX - maybe there's a need to set the name of this type?
-| '_':()      # AnyType
-| '~':()      # NoType
-| '\'':()@{"'"} XIdent:symb # VarType
-| '(':() ')':()  # UnitType
-| TypeName:(symb list)@{""^(str_x_list get_symbol s ".")^""} # IdentType
+  TokenKw:~ # TokenType // TODO XXX - maybe there's a need to set the name of this type?
+| '_':~      # AnyType
+| '~':~      # NoType
+| '\''@str{"'"}:~ XIdent:symb # VarType
+| '(':~ ')':~  # UnitType
+| TypeName@str{""^(str_x_list get_symbol s ".")^""}:(symb list) # IdentType
 ;
 
 parser CompoundType =
-  CompoundType1:((constr_type_t list) list)@{""^(str_x_list (fun x -> str_x_list str_constr_type_t x "*") s ",")^""} # CommaType
-| AbstrName "of":()@{""} TupleType:(constr_type_t list)@{(if (List.length s)>0 then " of " else "")^(str_x_list str_constr_type_t s "*")}   # AbstrType
+  CompoundType1@str{""^(str_x_list (fun x -> str_x_list str_constr_type_t x "*") s ",")^""}:((constr_type_t list) list) # CommaType
+| AbstrName "of"@str{""}:~ TupleType@str{(if (List.length s)>0 then " of " else "")^(str_x_list str_constr_type_t s "*")}:(constr_type_t list)   # AbstrType
 ;
 
 parser AbstrName =
@@ -378,18 +387,18 @@ parser AbstrName =
 parser CompoundType1 = CompoundType0 # { List.rev $1 } :((constr_type_t list) list) ;
 parser CompoundType0 =
   TupleType:(constr_type_t list)                        # { [$1] } :((constr_type_t list) list)
-| CompoundType0 ',':() TupleType:(constr_type_t list) # { $3::$1 } :((constr_type_t list) list)
+| CompoundType0 ',':~ TupleType:(constr_type_t list) # { $3::$1 } :((constr_type_t list) list)
 ;
 
 parser TupleType :(constr_type_t list) = TupleType0:(constr_type_t list) # { List.rev $1 } :(constr_type_t list) ;
 parser TupleType0 :(constr_type_t list) =
   ConstrType                     # { [$1] } :(constr_type_t list)
-| TupleType0 '*':() ConstrType # { $3::$1 } :(constr_type_t list)
+| TupleType0 '*':~ ConstrType # { $3::$1 } :(constr_type_t list)
 ;
 
 parser ConstrType =
   Typ0:typ_t                                                                      # SingletonConstrType
-| ConstrType TypeName:(symb list)@{" "^(str_x_list get_symbol s ".")^""} # InstConstrType
+| ConstrType TypeName@str{" "^(str_x_list get_symbol s ".")^""}:(symb list) # InstConstrType
 ;
 
 parser TypeName :(symb list) = TypeName0 # { List.rev $1 } :(symb list) ;
@@ -409,14 +418,14 @@ parser Quot :string =
 ;
 
 parser Atom =
-  '~':()                         # EmptyAtom
-| "eof":()                       # EofAtom
-| StringQuot:string@{Printf.sprintf "%S" s}              # StringAtom { let p = get_current_pos () in if String.length $1 > 0 then StringAtom(p, $1) else EmptyAtom(p) }
+  '~':~                         # EmptyAtom
+| "eof":~                       # EofAtom
+| StringQuot@str{Printf.sprintf "%S" s}:string              # StringAtom { let p = get_current_pos () in if String.length $1 > 0 then StringAtom(p, $1) else EmptyAtom(p) }
 | XIdent:symb                  # IdentAtom
-| Charset CharsetDiffOption:(charset_t option)
-    @{str_option (fun x -> " / "^(str_charset_t x)) s}                         # CharsetAtom
-| Quot:string@{Printf.sprintf "%S" s} "..":()@{" .. "} Quot:string@{Printf.sprintf "%S" s} : RecurAtom
-| '(':() Production ')':()     # ProdAtom
+| Charset CharsetDiffOption
+    @str{str_option (fun x -> " / "^(str_charset_t x)) s} :(charset_t option)                        # CharsetAtom
+| Quot@str{Printf.sprintf "%S" s}:string ".."@str{" .. "}:~ Quot@str{Printf.sprintf "%S" s}:string : RecurAtom
+| '(':~ Production ')':~     # ProdAtom
 ;
 
 parser CharsetDiffOption :(charset_t option) =
@@ -428,9 +437,9 @@ parser CharsetDiffOption :(charset_t option) =
 parser Charset = "" ;
 parser Charsetz =
   '_':()               # WildcardCharset
-| CharQuot:char@{Printf.sprintf "%C" s} # SingletonCharset
-| Chars0:(bool*(chars list))
-  @{let (is_neg,cl)=s in Printf.sprintf "[%s%s]" (if is_neg then "^" else "") (str_list str_chars cl)}    # ListCharset
+| CharQuot@str{Printf.sprintf "%C" s}:char # SingletonCharset
+| Chars0
+  @str{let (is_neg,cl)=s in Printf.sprintf "[%s%s]" (if is_neg then "^" else "") (str_list str_chars cl)}:(bool*(chars list))    # ListCharset
 ;
 
 parser Chars0 :(bool*(chars list)) = Chars:string # {
@@ -440,23 +449,25 @@ parser Chars0 :(bool*(chars list)) = Chars:string # {
 } ;
 
 lexer Bool {bool_of_string x} :bool = "true" | "false" ;
-lexer XIdent {add_symbol x} :symb = [a-zA-Z] [a-zA-Z0-9_]* ; // TODO XXX - make sure this works with the ident translator
+parser XIdent {add_symbol x} :symb = XIdentX # :string ; // TODO XXX - make sure this works with the ident translator
+lexer XIdentX  = [a-zA-Z] [a-zA-Z0-9_]* ; // TODO XXX - make sure this works with the ident translator
 //lexer Chars = ('[' ([^\\\]]* ('\\' _)*)* ']')<:string> : { $1 } ;
 lexer Chars :string = '[' ([^\\\]]* ('\\' _)*)* ']' ;
-lexer StringQuot { Scanf.sscanf $1 "%S" (fun x -> x) } = '"' (([^\\\"]* ('\\' _)*)*) '"' ;
-lexer CharQuot { (Scanf.sscanf $1 "%C" (fun x -> x)) } = '\'' (([^\\\'] |
+lexer StringQuot { Scanf.sscanf x "%S" (fun x -> x) } = '"' (([^\\\"]* ('\\' _)*)*) '"' ;
+lexer CharQuot { (Scanf.sscanf x "%C" (fun x -> x)) } :char = '\'' (([^\\\'] |
          ('\\' ('\\'|'"'|'\''|'n'|'r'|'t'|'b')) |
          ('\\' [0-9] [0-9] [0-9]) )) '\'' ;
 lexer Int {int_of_string x} :int = [0-9]+ ;
 //lexer CodeLit = "{" .. "}"<:(Lexing.position*string){let p = Lexing.lexeme_start_p lexbuf in (p,s)}> : { handle_code $1 } ;
-lexer CodeLit { handle_code (Lexing.lexeme_start_p lexbuf,x) } :code_t = "{" .. "}" ;
+parser CodeLit {handle_code x} : code_t = CodeLitX # :(Lexing.position*string) ;
+lexer CodeLitX {let p = Lexing.lexeme_start_p lexbuf in (p,s)} :(Lexing.position*string) = "{" .. "}" ;
 
-lexer SingleComm {} = "//" [^\n]* ;  /* throw away single-line comments */
-lexer MultiComm {} = "/*" .. "*/" ;
+lexer SingleComm :~ = "//" [^\n]* ;  /* throw away single-line comments */
+lexer MultiComm :~ = "/*" .. "*/" ;
 /* ^^ throw away recursive multiline comments */
 // TODO XXX - check that these are all thrown away properly
 
-lexer Blanks {} = [\r\t ]* ;
-lexer Newlines {do_newline lexbuf} = '\n' ;
+lexer Blanks :~ = [\r\t ]* ;
+lexer Newlines {do_newline lexbuf} :~ = '\n' ;
 
 

@@ -1352,7 +1352,7 @@ and lex_str_chars (ch : chars) : string = match ch with
 | SingletonChar(c) -> Printf.sprintf "%C" c
 | RangeChar(c1,c2) -> Printf.sprintf "%C-%C" c1 c2
 
-let output_lexer_code o prefix g = match g with
+let output_lexer_code o prefix g (keywords : (symb*string) list) = match g with
 | Grammar(pos,(d,dl)) ->
   let recur_prefix = "entry_" in
   output_warning_msg o "(*\n" " *" " *" " *)";
@@ -1361,11 +1361,7 @@ let output_lexer_code o prefix g = match g with
   output_string o ("   open "^(String.capitalize (prefix^"parser"))^";;\n");
   output_string o ("   open "^(String.capitalize (prefix^"ast"))^";;\n");
   output_string o ("   open "^(String.capitalize (prefix^"utils"))^";;\n\n");
-  (match !Flags.lexer_code with Some(s(*TODO XXX*),c) -> output_string o (str_code_plain c) | _ -> ());
-  output_string o "\n}\n\n";
-  output_string o ("(* The type \"token\" is defined in "^(String.capitalize (prefix^"parser.mli"))^" *)\n");
-  output_string o "rule token = parse\n";
-  let rules = List.fold_left (fun acc d ->
+  let (rules,keys) = List.fold_left (fun (acc,acc2) d ->
     match d with
     (* NOTE - name and type should be Some(_) at this point *)
     | ProdDecl(_,(Production(ps,(Some(Lexer),(Some(name),(ol,(cd,Some(ty))))),patl) as prod)) ->
@@ -1374,9 +1370,35 @@ let output_lexer_code o prefix g = match g with
       let order = (match vl with Some(IntVal(_,i)) -> i | _ -> !Flags.def_precedence) in
       let (vl2,_) = opt_list_lookup ol len_kw in
       let len = (match vl2 with Some(IntVal(_,i)) -> i | _ -> -1(*TODO XXX*)) in
-      (order,get_symbol name,ty,len,is_key,prod)::acc
-    | _ -> acc
-  ) [] (d::dl) in
+      (((order,get_symbol name,ty,len,is_key,prod)::acc),(if is_key then IntSet.add name acc2 else acc2))
+    | _ -> (acc,acc2)
+  ) ([],IntSet.empty) (d::dl) in
+
+
+if not (IntSet.is_empty keys) then (
+  let key = IntSet.choose keys in (* TODO XXX - for now we just choose one (there should only be one in the program) *)
+  output_string o ("  let tokens = ((Hashtbl.create 100) : ((string,token) Hashtbl.t)) ;;\n");
+  output_string o ("  let add_token str vl =\n");
+  output_string o ("    try let _ = Hashtbl.find tokens str in\n");
+  output_string o ("      (parse_error (\"token \"^str^\" already exists\"))\n");
+  output_string o ("    with _ -> Hashtbl.replace tokens str vl\n");
+  output_string o ("  ;;\n");
+  output_string o ("\n");
+  output_string o ("  let lookup_keyword str =\n");
+  output_string o ("     try (let x = Hashtbl.find tokens str in x)\n");
+  Printf.fprintf o ("     with _ -> %s str\n") (get_token_name (get_symbol key));
+  output_string o ("  ;;\n");
+  output_string o ("\n");
+  List.iter (fun (name,str) ->
+  Printf.fprintf o ("  add_token \"%s\" %s ;;\n") str (get_token_name (get_symbol name));
+  ) keywords
+);
+
+  (match !Flags.lexer_code with Some(s(*TODO XXX*),c) -> output_string o (str_code_plain c) | _ -> ());
+  output_string o "\n}\n\n";
+  output_string o ("(* The type \"token\" is defined in "^(String.capitalize (prefix^"parser.mli"))^" *)\n");
+  output_string o "rule token = parse\n";
+
   (* sort by order annotations *)
   let rules = List.sort (fun (p1,_,_,_,_,_) (p2,_,_,_,_,_) -> compare p1 p2) rules in
   let get_the_code cd name ty len is_key = (match ty with
@@ -1453,7 +1475,7 @@ and parser_str_atom (g : IntSet.t) (a : atom_t) : string = match a with
 | RecurAtom(p,_,_) -> die_error p "not all non-parser elements were eliminated"
 
 
-let output_parser_code o prefix g (gr : simple_graph) : string = match g with
+let output_parser_code o prefix g (gr : simple_graph) : (string*(symb*string) list) = match g with
 | Grammar(pos,(d,dl)) ->
   output_warning_msg o "/*\n(" "*" " *" " *) */";
   output_string o "\n\n";
@@ -1488,23 +1510,23 @@ let output_parser_code o prefix g (gr : simple_graph) : string = match g with
   ) in
 
   (* add all tokens to the table *)
-  let (fp,prods2,prod_ids) = List.fold_left (fun (fp,acc,acc2) d ->
+  let (fp,prods2,prod_ids,keywords) = List.fold_left (fun (fp,acc,acc2,keywords) d ->
     match d with
     (* NOTE - name and type should be Some(_) at this point *)
     | ProdDecl(_,(Production(ps,(Some(Parser),(Some(name),(ol,(cd,Some(ty))))),patl) as prod)) ->
       let (fp2,b) = (match fp with None -> (match !Flags.start_prod with Some(pn) -> (if pn=name then (Some(name,ty,prod),true) else (fp,false)) | _ -> (Some(name,ty,prod),true)) | _ -> (fp,false)) in
-      (fp2,(if not b then prod::acc else acc),IntSet.add name acc2)
+      (fp2,(if not b then prod::acc else acc),IntSet.add name acc2,keywords)
     | ProdDecl(_,(Production(ps,(Some(Lexer),(Some(name),(ol,(cd,Some(ty))))),patl))) ->
       add ps ty [name] ol;
-      (fp,acc,acc2)
+      (fp,acc,acc2,keywords)
     | TokenDecl(p,(name,namel),(ol,(cd,ty1))) ->
       (match ty1 with Some(ty) -> add p ty (name::namel) ol | _ -> add p (SimpleType(p,NoType(p))) (name::namel) ol);
-      (fp,acc,acc2)
+      (fp,acc,acc2,keywords)
     | KeywordDecl(p,name,(ol,(cd,ty)),str) ->
       add p (SimpleType(p,NoType(p))) [name] ol;
-      (fp,acc,acc2)
-    | _ -> (fp,acc,acc2)
-  ) (None,[],IntSet.empty) (d::dl) in
+      (fp,acc,acc2,(name,str)::keywords)
+    | _ -> (fp,acc,acc2,keywords)
+  ) (None,[],IntSet.empty,[]) (d::dl) in
   let prods2 = List.rev prods2 in
   let (start_prod_name,start_prod_ty,start_prod) = (match fp with
   | None -> die_error pos "could not determine start production"
@@ -1552,7 +1574,7 @@ let output_parser_code o prefix g (gr : simple_graph) : string = match g with
   Printf.fprintf o "%s:\n| {}\n;\n\n" !Flags.parser_empty_ident_name;
   Printf.fprintf o "%%%%\n";
   Printf.fprintf o "(* footer code *)\n";
-  pname
+  (pname,keywords)
 
 let str_opt_list f l sep = List.fold_left (fun result x ->
   match (result,f x) with
@@ -1934,11 +1956,11 @@ let generate_skeleton dir prefix bin_name grammar_filename =
 
 let output_code dir prefix g bin_name grammar_filename gr =
   let dir_prefix = (match dir with None -> "" | Some(d) -> d^Filename.dir_sep) in
-  let o = open_out (dir_prefix^prefix^"lexer.mll") in
-  output_lexer_code o prefix g;
-  close_out o;
   let o = open_out (dir_prefix^prefix^"parser.mly") in
-  let start_name = output_parser_code o prefix g gr in
+  let (start_name,keywords) = output_parser_code o prefix g gr in
+  close_out o;
+  let o = open_out (dir_prefix^prefix^"lexer.mll") in
+  output_lexer_code o prefix g keywords;
   close_out o;
   let o = open_out (dir_prefix^prefix^"ast.ml") in
   output_ast_code o prefix g;
