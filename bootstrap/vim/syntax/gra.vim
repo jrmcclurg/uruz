@@ -43,7 +43,7 @@ function! TextEnableCodeSnip(filetype,start,end,start2,end2,pattern,textSnipHl,t
   \ contains=@'.group
   execute 'syntax match ocamlKey'.a:thename2.'
   \ "'.a:pattern.'"
-  \ contained nextgroup=pggType skipwhite
+  \ contained nextgroup=pggType,ocamlMatchCode skipwhite
   \ contains=@'.group
 endfunction
 
@@ -52,7 +52,7 @@ call TextEnableCodeSnip('ocaml', '{', '}', '(', ')', '[a-zA-Z0-9_~.]\+', 'Specia
 "call TextEnableCodeSnip2('ocaml', '[a-zA-Z0-9_~.]\+', 'SpecialComment', 'Type')
 
 " most keywords
-syn keyword pggKeyword property keyword token eof
+syn keyword pggKeyword property keyword token eof nextgroup=pggType,ocamlMatchCode skipwhite
 "syn match pggKeyword "=>"
 "syn match pggKeyword "<-"
 "syn match pggKeyword "\<_\>"
@@ -66,7 +66,7 @@ syn keyword pggKeyword property keyword token eof
 "syn region pggFqnSet start="{" end="}" contained
 "
 "" boolean literals
-syn keyword pggBoolean true false
+syn keyword pggBoolean true false nextgroup=pggType,ocamlMatchCode skipwhite
 "
 "" definitions
 syn keyword pggDef parser lexer ast nextgroup=pggDefName skipwhite
@@ -96,7 +96,7 @@ syn match pggAnnotName "@[a-zA-Z0-9_]\+" nextgroup=ocamlMatchCode skipwhite
 syn match pggType ":\s*" nextgroup=pggNoType,ocamlMatchType,ocamlKeyType skipwhite
 syn match pggNoType "[~]" contained nextgroup=ocamlMatchCode skipwhite
 syn match pggOp "[*?+|=;()]" nextgroup=ocamlMatchCode,pggType skipwhite
-syn match pggName "#[ a-zA-Z0-9_]*" nextgroup=ocamlMatchCode,pggType skipwhite
+syn match pggName "#[ \n\r\ta-zA-Z0-9_]*" nextgroup=ocamlMatchCode,pggType skipwhite
 syn match pggEqOp ":=" nextgroup=ocamlMatchCode skipwhite
 "
 "" comments
