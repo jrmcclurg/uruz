@@ -1,0 +1,34 @@
+// this is a simple numeric expression langage
+
+parser Program =
+  | Statement* eof
+;
+
+parser Statement =
+  | Ident '=':~ Expr ';':~ # AssignStmt
+  | Exit ';':~             # ExitStmt
+;
+
+parser Expr =
+  | Integer                               # SingletonExpr
+  | '-'@assoc:="nonassoc"@prec:=90:~ Expr # NegExpr
+  | Expr '+'@assoc:="left":~ Expr         # PlusExpr
+  | Expr '*'@assoc:="left":~ Expr         # TimesExpr
+  | '(':~ Expr ')':~                      # ParenExpr
+;
+
+lexer Integer :int =
+  | [0-9]+
+;
+
+keyword Exit = "exit" ;
+keyword TheTest = "test" ;
+
+lexer Ident @map:=true =
+  | [a-zA-Z]+
+;
+
+// throw away whitespace (while remembering the position info)
+lexer Blanks {count_newlines x lexbuf} :~ =
+  | [\r\n\t ]+
+;
