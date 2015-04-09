@@ -1,6 +1,6 @@
-open Bootstrap_utils
-open Bootstrap_main
-open Bootstrap_ast
+open Uruz2_utils
+open Uruz2_main
+open Uruz2_ast
 open Flags
 open Code
 
@@ -31,7 +31,7 @@ let ret = List.fold_left (fun acc (dir,f) ->
     (* flatten the grammar *)
     let result = flatten_grammar result code_table in
     let result = elim_grammar result in (* eliminate quantifiers *)
-    Bootstrap_ast.print_grammar_t result;
+    Uruz2_ast.print_grammar_t result;
     if !Flags.only_flatten then (
       exit 0
     );
@@ -46,7 +46,7 @@ let ret = List.fold_left (fun acc (dir,f) ->
     let result = typecheck result comps count gr in
     let result = restore_lexer_grammar result lexer_prods in
     Printf.printf "###################################\n";
-    Bootstrap_ast.print_grammar_t result;
+    Uruz2_ast.print_grammar_t result;
     Printf.printf "SUCCESS (%s)!\n" f;
     output_code dir prefix result bin_name (get_abs_filename f);
     acc

@@ -75,12 +75,12 @@ let rec get_version_string (s : string) (k : int) : string =
 ;;
 
 let version = ("1."^(get_version_string (pad_string commit_num 3) 1));;
-let banner_text = "Parser Generator Generator v. "^version^"\n"^
+let banner_text = "Uruz - an OCaml Parser Generator Generator (v. "^version^")\n"^
                   "by Jedidiah McClurg, www.jrmcclurg.com\n"^
                   "(build date "^build_date^")"^
                   "";;
 let usage_msg = banner_text^"\n"^
-                "Usage: pgg [options] <grammar_file>";;
+                "Usage: uruz [options] <grammar_file>";;
 
 (* parse the command-line arguments *)
 let args = Arg.align [

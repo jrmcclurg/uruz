@@ -1,4 +1,4 @@
-open Bootstrap_utils
+open Uruz2_utils
 
 (* flag defaults *)
 let only_flatten = ref false
@@ -126,9 +126,9 @@ let is_processing_lexer (deftyp : rule_type option) = (deftyp=Some(Lexer)) || (d
 let is_processing_parser (deftyp : rule_type option) = (deftyp=Some(Parser)) || (deftyp=None && !def_prod_type=Parser)
 let is_processing_ast (deftyp : rule_type option) = (deftyp=Some(Ast)) || (deftyp=None && !def_prod_type=Ast)
 
-let banner_text = "Welcome to bootstrap v. 2.0";;
+let banner_text = "Uruz - OCaml Parser Generator Generator (v. 2.0)";;
 let usage_msg = banner_text^"\n"^
-                "Usage: bootstrap [options] <file>";;
+                "Usage: uruz2 [options] <file>";;
 
 (* parse the command-line arguments *)
 let args = Arg.align [

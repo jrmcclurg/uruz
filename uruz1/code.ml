@@ -1112,7 +1112,7 @@ let generate_skeleton_makefile file prefix =
    output_string file "\t$(OCAMLC) -c flags.ml\n";
    output_string file "\n";
    output_string file (prefix^"Makefile:\t"^(!filename)^"\n");
-   output_string file ("\tpgg "^(!filename)^"\n");
+   output_string file ("\turuz "^(!filename)^"\n");
    output_string file "\n";
    output_string file ("clean:\t"^prefix^"clean\n");
    output_string file ("\trm -rf *.o *.cm* *.mli "^prefix^"main.ml "^prefix^"utils.ml "^

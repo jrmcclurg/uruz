@@ -12,8 +12,8 @@ Printf.printf "y = '%s'\n" y;
 
 *)
 
-open Bootstrap_ast
-open Bootstrap_utils
+open Uruz2_ast
+open Uruz2_utils
 open Flags
 
 let rec is_finalized_typ (t : typ_t) : bool =
@@ -1842,7 +1842,7 @@ let generate_skeleton_makefile o prefix bin_name grammar_filename =
    output_string o "\t$(OCAMLC) -c flags.ml\n";
    output_string o "\n";
    output_string o (prefix^"Makefile:\t"^(grammar_filename)^"\n");
-   output_string o ("\tpgg "^(grammar_filename)^"\n");
+   output_string o ("\turuz2 "^(grammar_filename)^"\n");
    output_string o "\n";
    output_string o ("clean:\t"^prefix^"clean\n");
    (*output_string o ("\trm -rf *.o *.cm* *.mli "^prefix^"main.ml "^prefix^"utils.ml "^

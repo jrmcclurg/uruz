@@ -14,8 +14,8 @@ CMA = cma
 LIBS = str.$(CMA) unix.$(CMA)
 #unix.$(CMA)
 
-pgg:	version.$(CMO) flags.$(CMO) utils.$(CMO) ast.$(CMO) code.$(CMO) parser.$(CMO) lexer.$(CMO) main.$(CMO)
-	$(OCAMLC) -o pgg $(LIBS) version.$(CMO) flags.$(CMO) utils.$(CMO) ast.$(CMO) code.$(CMO) parser.$(CMO) lexer.$(CMO) main.$(CMO)
+uruz:	version.$(CMO) flags.$(CMO) utils.$(CMO) ast.$(CMO) code.$(CMO) parser.$(CMO) lexer.$(CMO) main.$(CMO)
+	$(OCAMLC) -o uruz $(LIBS) version.$(CMO) flags.$(CMO) utils.$(CMO) ast.$(CMO) code.$(CMO) parser.$(CMO) lexer.$(CMO) main.$(CMO)
 
 main.$(CMO):	main.ml parser.$(CMO) lexer.$(CMO) code.$(CMO) ast.$(CMO) utils.$(CMO) flags.$(CMO) version.$(CMO)
 		$(OCAMLC) -c main.ml
