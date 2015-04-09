@@ -1433,11 +1433,11 @@ if not (IntSet.is_empty keys) then (
     | [Pattern(_,([SingletonAnnotAtom(_,RecurAtom(_,s1,s2))],_))] ->
       let the_code = get_the_code cd name ty len is_key in
       let rule_name = recur_prefix^(String.lowercase name) in
-      Printf.fprintf o "\nand %s n s = parse\n" rule_name;
-      Printf.fprintf o "| \"%s\" { %s (n+1) (s^\"%s\") lexbuf }\n" s1 rule_name s1;
-      Printf.fprintf o "| \"%s\" { if (n=0) then (%s) else %s (n-1) (s^\"%s\") lexbuf }\n" s2 the_code rule_name s2;
+      Printf.fprintf o "\nand %s n %s = parse\n" rule_name !Flags.param_name;
+      Printf.fprintf o "| \"%s\" { %s (n+1) (%s^\"%s\") lexbuf }\n" s1 rule_name !Flags.param_name s1;
+      Printf.fprintf o "| \"%s\" { if (n=0) then (%s) else %s (n-1) (%s^\"%s\") lexbuf }\n" s2 the_code rule_name !Flags.param_name s2;
       Printf.fprintf o "| _ as c { if c='\\n' then do_newline lexbuf;\n";
-      Printf.fprintf o "              %s n (Printf.sprintf \"%%s%%c\" s c) lexbuf }\n" rule_name;
+      Printf.fprintf o "              %s n (Printf.sprintf \"%%s%%c\" %s c) lexbuf }\n" rule_name !Flags.param_name;
     | _ -> ()
   ) rules
 
@@ -1559,7 +1559,7 @@ let output_parser_code o prefix g (gr : simple_graph) : (string*(symb*string) li
   | SimpleType(_,IdentType(_,[i])) ->
     let s = get_symbol i in
     let pref = chop_end_str s (String.length !Flags.auto_type_suffix) in
-    Printf.printf ">> looking: %s, %s\n" s pref;
+    (*Printf.printf ">> looking: %s, %s\n" s pref;*)
     if (pref^ !Flags.auto_type_suffix)=s && (Hashtbl.fold (fun k v acc -> acc || ((String.lowercase (get_symbol k))=pref)) gr false) then
     ((String.capitalize (prefix^"ast."))^s) else s
   | t -> str_typ_t t) in

@@ -460,7 +460,7 @@ lexer CharQuot { (Scanf.sscanf x "%C" (fun x -> x)) } :char = '\'' (([^\\\'] |
 lexer Int {int_of_string x} :int = [0-9]+ ;
 //lexer CodeLit = "{" .. "}"<:(Lexing.position*string){let p = Lexing.lexeme_start_p lexbuf in (p,s)}> : { handle_code $1 } ;
 parser CodeLit {handle_code x} : code_t = CodeLitX # :(Lexing.position*string) ;
-lexer CodeLitX {let p = Lexing.lexeme_start_p lexbuf in (p,s)} :(Lexing.position*string) = "{" .. "}" ;
+lexer CodeLitX {let p = Lexing.lexeme_start_p lexbuf in (p,x)} :(Lexing.position*string) = "{" .. "}" ;
 
 lexer SingleComm :~ = "//" [^\n]* ;  /* throw away single-line comments */
 lexer MultiComm :~ = "/*" .. "*/" ;
