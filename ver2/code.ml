@@ -205,9 +205,10 @@ and flatten_pattern (p : pattern_t) (defname : symb option) (deftyp : rule_type 
 and flatten_annot_atom (above_opts : opt_t list) (an : annot_atom_t) (defname : symb option) (deftyp : rule_type option) (nesting : int list) (code_table : code_hashtbl) (is_singleton : bool) : (annot_atom_t*decl_t list*bool(*above_opts_consumed*)) = match an with
 | SingletonAnnotAtom(p,a) -> flatten_atom above_opts a defname deftyp nesting code_table is_singleton
 | QuantAnnotAtom(p,an,q) ->
-  let (a2,prods,consumed) = flatten_annot_atom [] an defname deftyp (if is_singleton then nesting else (!Flags.def_prod_index::nesting)) code_table false in
+  let check = (false && is_singleton) || (is_processing_lexer deftyp) in
+  let (a2,prods,consumed) = flatten_annot_atom [] an defname deftyp (if check then nesting else (!Flags.def_prod_index::nesting)) code_table false in
   let y = QuantAnnotAtom(p,a2,q) in
-  if is_singleton || (is_processing_lexer deftyp) then (y,prods,false)
+  if check then (y,prods,false)
   else
     let name = Flags.get_def_prod_name defname nesting in
     let rt = Flags.get_def_prod_type deftyp in
@@ -1452,7 +1453,7 @@ and parser_str_atom (g : IntSet.t) (a : atom_t) : string = match a with
 | RecurAtom(p,_,_) -> die_error p "not all non-parser elements were eliminated"
 
 
-let output_parser_code o prefix g : string = match g with
+let output_parser_code o prefix g (gr : simple_graph) : string = match g with
 | Grammar(pos,(d,dl)) ->
   output_warning_msg o "/*\n(" "*" " *" " *) */";
   output_string o "\n\n";
@@ -1532,7 +1533,15 @@ let output_parser_code o prefix g : string = match g with
   output_string o "/*(* ^^ highest precedence *)*/\n";
   let pname = get_parser_name (get_symbol start_prod_name) in
   Printf.fprintf o "%%start %s /*(* the entry point *)*/\n" pname;
-  Printf.fprintf o "%%type <%s%s> %s\n" (String.capitalize (prefix^"ast.")) (str_typ_t start_prod_ty) pname;
+  let ty_str = (match start_prod_ty with
+  | SimpleType(_,IdentType(_,[i])) ->
+    let s = get_symbol i in
+    let pref = chop_end_str s (String.length !Flags.auto_type_suffix) in
+    Printf.printf ">> looking: %s, %s\n" s pref;
+    if (pref^ !Flags.auto_type_suffix)=s && (Hashtbl.fold (fun k v acc -> acc || ((String.lowercase (get_symbol k))=pref)) gr false) then
+    ((String.capitalize (prefix^"ast."))^s) else s
+  | t -> str_typ_t t) in
+  Printf.fprintf o "%%type <%s> %s\n" ty_str pname;
   Printf.fprintf o "%%%%\n";
   (*Printf.fprintf o "%s:\n" pname;*)
   Printf.fprintf o "%s\n\n" (parser_str_production prod_ids start_prod);
@@ -1923,13 +1932,13 @@ let generate_skeleton dir prefix bin_name grammar_filename =
       close_out file
    )
 
-let output_code dir prefix g bin_name grammar_filename =
+let output_code dir prefix g bin_name grammar_filename gr =
   let dir_prefix = (match dir with None -> "" | Some(d) -> d^Filename.dir_sep) in
   let o = open_out (dir_prefix^prefix^"lexer.mll") in
   output_lexer_code o prefix g;
   close_out o;
   let o = open_out (dir_prefix^prefix^"parser.mly") in
-  let start_name = output_parser_code o prefix g in
+  let start_name = output_parser_code o prefix g gr in
   close_out o;
   let o = open_out (dir_prefix^prefix^"ast.ml") in
   output_ast_code o prefix g;

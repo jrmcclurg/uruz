@@ -48,7 +48,7 @@ let ret = List.fold_left (fun acc (dir,f) ->
     Printf.printf "###################################\n";
     Uruz2_ast.print_grammar_t result;
     Printf.printf "SUCCESS (%s)!\n" f;
-    output_code dir prefix result bin_name (get_abs_filename f);
+    output_code dir prefix result bin_name (get_abs_filename f) gr;
     acc
   with ex ->
     Printf.printf "%s\n" (Printexc.to_string ex);

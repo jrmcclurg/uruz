@@ -37,11 +37,12 @@ let utils_code = ref (None : (symb option * code) option)
 let typecast_table = Hashtbl.create 100
 let def_val_table = Hashtbl.create 10
 
+let chop_end_str str n = String.sub str 0 (max 0 ((String.length str)-n))
+
 let get_abs_filename (filename : string) =
   if Filename.is_relative filename then (
     (Sys.getcwd ())^Filename.dir_sep^filename
   ) else filename
-  
 
 (* prefix functionality *)
 let get_filename_dir filename = 
