@@ -1401,11 +1401,12 @@ let output_lexer_code filename o prefix g (keywords : (symb*string*pos_t) list) 
     (* NOTE - name and type should be Some(_) at this point *)
     | ProdDecl(_,(Production(ps,(Some(Lexer),(Some(name),(ol,(cd,Some(ty))))),patl) as prod)) ->
       let (is_key,_) = opt_list_contains ol map_kw (BoolVal(NoPos,true)) in
+      let (is_newline,_) = opt_list_contains ol newline_kw (BoolVal(NoPos,true)) in
       let (vl,_) = opt_list_lookup ol order_kw in
       let order = (match vl with Some(IntVal(_,i)) -> i | _ -> !Flags.def_precedence) in
       let (vl2,_) = opt_list_lookup ol len_kw in
       let len = (match vl2 with Some(IntVal(_,i)) -> i | _ -> -1(*TODO XXX*)) in
-      (((order,get_symbol name,ty,len,is_key,prod)::acc),(if is_key then IntSet.add name acc2 else acc2))
+      (((order,get_symbol name,ty,len,is_key,is_newline,prod)::acc),(if is_key then IntSet.add name acc2 else acc2))
     | _ -> (acc,acc2)
   ) ([],IntSet.empty) (d::dl) in
 
@@ -1435,7 +1436,7 @@ if not (IntSet.is_empty keys) then (
   output_lines pos o "rule token = parse\n";
 
   (* sort by order annotations *)
-  let rules = List.sort (fun (p1,_,_,_,_,_) (p2,_,_,_,_,_) -> compare p1 p2) rules in
+  let rules = List.sort (fun (p1,_,_,_,_,_,_) (p2,_,_,_,_,_,_) -> compare p1 p2) rules in
   let get_the_code cd name ty len is_key = (match ty with
         | SimpleType(_,NoType(_)) -> (str_option str_code_plain cd)^"; token lexbuf"
         | SimpleType(_,TokenType(_)) -> get_token_name name
@@ -1444,7 +1445,7 @@ if not (IntSet.is_empty keys) then (
         | _ -> (get_token_name name)^"("^(str_option str_code_plain cd)^")"
         ) in
   (* output the normal rules *)
-  List.iter (fun (_,name,ty,len,is_key,(Production(ps,(r,(nameo,(ol,(cd,tyo)))),patl))) ->
+  List.iter (fun (_,name,ty,len,is_key,is_newline,(Production(ps,(r,(nameo,(ol,(cd,tyo)))),patl))) ->
     match patl with
     | [Pattern(_,([SingletonAnnotAtom(_,RecurAtom(px,s1,s2))],_))] ->
       output_lines px o (Printf.sprintf "| \"%s\" { %s%s 0 \"\" lexbuf }\n" s1 recur_prefix (String.lowercase name))
@@ -1454,7 +1455,9 @@ if not (IntSet.is_empty keys) then (
         (str_x_list lex_str_pattern patl " ")
         !Flags.param_name
         !Flags.param_name
-        (if is_key then ("(try lookup_keyword "^ !Flags.param_name^" with _ -> "^the_code^")") else the_code)
+        (if is_key then ("(try lookup_keyword "^ !Flags.param_name^" with _ -> "^the_code^")")
+        else if is_newline then ("(let _ = count_newlines "^ !Flags.param_name^" lexbuf in "^the_code^")")
+        else the_code)
         (name)
         (str_typ_t ty)
         len
@@ -1463,7 +1466,7 @@ if not (IntSet.is_empty keys) then (
   output_lines pos o (Printf.sprintf "| eof { %s }\n" !Flags.lexer_eof_token_name);
   output_lines pos o "| _ { lex_error \"lexing error\" lexbuf }\n";
   (* output the recursive rules *)
-  List.iter (fun (_,name,ty,len,is_key,(Production(ps,(r,(nameo,(ol,(cd,tyo)))),patl))) ->
+  List.iter (fun (_,name,ty,len,is_key,is_newline,(Production(ps,(r,(nameo,(ol,(cd,tyo)))),patl))) ->
     match patl with
     | [Pattern(_,([SingletonAnnotAtom(_,RecurAtom(px,s1,s2))],_))] ->
       let the_code = get_the_code cd name ty len is_key in
@@ -1487,23 +1490,26 @@ let rec parser_str_production (g : IntSet.t) (pr : production_t) : string = matc
 | (Production(ps,(Some(Parser),(Some(name),(ol,(cd,Some(ty))))),patl)) ->
   let pname = get_parser_name (get_symbol name) in
   let s1 = Printf.sprintf "%s:\n| %s%s {%s}\n;\n\n" pname pname !Flags.parser_ident_suffix (match cd with None -> "$1" | Some(cd) -> ("let "^ !Flags.param_name^" = $1 in ignore "^ !Flags.param_name^"; ("^(str_code_plain cd)^")")) in
-  Printf.sprintf "%s%s%s:\n%s\n;" s1 pname !Flags.parser_ident_suffix (str_x_list (fun p -> "| "^(parser_str_pattern g p)) patl "\n")
+  Printf.sprintf "%s%s%s:\n%s\n;" s1 pname !Flags.parser_ident_suffix
+    (str_x_list (fun p -> "| "^(parser_str_pattern pname g p)) patl "\n")
 | _ -> "" (* TODO XXX what do we do here? *)
 
-and parser_str_pattern (g : IntSet.t) (pa : pattern_t) : string = match pa with
-| Pattern(p,(al,Some(name,(ol,(cd,ty))))) -> (str_x_list (parser_str_annot_atom g) al " ")^(match cd with None -> "" | Some(c) -> " "^(str_code c))
-| Pattern(p,(al,None)) -> (str_x_list (parser_str_annot_atom g) al " ")
+and parser_str_pattern (pname : string) (g : IntSet.t) (pa : pattern_t) : string = match pa with
+| Pattern(p,(al,Some(name,(ol,(cd,ty))))) -> (str_x_list (parser_str_annot_atom pname g) al " ")^(match cd with None -> "" | Some(c) -> " "^(str_code c))
+| Pattern(p,(al,None)) -> (str_x_list (parser_str_annot_atom pname g) al " ")
 
-and parser_str_annot_atom (g : IntSet.t) (an : annot_atom_t) : string = match an with
-| SingletonAnnotAtom(_,a) -> parser_str_atom g a
-| QuantAnnotAtom(_,an,_) -> parser_str_annot_atom g an
-| OptAnnotAtom(_,an,_) -> parser_str_annot_atom g an
+and parser_str_annot_atom (pname : string) (g : IntSet.t) (an : annot_atom_t) : string = match an with
+| SingletonAnnotAtom(_,a) -> parser_str_atom pname g a
+| QuantAnnotAtom(_,an,_) -> parser_str_annot_atom pname g an
+| OptAnnotAtom(_,an,_) -> parser_str_annot_atom pname g an
 
-and parser_str_atom (g : IntSet.t) (a : atom_t) : string = match a with
+and parser_str_atom (pname : string) (g : IntSet.t) (a : atom_t) : string = match a with
 | EmptyAtom(_) -> !Flags.parser_empty_ident_name (* TODO XXX *)
 | EofAtom(_) -> !Flags.lexer_eof_token_name
 | IdentAtom(_,i) ->
-  (if IntSet.mem i g then get_parser_name else get_token_name) (get_symbol i)
+  let str = get_symbol i in
+  (if IntSet.mem i g then let x = (get_parser_name str) in Printf.sprintf "%s%s" x (if x=pname then !Flags.parser_ident_suffix else "")
+  else get_token_name str)
 | ProdAtom(p,_)
 | StringAtom(p,_)
 | CharsetAtom(p,_,_)
@@ -1514,13 +1520,14 @@ let output_parser_code filename o prefix g (gr : simple_graph) : (string*(symb*s
 | Grammar(pos,(d,dl)) ->
   reset_output filename;
   output_warning_msg pos o "/*\n(" "*" " *" " *) */";
-  output_string o "\n\n";
-  output_string o "%{\n";
-  output_string o ("   open "^(String.capitalize (prefix^"ast"))^";;\n");
-  output_string o ("   open "^(String.capitalize (prefix^"utils"))^";;\n\n");
-  (match !Flags.parser_code with Some(s(*TODO XXX*),c,px) -> output_string o (str_code_plain c) | _ -> ());
-  output_string o "\n%}\n\n";
-  Printf.fprintf o "%%token %s\n" !Flags.lexer_eof_token_name;
+  output_lines pos o "\n\n";
+  output_lines pos o "%{\n";
+  output_lines pos o ("   open "^(String.capitalize (prefix^"ast"))^";;\n");
+  output_lines pos o ("   open "^(String.capitalize (prefix^"utils"))^";;\n\n");
+  (match !Flags.parser_code with Some(s(*TODO XXX*),c,px) -> output_lines px o (str_code_plain c) | _ -> ());
+  output_lines pos o "\n%}\n\n";
+  output_lines pos o (Printf.sprintf "%%token %s\n" !Flags.lexer_eof_token_name);
+  (* TODO XXX - replace all output_string with output_lines !! *)
 
   let tok_table = TypHash.create 100 in (* TODO XXX - size? *)
   let prec_table = Hashtbl.create 100 in
@@ -1575,22 +1582,23 @@ let output_parser_code filename o prefix g (gr : simple_graph) : (string*(symb*s
     let set = (try TypHash.find tok_table k with Not_found -> IntSet.empty) in
     let l = List.rev_map get_symbol (IntSet.elements set) in
     let l = List.sort compare l in
-    if l<>[] then Printf.fprintf o "%%token %s%s\n" (match k with SimpleType(_,NoType(_)) -> "" | _ -> "<"^(str_typ_t k)^"> ") (str_x_list get_token_name l " ")
+    if l<>[] then output_string o (Printf.sprintf "%%token %s%s\n"
+    (match k with SimpleType(_,NoType(_)) -> "" | _ -> "<"^(str_typ_t k)^"> ") (str_x_list get_token_name l " "))
   ) tok_types;
 
   let tok_precs = Hashtbl.fold (fun k _ acc -> k::acc) prec_table [] in
   let tok_precs = List.rev (List.sort compare tok_precs) in
 
-  output_string o "/*(* starting with lowest precedence:*)*/\n";
+  output_lines pos o "/*(* starting with lowest precedence:*)*/\n";
   List.iter (fun prec ->
     let (set,assoc) = (try Hashtbl.find prec_table prec with Not_found -> (IntSet.empty,None)) in
     let assoc = (match assoc with None -> !Flags.def_assoc | Some(a) -> a) in
-    if not (IntSet.is_empty set) then Printf.fprintf o "%%%s %s /*(* %d *)*/\n" assoc
-    (str_x_list get_token_name (List.rev_map get_symbol (IntSet.elements set)) " ") prec
+    if not (IntSet.is_empty set) then output_string o (Printf.sprintf "%%%s %s /*(* %d *)*/\n" assoc
+    (str_x_list get_token_name (List.rev_map get_symbol (IntSet.elements set)) " ") prec)
   ) tok_precs;
   output_string o "/*(* ^^ highest precedence *)*/\n";
   let pname = get_parser_name (get_symbol start_prod_name) in
-  Printf.fprintf o "%%start %s /*(* the entry point *)*/\n" pname;
+  output_string o (Printf.sprintf "%%start %s /*(* the entry point *)*/\n" pname);
   let ty_str = (match start_prod_ty with
   | SimpleType(_,IdentType(_,[i])) ->
     let s = get_symbol i in
@@ -1599,17 +1607,17 @@ let output_parser_code filename o prefix g (gr : simple_graph) : (string*(symb*s
     if (pref^ !Flags.auto_type_suffix)=s && (Hashtbl.fold (fun k v acc -> acc || ((String.lowercase (get_symbol k))=pref)) gr false) then
     ((String.capitalize (prefix^"ast."))^s) else s
   | t -> str_typ_t t) in
-  Printf.fprintf o "%%type <%s> %s\n" ty_str pname;
-  Printf.fprintf o "%%%%\n";
-  (*Printf.fprintf o "%s:\n" pname;*)
-  Printf.fprintf o "%s\n\n" (parser_str_production prod_ids start_prod);
+  output_string o (Printf.sprintf "%%type <%s> %s\n" ty_str pname);
+  output_string o (Printf.sprintf "%%%%\n");
+  (*output_string o (Printf.sprintf "%s:\n" pname);*)
+  output_string o (Printf.sprintf "%s\n\n" (parser_str_production prod_ids start_prod));
   List.iter (fun p ->
-    Printf.fprintf o "%s\n\n" (parser_str_production prod_ids p);
+    output_string o (Printf.sprintf "%s\n\n" (parser_str_production prod_ids p));
   ) prods2;
   (* add the "empty" token (which presumably returns empty string) *)
-  Printf.fprintf o "%s:\n| {}\n;\n\n" !Flags.parser_empty_ident_name;
-  Printf.fprintf o "%%%%\n";
-  Printf.fprintf o "(* footer code *)\n";
+  output_string o (Printf.sprintf "%s:\n| {}\n;\n\n" !Flags.parser_empty_ident_name);
+  output_string o (Printf.sprintf "%%%%\n");
+  output_string o (Printf.sprintf "(* footer code *)\n");
   (pname,keywords)
 
 let str_opt_list f l sep = List.fold_left (fun result x ->
@@ -1674,12 +1682,12 @@ let output_ast_code filename o prefix g = match g with
       | _ ->
         let tn = (get_auto_type_name name) in
         let is_auto = not (fst (opt_list_contains ol auto_kw (BoolVal(NoPos,false)))) in
-        Printf.fprintf o "\n%s %s = " (if first then "type" else "\n and") (get_symbol tn);
+        output_string o (Printf.sprintf "\n%s %s = " (if first then "type" else "\n and") (get_symbol tn));
         if is_auto then (
           List.iter (fun p ->
-            match (ast_str_pattern p) with None -> () | Some(str) -> Printf.fprintf o "\n   | %s" str
+            match (ast_str_pattern p) with None -> () | Some(str) -> output_string o (Printf.sprintf "\n   | %s" str)
           ) patl;
-        ) else (match (ast_str_typ ty) with None -> () | Some(str) -> Printf.fprintf o "%s" str);
+        ) else (match (ast_str_typ ty) with None -> () | Some(str) -> output_string o (Printf.sprintf "%s" str));
         false
       )
     | _ -> first

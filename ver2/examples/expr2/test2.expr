@@ -1,0 +1,6 @@
+temp = 1;
+temp = 2;
+temp = 3;
+reset;
+temp = 4;
+temp = 5;

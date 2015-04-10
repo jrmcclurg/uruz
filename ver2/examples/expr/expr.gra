@@ -24,11 +24,11 @@ lexer Integer :int =
 keyword Exit = "exit" ;
 keyword TheTest = "test" ;
 
-lexer Ident @map:=true =
+lexer Ident @map:=true @order:=300 =
   | [a-zA-Z]+
 ;
 
 // throw away whitespace (while remembering the position info)
-lexer Blanks {let _ = count_newlines x lexbuf in ()} :~ =
+lexer Blanks @newline:=true @order:=290 :~ =
   | [\r\n\t ]+
 ;

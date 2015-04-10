@@ -1,4 +1,4 @@
 Test = 123 + 456;
 other = 0 + 2;
-temp = -123 + -9;
+temp = -123 +  -9;
 exit;

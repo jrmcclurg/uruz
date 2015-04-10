@@ -108,6 +108,7 @@
     current_id := result - 1;
     result
 
+  let newline_kw = add_symbol "newline"
   let order_kw = add_symbol "order"
   let map_kw = add_symbol "map"
   let len_kw = add_symbol "len"

@@ -1,0 +1,40 @@
+// this is a simple numeric expression langage
+
+parser Program :int =
+  | Statement* eof # {
+    List.fold_left (fun sum n ->
+      match n with
+      | None -> 0
+      | Some(n2) -> sum+n2
+    ) 0 $1
+  }
+;
+
+parser Statement :(int option) =
+  | Ident '=':~ Expr ';':~ # AssignStmt { Some($3) }
+  | Reset ';':~            # ResetStmt   { None }
+;
+
+parser Expr =
+  | Integer                               # SingletonExpr { $1 }
+  | '-'@assoc:="nonassoc"@prec:=90:~ Expr # NegExpr       { (- $2) }
+  | Expr '+'@assoc:="left":~ Expr         # PlusExpr      { $1 + $3 }
+  | Expr '*'@assoc:="left":~ Expr         # TimesExpr     { $1 * $3 }
+  | '(':~ Expr ')':~                      # ParenExpr     { $2 }
+;
+
+lexer Integer :int =
+  | [0-9]+
+;
+
+keyword Reset = "reset" ;
+keyword TheTest = "test" ;
+
+lexer Ident @map:=true @order:=300 =
+  | [a-zA-Z]+
+;
+
+// throw away whitespace (while remembering the position info)
+lexer Blanks @newline:=true @order:=290 :~ =
+  | [\r\n\t ]+
+;
