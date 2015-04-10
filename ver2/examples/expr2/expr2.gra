@@ -4,15 +4,19 @@ parser Program :int =
   | Statement* eof # {
     List.fold_left (fun sum n ->
       match n with
-      | None -> 0
-      | Some(n2) -> sum+n2
+      | ResetStmt(_) -> 0
+      | AssignStmt(_,i,n2) -> sum+n2
+      | OutputStmt(_) -> Printf.printf "current = %d\n" sum; sum
+      | StrStmt(_,s) -> Printf.printf "%s\n" s; sum
     ) 0 $1
   }
 ;
 
-parser Statement :(int option) =
-  | Ident '=':~ Expr ';':~ # AssignStmt { Some($3) }
-  | Reset ';':~            # ResetStmt  { None }
+parser Statement =
+  | Ident '=':~ Expr ';':~ # AssignStmt
+  | Reset:~ ';':~          # ResetStmt
+  | Output:~ ';':~         # OutputStmt
+  | Print:~ String ';':~   # StrStmt
 ;
 
 parser Expr :int =
@@ -27,7 +31,13 @@ lexer Integer :int =
   | [0-9]+
 ;
 
+lexer String :string =
+  | '"' [^\"]* '"'
+;
+
 keyword Reset = "reset" ;
+keyword Print = "print" ;
+keyword Output = "output" ;
 
 lexer Ident @map:=true @order:=300 =
   | [a-zA-Z]+
