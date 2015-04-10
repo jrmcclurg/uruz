@@ -467,7 +467,7 @@ let rec build_def_graph_grammar (g : grammar_t) (count : int) : (simple_graph*In
       List.iter(fun name -> add p name ty1) (name::namel);
       prod_ids
     | KeywordDecl(p,name,ol,str) ->
-      (*Printf.printf "processing: keyword = %s\n" (get_symbol name);*)
+      Printf.printf "processing: keyword = %s\n" (get_symbol name);
       add p name (Some(SimpleType(p,NoType(p))));
       prod_ids
     | _ -> prod_ids), indx+1)
@@ -484,6 +484,9 @@ let rec build_def_graph_grammar (g : grammar_t) (count : int) : (simple_graph*In
       List.iter (fun pat -> build_def_graph_pattern pat graph name prod_ids) patl
     | _ -> ())
   ) (d::dl);
+  (*Hashtbl.iter (fun k (_,_,is_def,(ps,ty)) ->
+    if not is_def then die_error ps ("undefined identifier: "^(get_symbol k))
+  ) graph;*)
   (graph,prod_ids)
 
 and build_def_graph_pattern (p : pattern_t) (g : simple_graph) (parent : symb) (prod_ids : IntSet.t) : unit =
@@ -502,12 +505,13 @@ match anx with
 
 and build_def_graph_atom (a : atom_t) (g : simple_graph) (parent : symb) (typed : bool) (prod_ids : IntSet.t) : unit = match a with
 | IdentAtom(p,id) -> 
+    let fail id = die_error p ("undefined identifier: "^(get_symbol id)) in
     (* TODO XXX - this "typed" thing doesn't quite work due to the flattening! *)
-    let (x1,x2,x3,(x4,tyo)) = (try Hashtbl.find g id with Not_found -> (IntSet.empty,None,false,(p,None))) in
+    let (x1,x2,x3,(x4,tyo)) = (try Hashtbl.find g id with Not_found -> fail id) in
     let has_type = (match tyo with None -> false | Some(t) -> is_finalized_typ t) in
     Hashtbl.replace g id (x1,x2,x3,(x4,tyo));
     (*Printf.printf "%s depends on %s (typed = %b)\n" (get_symbol parent) (get_symbol id) has_type;*)
-    let (set,m,is_def,ps) = (try Hashtbl.find g parent with Not_found -> (IntSet.empty,None,false,(p,None))) in
+    let (set,m,is_def,ps) = (try Hashtbl.find g parent with Not_found -> fail parent) in
     Hashtbl.replace g parent ((if has_type || not (IntSet.mem id prod_ids) then set else IntSet.add id set),m,is_def,ps);
 | ProdAtom(p,Production(p2,_,pl)) ->
   List.iter (fun x -> build_def_graph_pattern x g parent prod_ids) pl
