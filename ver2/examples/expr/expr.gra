@@ -29,6 +29,6 @@ lexer Ident @map:=true =
 ;
 
 // throw away whitespace (while remembering the position info)
-lexer Blanks {count_newlines x lexbuf} :~ =
+lexer Blanks {let _ = count_newlines x lexbuf in ()} :~ =
   | [\r\n\t ]+
 ;

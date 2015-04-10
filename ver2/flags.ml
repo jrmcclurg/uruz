@@ -29,13 +29,22 @@ let compile_static = ref false
 let debug_symbols = ref false
 let libs = (Hashtbl.create 5 : (string,unit) Hashtbl.t)
 
-let lexer_code = ref (None : (symb option * code) option)
-let parser_code = ref (None : (symb option * code) option)
-let ast_code = ref (None : (symb option * code) option)
-let utils_code = ref (None : (symb option * code) option)
+let lexer_code = ref (None : (symb option * code * pos_t) option)
+let parser_code = ref (None : (symb option * code * pos_t) option)
+let ast_code = ref (None : (symb option * code * pos_t) option)
+let utils_code = ref (None : (symb option * code * pos_t) option)
 
 let typecast_table = Hashtbl.create 100
 let def_val_table = Hashtbl.create 10
+
+module PosSet = Set.Make(
+struct
+  type t = ((int*int) * pos_t)
+  let compare = Pervasives.compare
+end)
+
+(* (file,line) -> positions_set *)
+let lines_table = (Hashtbl.create 1000 : ((int*int),PosSet.t) Hashtbl.t)
 
 let chop_end_str str n = String.sub str 0 (max 0 ((String.length str)-n))
 
@@ -63,6 +72,8 @@ let get_prefix () = match (!filename,!file_prefix) with
   | (f,_) -> (get_filename f)(*^"_"*)
 
 let init_tables () =
+Hashtbl.clear lines_table;
+(* TODO XXX - should be resetting all global defaults here! *)
 (* default values *)
 Hashtbl.replace def_val_table string_kw "\"\"";
 Hashtbl.replace def_val_table int_kw "0";

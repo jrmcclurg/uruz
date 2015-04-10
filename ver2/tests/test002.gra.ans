@@ -1,24 +1,27 @@
-parser Three {List.rev x} :(_ list) = 
+parser Three = 
+| Three_0_0 
+;
+
+parser Three_0_0 {List.rev x} :(_ list) = 
 | ~ # {[]} :(_ list)
-| Three Three_0_0 # {let x = $2 in (x)::$1} :('t2 list)
+| Three_0_0 Three_0_0_0 # {let x = $2 in (x)::$1} :('t2 list)
 ;
 
-parser Three_0_0 = 
-| Three_0_0_0_0 
-| Three_0_0_1_0 
+parser Three_0_0_0 = 
+| Three_0_0_0_0_0 
+| Three_0_0_0_1_0 
 ;
 
-lexer Three_0_0_0_0 = 
+lexer Three_0_0_0_0_0 = 
 | "one" 
 ;
 
-lexer Three_0_0_1_0 = 
+lexer Three_0_0_0_1_0 = 
 | "two" 
 ;
 
-parser Four {List.rev x} :(_ list) = 
-| ~ # {[]} :(_ list)
-| Four Four_0_0 # {let x = $2 in (x)::$1} :('t2 list)
+parser Four = 
+| Four_0_0 
 ;
 
 parser Four_0_0 {List.rev x} :(_ list) = 
@@ -31,16 +34,21 @@ parser Four_0_0_0 {List.rev x} :(_ list) =
 | Four_0_0_0 Four_0_0_0_0 # {let x = $2 in (x)::$1} :('t2 list)
 ;
 
-parser Four_0_0_0_0 = 
-| Four_0_0_0_0_0_0 
-| Four_0_0_0_0_1_0 
+parser Four_0_0_0_0 {List.rev x} :(_ list) = 
+| ~ # {[]} :(_ list)
+| Four_0_0_0_0 Four_0_0_0_0_0 # {let x = $2 in (x)::$1} :('t2 list)
 ;
 
-lexer Four_0_0_0_0_0_0 = 
+parser Four_0_0_0_0_0 = 
+| Four_0_0_0_0_0_0_0 
+| Four_0_0_0_0_0_1_0 
+;
+
+lexer Four_0_0_0_0_0_0_0 = 
 | "one" 
 ;
 
-lexer Four_0_0_0_0_1_0 = 
+lexer Four_0_0_0_0_0_1_0 = 
 | "two" 
 ;
 

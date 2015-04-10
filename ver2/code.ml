@@ -72,10 +72,10 @@ let rec handle_props_tokens (g : grammar_t) : (grammar_t*int) = match g with
       | ("default_production_name",StringVal(p,s)) -> Flags.def_prod_name := s
       | ("parameter_name",StringVal(p,s)) -> Flags.param_name := s
       | ("type_name",StringVal(p,s)) -> Flags.type_name := s
-      | ("lexer_code",CodeVal(p,(s,c))) -> Flags.lexer_code := Some(s,c)
-      | ("parser_code",CodeVal(p,(s,c))) -> Flags.parser_code := Some(s,c)
-      | ("ast_code",CodeVal(p,(s,c))) -> Flags.ast_code := Some(s,c)
-      | ("utils_code",CodeVal(p,(s,c))) -> Flags.utils_code := Some(s,c)
+      | ("lexer_code",CodeVal(p,(s,c))) -> Flags.lexer_code := Some(s,c,p)
+      | ("parser_code",CodeVal(p,(s,c))) -> Flags.parser_code := Some(s,c,p)
+      | ("ast_code",CodeVal(p,(s,c))) -> Flags.ast_code := Some(s,c,p)
+      | ("utils_code",CodeVal(p,(s,c))) -> Flags.utils_code := Some(s,c,p)
       | ("libs",StringVal(p,s)) -> Hashtbl.clear Flags.libs; List.iter (fun lib -> Hashtbl.replace Flags.libs lib ()) (Str.split (Str.regexp "[ \t\r\n]*,[ \t\r\n]*") s)
       | _ -> die_error p "invalid property name or type"
       );
@@ -451,7 +451,7 @@ let rec build_def_graph_grammar (g : grammar_t) (count : int) : (simple_graph*In
   let add p2 name ty1 = (
       let has_type = (match ty1 with None -> false | Some(t) -> is_finalized_typ t) in
       let str = get_symbol name in
-      Printf.printf ">>>>>> processing name: '%s' = (%b) %s\n%!" str has_type (str_option str_typ_t ty1);
+      (*Printf.printf ">>>>>> processing name: '%s' = (%b) %s\n%!" str has_type (str_option str_typ_t ty1);*)
       let (x,is_def) = (try (Hashtbl.find graph name, true)
         with Not_found -> ((IntSet.empty,None,false,(p2,if has_type then ty1 else None)),false)) in
       if is_def then die_error p2 ("multiple definition of '"^str^"'")
@@ -467,7 +467,7 @@ let rec build_def_graph_grammar (g : grammar_t) (count : int) : (simple_graph*In
       List.iter(fun name -> add p name ty1) (name::namel);
       prod_ids
     | KeywordDecl(p,name,ol,str) ->
-      Printf.printf "processing: keyword = %s\n" (get_symbol name);
+      (*Printf.printf "processing: keyword = %s\n" (get_symbol name);*)
       add p name (Some(SimpleType(p,NoType(p))));
       prod_ids
     | _ -> prod_ids), indx+1)
@@ -506,7 +506,7 @@ and build_def_graph_atom (a : atom_t) (g : simple_graph) (parent : symb) (typed 
     let (x1,x2,x3,(x4,tyo)) = (try Hashtbl.find g id with Not_found -> (IntSet.empty,None,false,(p,None))) in
     let has_type = (match tyo with None -> false | Some(t) -> is_finalized_typ t) in
     Hashtbl.replace g id (x1,x2,x3,(x4,tyo));
-    Printf.printf "%s depends on %s (typed = %b)\n" (get_symbol parent) (get_symbol id) has_type;
+    (*Printf.printf "%s depends on %s (typed = %b)\n" (get_symbol parent) (get_symbol id) has_type;*)
     let (set,m,is_def,ps) = (try Hashtbl.find g parent with Not_found -> (IntSet.empty,None,false,(p,None))) in
     Hashtbl.replace g parent ((if has_type || not (IntSet.mem id prod_ids) then set else IntSet.add id set),m,is_def,ps);
 | ProdAtom(p,Production(p2,_,pl)) ->
@@ -762,10 +762,10 @@ let fail p = die_error p ("don't know how to cast type "^(str_constr_type_t old_
     )
 
 and typecast_lists (arg : string) (p : pos_t) (index : int) (old_types : constr_type_t list) (new_types : constr_type_t list) (inputs : int list) (result : code list) : (int list * code list * int) =
-Printf.printf "  > casting lists (%d): %s  ==>  %s\n" index (str_x_list str_constr_type_t old_types "; ") (str_x_list str_constr_type_t new_types "; ");
+(*Printf.printf "  > casting lists (%d): %s  ==>  %s\n" index (str_x_list str_constr_type_t old_types "; ") (str_x_list str_constr_type_t new_types "; ");*)
 let append a l = (match a with None -> l | Some(a) -> a::l) in
   match (old_types,new_types) with
-  | ([],[]) -> Printf.printf "done lists: %s\n" (str_x_list string_of_int inputs ", "); (List.rev inputs,List.rev result,index-1)
+  | ([],[]) -> (*Printf.printf "done lists: %s\n" (str_x_list string_of_int inputs ", ");*) (List.rev inputs,List.rev result,index-1)
   | ((SingletonConstrType(_,SimpleType(_,NoType(_))))::more1,(SingletonConstrType(_,SimpleType(_,NoType(_))))::more2) -> typecast_lists arg p (index+1) more1 more2 inputs result
   | ((SingletonConstrType(_,SimpleType(_,NoType(_))))::more,_) -> typecast_lists arg p (index+1) more new_types inputs result
   (*| (_,(SingletonConstrType(_,SimpleType(_,NoType(_))))::more) -> typecast_lists arg p index old_types more result*)
@@ -783,10 +783,10 @@ let append a l = (match a with None -> l | Some(a) -> a::l) in
   | ([],SingletonConstrType(p,_)::_)
   | ([],InstConstrType(p,_,_)::_)
   | (SingletonConstrType(p,_)::_,[])
-  | (InstConstrType(p,_,_)::_,[]) -> Printf.printf "fail lists\n"; raise (IncompatibleLists(p))
+  | (InstConstrType(p,_,_)::_,[]) -> (*Printf.printf "fail lists\n";*) raise (IncompatibleLists(p))
 
 and typecast_typ (arg : string) (old_type : typ_t) (new_type : typ_t) : code option =
-Printf.printf " > casting %s => %s\n\n" (str_typ_t old_type) (str_typ_t new_type);
+(*Printf.printf " > casting %s => %s\n\n" (str_typ_t old_type) (str_typ_t new_type);*)
 let fail p b = die_error p ("don't know how to cast type "^(str_typ_t old_type)^" to "^(str_typ_t new_type)^(if b then ": mismatching argument count" else "")) in
 (*Printf.printf ">>> trying to convert %s to %s\n" (str_typ_t old_type) (str_typ_t new_type);*)
 match (old_type,new_type) with
@@ -870,7 +870,8 @@ CompoundType(_,CommaType(_,[[SingletonConstrType(_,t2)]]))) ->
   ))
 (* ('s * 't * ...)  ==>  (Foo of 's * 't * ...) *)
 | (CompoundType(p,CommaType(_,[l1])),CompoundType(_,AbstrType(_,IdentName(_,[name]),l2))) ->
-  let (indices,x,_) = (try typecast_lists arg p 1 l1 l2 [] [] with ex -> Printf.printf "!!!try again 1:\n%s\n" (Printexc.to_string ex);(try typecast_lists arg p 1 [SingletonConstrType(p,old_type)] l2 [] [] with IncompatibleLists(p) -> fail p true)) in
+  let (indices,x,_) = (try typecast_lists arg p 1 l1 l2 [] [] with ex ->
+  (*Printf.printf "!!!try again 1:\n%s\n" (Printexc.to_string ex);*)(try typecast_lists arg p 1 [SingletonConstrType(p,old_type)] l2 [] [] with IncompatibleLists(p) -> fail p true)) in
   Some(Code(p,Printf.sprintf "(%s%s(%s))"
     (if (List.length indices)>0 then Printf.sprintf "let (%s) = %s in " (str_x_list (fun x -> arg^"_"^(string_of_int x)) indices ",") arg else "")
     (get_symbol name)
@@ -878,7 +879,7 @@ CompoundType(_,CommaType(_,[[SingletonConstrType(_,t2)]]))) ->
   ))
 (* (Foo of 's * 't * ...)  ==>  ('s * 't * ...) *)
 | (CompoundType(p,AbstrType(_,IdentName(_,names),l1)),CompoundType(p2,CommaType(_,[l2]))) ->
-  let (indices,x,_) = (try typecast_lists arg p 1 l1 l2 [] [] with _ -> Printf.printf "!!!try again 2\n";(try typecast_lists arg p 1 l1 [SingletonConstrType(p2,new_type)] [] [] with IncompatibleLists(p) -> fail p true)) in
+  let (indices,x,_) = (try typecast_lists arg p 1 l1 l2 [] [] with _ -> (*Printf.printf "!!!try again 2\n";*)(try typecast_lists arg p 1 l1 [SingletonConstrType(p2,new_type)] [] [] with IncompatibleLists(p) -> fail p true)) in
   (*let args = (str_x_list (fun x -> arg^"_"^(string_of_int x)) indices ",") in*)
   let args = (str_x_list (fun x -> arg^"_"^(string_of_int x)) (range 1 (List.length l1)) ",") in
   let c = (str_x_list (str_code_plain) x ",") in
@@ -1080,19 +1081,19 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) (gr : si
     (match d with
     (* NOTE - all productions should be named at this point *)
     | ProdDecl(p,(Production(p2,(rto,(Some(name),(ol,(_,tyo)))),pl) as prod)) ->
-      Hashtbl.replace prod_table name (prod,indx);
-      Printf.printf "adding: %s\n%!" (get_symbol name)
+      Hashtbl.replace prod_table name (prod,indx)
+      (*Printf.printf "adding: %s\n%!" (get_symbol name)*)
     | _ -> ());
     indx+1
   ) 0 (d::dl) in
-  Printf.printf "\n\n----------------------\n";
+  (*Printf.printf "\n\n----------------------\n";*)
 
   let prods = List.rev (List.fold_left (fun acc (name,ps) ->
     (* for each production... *)
     let ((Production(p,(rt,(name1,(ol1,(cd1,ty1)))),pl) as prod),indx) =
       (try Hashtbl.find prod_table name
       with Not_found -> die_error ps ("1 could not find production '"^(get_symbol name)^"'")) in
-    Printf.printf "\n\nstarting %s:\n%s\n" (get_symbol name) (str_production_t prod);
+    (*Printf.printf "\n\nstarting %s:\n%s\n" (get_symbol name) (str_production_t prod);*)
     let is_lexer = (match rt with (Some(Lexer)) -> true | _ -> false) in
     let auto_name = get_auto_type_name name in
     let pl = (if is_lexer then
@@ -1132,7 +1133,7 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) (gr : si
       ((Pattern(p,(al2,xo2)),tys,ty2,ty3,index)::acc,index+1,init_type)
     ) ([],0,None) pl) in
 
-    Printf.printf ">> init type = %s\n" (str_option str_typ_t init_type);
+    (*Printf.printf ">> init type = %s\n" (str_option str_typ_t init_type);*)
 
     (*let ord a b = (match (a,b) with
     | (Some(_),Some(_)) -> 0
@@ -1143,12 +1144,12 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) (gr : si
     let pl2_types = List.rev pl2_types in
 
     (* Step 2 - try to unify the types of the patterns *)
-    let (pl2,types,ty) = (List.fold_left (fun (acc,acc2,tyo) ((Pattern(p,(al,xo)) as pat),tys,xty2,xty3,indx) ->
-      Printf.printf "current = %s\n" (str_option str_typ_t tyo);
-      Printf.printf "pattern %d [%s] = {%s} (%s) (%s)\n" indx (str_pattern_t pat) (str_x_list str_typ_t tys "; ") (str_option str_typ_t xty2) (str_option str_typ_t xty3);
+    let (pl2,types,ty) = (List.fold_left (fun (acc,acc2,tyo) ((Pattern(p,(al,xo)) (*as pat*)),tys,xty2,xty3,indx) ->
+      (*Printf.printf "current = %s\n" (str_option str_typ_t tyo);
+      Printf.printf "pattern %d [%s] = {%s} (%s) (%s)\n" indx (str_pattern_t pat) (str_x_list str_typ_t tys "; ") (str_option str_typ_t xty2) (str_option str_typ_t xty3);*)
       let (is_auto,_) = (match tyo with None -> (true,false) | Some(tyo) -> is_auto_type tyo auto_name) in
       let tyo2 = (match ((if is_auto && xty3<>None then xty3 else xty2),tyo) with
-        | (Some(ty),Some(ty2)) -> Printf.printf "unify %s / %s\n" (str_typ_t ty) (str_typ_t ty2); Some(unify_typ ty ty2 auto_name)
+        | (Some(ty),Some(ty2)) -> (*Printf.printf "unify %s / %s\n" (str_typ_t ty) (str_typ_t ty2);*) Some(unify_typ ty ty2 auto_name)
         | (_,Some(ty2)) -> Some(ty2)
         | (Some(ty),_) -> Some(ty)
         | (None,None) -> None
@@ -1157,14 +1158,14 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) (gr : si
     ) ([],[],init_type) pl2_types) in
 
     (*let ty = (if name=(add_symbol "OptType") then None else ty) in*)
-    Printf.printf ">> ty bef = %s\n" (str_option str_typ_t ty);
+    (*Printf.printf ">> ty bef = %s\n" (str_option str_typ_t ty);*)
 
     (* if the LHS type isn't finalized, unify with RHS type *)
     let ty = (match (ty,ty1) with
     | (None,_) -> ty1
     | (_,None) -> ty
     | (Some(t),Some(t2)) -> if is_finalized_typ t then ty else Some(unify_typ t t2 auto_name)) in
-    Printf.printf ">> ty aft = %s\n" (str_option str_typ_t ty);
+    (*Printf.printf ">> ty aft = %s\n" (str_option str_typ_t ty);*)
     (*let pl2 = List.rev pl2 in*)
 
     (* compute concrete type for RHS *)
@@ -1183,13 +1184,13 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) (gr : si
     | (Some(ty1),ty2) -> if is_finalized_typ ty1 then (ty1) else (unify_typ ty1 ty2 auto_name)) in
     (if is_finalized_typ ty1 then () else die_error p ("this production's overall type "^(str_typ_t ty1)^" contains type variables which can't be eliminated"));
 
-    Printf.printf ">>>>>>>> prod type init = %s\n" (str_typ_t ty1);
+    (*Printf.printf ">>>>>>>> prod type init = %s\n" (str_typ_t ty1);*)
     
     (*let ty = (match ty with CompoundType(_,AbstrType(_,_,_)) -> SimpleType(p,IdentType(p,[auto_name])) | _ -> ty) in*)
 
     (* NOTE - we now replace the old pattern types with the new ones *)
     let (pl2,_) = List.fold_left2 (fun (acc,index) (Pattern(p,(al,xo))) tys ->
-      Printf.printf "-----\n";
+      (*Printf.printf "-----\n";*)
       let str = get_symbol name in
       let kw_name = add_symbol (str^"_"^(string_of_int index)) in
       let mk_ty nm = (if is_auto then
@@ -1213,38 +1214,38 @@ let typecheck (g : grammar_t) (comps : (symb*pos_t) list) (count : int) (gr : si
         (* TODO XXX - IdentName *)
         let new_ty = (match nn with IdentName(_) -> ct | _ -> CompoundType(x1,AbstrType(x2,IdentName(x2,[name2]),x3))) in
         check new_ty;
-        Printf.printf ">> 1 casting %s  =>  %s\n" (str_x_list str_typ_t tys "; ") (str_typ_t new_ty);
+        (*Printf.printf ">> 1 casting %s  =>  %s\n" (str_x_list str_typ_t tys "; ") (str_typ_t new_ty);*)
         (Some(Some(name2),(opts,(typecast cd tys new_ty false rt auto_name,Some(new_ty)))),new_ty)
       | Some(name,(opts,(cd,_))) ->
         let new_ty = mk_ty name in
         check new_ty;
-        Printf.printf ">> 2 casting %s  =>  %s\n" (str_x_list str_typ_t tys "; ") (str_typ_t new_ty);
+        (*Printf.printf ">> 2 casting %s  =>  %s\n" (str_x_list str_typ_t tys "; ") (str_typ_t new_ty);*)
         (Some((match name with None -> Some(kw_name) | _ -> name),(opts,(typecast cd tys new_ty false rt auto_name,Some(new_ty)))),new_ty)
       | None ->
         let new_ty = mk_ty None in
         check new_ty;
-        Printf.printf ">> 3 casting %s  =>  %s\n\n" (str_x_list str_typ_t tys "; ") (str_typ_t new_ty);
+        (*Printf.printf ">> 3 casting %s  =>  %s\n\n" (str_x_list str_typ_t tys "; ") (str_typ_t new_ty);*)
         (Some(Some(kw_name),([],(typecast None tys new_ty false rt auto_name,Some(new_ty)))),new_ty)
       ) in
       (((Pattern(p,(al,xo2)))::acc),index-1)
     ) ([],(List.length pl2)-1) pl2 types in
 
-    Printf.printf "processing:\n---------\n%s\n--------\nunified = %s / %s\nauto name = %s\nis auto = %b\ncode = %s\n\n%!"
+    (*Printf.printf "processing:\n---------\n%s\n--------\nunified = %s / %s\nauto name = %s\nis auto = %b\ncode = %s\n\n%!"
       (str_production_t prod)
       (str_typ_t ty)
       (str_typ_t ty1)
       (get_symbol auto_name)
       is_auto
       (str_option str_code cd1)
-      ;
+      ;*)
 
     let ty1xx = if fst (is_auto_type ty1 auto_name) then SimpleType(p,IdentType(p,[auto_name])) else ty1 in
     let ol2 = if is_auto then ol1 else ((ValOption(p,Some(auto_kw),BoolVal(p,false)))::ol1) in
-    Printf.printf ">>>>>>>> prod type final = %s\n" (str_typ_t ty1xx);
+    (*Printf.printf ">>>>>>>> prod type final = %s\n" (str_typ_t ty1xx);*)
 
     (*Printf.printf ">> trying to cast %s  =>  %s\n" (str_typ_t ty) (str_typ_t ty1);*)
     let result = Production(p,(rt,(name1,(ol2,(typecast cd1 [ty] ty1 true rt auto_name,Some(ty1xx))))),pl2) in
-    Printf.printf "success:\n%s\n" (str_production_t result);
+    (*Printf.printf "success:\n%s\n" (str_production_t result);*)
     (* add production type to the table *)
     Hashtbl.replace gr name (IntSet.empty,None,false,(p,Some(ty1xx))); (* TODO XXX - do we need to Hashtbl.find first? *)
     Hashtbl.replace prod_table name (result,(*Some(ty1),*)indx);
@@ -1274,10 +1275,10 @@ match g with Grammar(p,(d,dl)) ->
 (* first make sure that the types of duplicated lexers are compatible *)
 let table = Hashtbl.create 100 (* TODO XXX - size? *) in
 PatternsHash.iter (fun k (nm,prec,ty,v) ->
-  let auto = get_auto_type_name nm in
+  (*let auto = get_auto_type_name nm in*)
   let els = (str_x_list get_symbol (IntSet.elements v) ", ") in
   IntSet.iter (fun x -> if x<>nm then Hashtbl.replace table x nm) v;
-  Printf.printf "\npatterns = %s\n  new = %s (%s)\n  prec = %d\n  vals = %s\n  types = %s\n" (str_x_list str_pattern_t k ", ") (get_symbol nm) (get_symbol auto) prec els (str_x_list str_typ_t ty ", ");
+  (*Printf.printf "\npatterns = %s\n  new = %s (%s)\n  prec = %d\n  vals = %s\n  types = %s\n" (str_x_list str_pattern_t k ", ") (get_symbol nm) (get_symbol auto) prec els (str_x_list str_typ_t ty ", ");*)
   let (check,_) = List.fold_left (fun (check,acc) t -> match acc with None -> (check,Some(t)) | Some(tx) -> ((check && tx=t),Some(t))) (true,None) ty in
   (if not check then die_error NoPos (Printf.sprintf "lexers (%s) match equivalent patterns, so they must have equivalent overall types" els))
   
@@ -1315,15 +1316,6 @@ and combine_atom (table : (symb,symb) Hashtbl.t) (a : atom_t) : atom_t = match a
 (******************************************)
 (******************************************)
 
-let output_warning_msg (f : out_channel) (s1 : string) (s4 : string) (s2 : string) (s3 : string) : unit =
-   output_string f (s1^
-   s4^" THIS IS AN AUTO-GENERATED FILE PRODUCED BY PGG2!\n"^
-   s2^" DO NOT EDIT THIS FILE, since any changes will be\n"^
-   s2^" lost when the build is reset via \"make clean\".\n"^
-   s2^" This file is based on a user-specified EBNF\n"^
-   s2^" grammar, which can be edited as desired.\n"^
-   s3)
-
 let rec lex_str_pattern (pa : pattern_t) : string = match pa with
 | Pattern(_,(al,_)) -> str_x_list lex_str_annot_atom al " "
 
@@ -1352,15 +1344,58 @@ and lex_str_chars (ch : chars) : string = match ch with
 | SingletonChar(c) -> Printf.sprintf "%C" c
 | RangeChar(c1,c2) -> Printf.sprintf "%C-%C" c1 c2
 
-let output_lexer_code o prefix g (keywords : (symb*string) list) = match g with
+let output_line_num = ref 1
+let output_char_num = ref 1
+let output_filename = ref 0
+
+let output_lines ps o str = (
+  let len = String.length str in
+  if len > 0 then (
+    let lines = Str.split (Str.regexp "[\n]") str in
+let newline = (String.get str ((String.length str)-1))='\n' in
+let (lines2,_) = List.fold_left (fun (acc,flag) line -> (((line,not flag)::acc),false)) ([],not newline) (List.rev lines) in
+List.iter (fun (line,newline) ->
+  let len = String.length line in
+
+  Printf.fprintf o "%s%s" line (if newline then "\n" else "");
+  (*Printf.printf ">>> outputted at (line=%d, char=%d): %s\n" !output_line_num !output_char_num line;*)
+
+    let current = (!output_filename,!output_line_num) in
+    let set = (try Hashtbl.find lines_table current with Not_found -> PosSet.empty) in
+    Hashtbl.replace lines_table current (PosSet.add ((!output_char_num, !output_char_num + len),ps) set);
+
+    output_line_num := !output_line_num + (if newline then 1 else 0);
+    if newline then output_char_num := 1 else output_char_num := !output_char_num + (String.length line)
+
+) lines2;
+  )
+)
+
+let output_warning_msg (ps : pos_t) (f : out_channel) (s1 : string) (s4 : string) (s2 : string) (s3 : string) : unit =
+   output_lines ps f (s1^
+   s4^" THIS IS AN AUTO-GENERATED FILE PRODUCED BY PGG2!\n"^
+   s2^" DO NOT EDIT THIS FILE, since any changes will be\n"^
+   s2^" lost when the build is reset via \"make clean\".\n"^
+   s2^" This file is based on a user-specified EBNF\n"^
+   s2^" grammar, which can be edited as desired.\n"^
+   s3)
+
+let reset_output filename = (
+  output_line_num := 1;
+  output_char_num := 1;
+  output_filename := (add_symbol filename)
+)
+
+let output_lexer_code filename o prefix g (keywords : (symb*string*pos_t) list) = match g with
 | Grammar(pos,(d,dl)) ->
   let recur_prefix = "entry_" in
-  output_warning_msg o "(*\n" " *" " *" " *)";
-  output_string o "\n\n";
-  output_string o "{\n";
-  output_string o ("   open "^(String.capitalize (prefix^"parser"))^";;\n");
-  output_string o ("   open "^(String.capitalize (prefix^"ast"))^";;\n");
-  output_string o ("   open "^(String.capitalize (prefix^"utils"))^";;\n\n");
+  reset_output filename;
+  output_warning_msg pos o "(*\n" " *" " *" " *)";
+  output_lines pos o "\n\n";
+  output_lines pos o "{\n";
+  output_lines pos o ("   open "^(String.capitalize (prefix^"parser"))^";;\n");
+  output_lines pos o ("   open "^(String.capitalize (prefix^"ast"))^";;\n");
+  output_lines pos o ("   open "^(String.capitalize (prefix^"utils"))^";;\n\n");
   let (rules,keys) = List.fold_left (fun (acc,acc2) d ->
     match d with
     (* NOTE - name and type should be Some(_) at this point *)
@@ -1377,27 +1412,27 @@ let output_lexer_code o prefix g (keywords : (symb*string) list) = match g with
 
 if not (IntSet.is_empty keys) then (
   let key = IntSet.choose keys in (* TODO XXX - for now we just choose one (there should only be one in the program) *)
-  output_string o ("  let tokens = ((Hashtbl.create 100) : ((string,token) Hashtbl.t)) ;;\n");
-  output_string o ("  let add_token str vl =\n");
-  output_string o ("    try let _ = Hashtbl.find tokens str in\n");
-  output_string o ("      (parse_error (\"token \"^str^\" already exists\"))\n");
-  output_string o ("    with _ -> Hashtbl.replace tokens str vl\n");
-  output_string o ("  ;;\n");
-  output_string o ("\n");
-  output_string o ("  let lookup_keyword str =\n");
-  output_string o ("     try (let x = Hashtbl.find tokens str in x)\n");
-  Printf.fprintf o ("     with _ -> %s str\n") (get_token_name (get_symbol key));
-  output_string o ("  ;;\n");
-  output_string o ("\n");
-  List.iter (fun (name,str) ->
-  Printf.fprintf o ("  add_token \"%s\" %s ;;\n") str (get_token_name (get_symbol name));
+  output_lines pos o ("  let tokens = ((Hashtbl.create 100) : ((string,token) Hashtbl.t)) ;;\n");
+  output_lines pos o ("  let add_token str vl =\n");
+  output_lines pos o ("    try let _ = Hashtbl.find tokens str in\n");
+  output_lines pos o ("      (parse_error (\"token \"^str^\" already exists\"))\n");
+  output_lines pos o ("    with _ -> Hashtbl.replace tokens str vl\n");
+  output_lines pos o ("  ;;\n");
+  output_lines pos o ("\n");
+  output_lines pos o ("  let lookup_keyword str =\n");
+  output_lines pos o ("     try (let x = Hashtbl.find tokens str in x)\n");
+  output_lines pos o (Printf.sprintf ("     with _ -> %s str\n") (get_token_name (get_symbol key)));
+  output_lines pos o ("  ;;\n");
+  output_lines pos o ("\n");
+  List.iter (fun (name,str,px) ->
+  output_lines px o (Printf.sprintf "  add_token \"%s\" %s ;;\n" str (get_token_name (get_symbol name)));
   ) keywords
 );
 
-  (match !Flags.lexer_code with Some(s(*TODO XXX*),c) -> output_string o (str_code_plain c) | _ -> ());
-  output_string o "\n}\n\n";
-  output_string o ("(* The type \"token\" is defined in "^(String.capitalize (prefix^"parser.mli"))^" *)\n");
-  output_string o "rule token = parse\n";
+  (match !Flags.lexer_code with Some(s(*TODO XXX*),c,px) -> output_lines px o (str_code_plain c) | _ -> ());
+  output_lines pos o "\n}\n\n";
+  output_lines pos o ("(* The type \"token\" is defined in "^(String.capitalize (prefix^"parser.mli"))^" *)\n");
+  output_lines pos o "rule token = parse\n";
 
   (* sort by order annotations *)
   let rules = List.sort (fun (p1,_,_,_,_,_) (p2,_,_,_,_,_) -> compare p1 p2) rules in
@@ -1411,11 +1446,11 @@ if not (IntSet.is_empty keys) then (
   (* output the normal rules *)
   List.iter (fun (_,name,ty,len,is_key,(Production(ps,(r,(nameo,(ol,(cd,tyo)))),patl))) ->
     match patl with
-    | [Pattern(_,([SingletonAnnotAtom(_,RecurAtom(_,s1,s2))],_))] ->
-      Printf.fprintf o "| \"%s\" { %s%s 0 \"\" lexbuf }\n" s1 recur_prefix (String.lowercase name)
+    | [Pattern(_,([SingletonAnnotAtom(_,RecurAtom(px,s1,s2))],_))] ->
+      output_lines px o (Printf.sprintf "| \"%s\" { %s%s 0 \"\" lexbuf }\n" s1 recur_prefix (String.lowercase name))
     | _ ->
       let the_code = get_the_code cd name ty len is_key in
-      Printf.fprintf o "| (%s) as %s {ignore %s; %s} (* %s : %s (len = %d) (kw = %b) *)\n"
+      output_lines ps o (Printf.sprintf "| (%s) as %s {ignore %s; %s} (* %s : %s (len = %d) (kw = %b) *)\n"
         (str_x_list lex_str_pattern patl " ")
         !Flags.param_name
         !Flags.param_name
@@ -1423,21 +1458,21 @@ if not (IntSet.is_empty keys) then (
         (name)
         (str_typ_t ty)
         len
-        is_key;
+        is_key);
   ) rules;
-  Printf.fprintf o "| eof { %s }\n" !Flags.lexer_eof_token_name;
-  output_string o "| _ { lex_error \"lexing error\" lexbuf }\n";
+  output_lines pos o (Printf.sprintf "| eof { %s }\n" !Flags.lexer_eof_token_name);
+  output_lines pos o "| _ { lex_error \"lexing error\" lexbuf }\n";
   (* output the recursive rules *)
   List.iter (fun (_,name,ty,len,is_key,(Production(ps,(r,(nameo,(ol,(cd,tyo)))),patl))) ->
     match patl with
-    | [Pattern(_,([SingletonAnnotAtom(_,RecurAtom(_,s1,s2))],_))] ->
+    | [Pattern(_,([SingletonAnnotAtom(_,RecurAtom(px,s1,s2))],_))] ->
       let the_code = get_the_code cd name ty len is_key in
       let rule_name = recur_prefix^(String.lowercase name) in
-      Printf.fprintf o "\nand %s n %s = parse\n" rule_name !Flags.param_name;
-      Printf.fprintf o "| \"%s\" { %s (n+1) (%s^\"%s\") lexbuf }\n" s1 rule_name !Flags.param_name s1;
-      Printf.fprintf o "| \"%s\" { if (n=0) then (%s) else %s (n-1) (%s^\"%s\") lexbuf }\n" s2 the_code rule_name !Flags.param_name s2;
-      Printf.fprintf o "| _ as c { if c='\\n' then do_newline lexbuf;\n";
-      Printf.fprintf o "              %s n (Printf.sprintf \"%%s%%c\" %s c) lexbuf }\n" rule_name !Flags.param_name;
+      output_lines px o (Printf.sprintf "\nand %s n %s = parse\n" rule_name !Flags.param_name);
+      output_lines px o (Printf.sprintf "| \"%s\" { %s (n+1) (%s^\"%s\") lexbuf }\n" s1 rule_name !Flags.param_name s1);
+      output_lines px o (Printf.sprintf "| \"%s\" { if (n=0) then (%s) else %s (n-1) (%s^\"%s\") lexbuf }\n" s2 the_code rule_name !Flags.param_name s2);
+      output_lines px o (Printf.sprintf "| _ as c { if c='\\n' then do_newline lexbuf;\n");
+      output_lines px o (Printf.sprintf "              %s n (Printf.sprintf \"%%s%%c\" %s c) lexbuf }\n" rule_name !Flags.param_name);
     | _ -> ()
   ) rules
 
@@ -1475,14 +1510,15 @@ and parser_str_atom (g : IntSet.t) (a : atom_t) : string = match a with
 | RecurAtom(p,_,_) -> die_error p "not all non-parser elements were eliminated"
 
 
-let output_parser_code o prefix g (gr : simple_graph) : (string*(symb*string) list) = match g with
+let output_parser_code filename o prefix g (gr : simple_graph) : (string*(symb*string*pos_t) list) = match g with
 | Grammar(pos,(d,dl)) ->
-  output_warning_msg o "/*\n(" "*" " *" " *) */";
+  reset_output filename;
+  output_warning_msg pos o "/*\n(" "*" " *" " *) */";
   output_string o "\n\n";
   output_string o "%{\n";
   output_string o ("   open "^(String.capitalize (prefix^"ast"))^";;\n");
   output_string o ("   open "^(String.capitalize (prefix^"utils"))^";;\n\n");
-  (match !Flags.parser_code with Some(s(*TODO XXX*),c) -> output_string o (str_code_plain c) | _ -> ());
+  (match !Flags.parser_code with Some(s(*TODO XXX*),c,px) -> output_string o (str_code_plain c) | _ -> ());
   output_string o "\n%}\n\n";
   Printf.fprintf o "%%token %s\n" !Flags.lexer_eof_token_name;
 
@@ -1524,7 +1560,7 @@ let output_parser_code o prefix g (gr : simple_graph) : (string*(symb*string) li
       (fp,acc,acc2,keywords)
     | KeywordDecl(p,name,(ol,(cd,ty)),str) ->
       add p (SimpleType(p,NoType(p))) [name] ol;
-      (fp,acc,acc2,(name,str)::keywords)
+      (fp,acc,acc2,(name,str,p)::keywords)
     | _ -> (fp,acc,acc2,keywords)
   ) (None,[],IntSet.empty,[]) (d::dl) in
   let prods2 = List.rev prods2 in
@@ -1620,12 +1656,13 @@ let ast_str_pattern (pa : pattern_t) : string option = match pa with
   ast_str_typ ty
 | Pattern(p,(al,_)) -> (* TODO XXX *) die_error p "pattern did not receive name/type"
 
-let output_ast_code o prefix g = match g with
+let output_ast_code filename o prefix g = match g with
 | Grammar(pos,(d,dl)) ->
-  output_warning_msg o "(*\n" " *" " *" " *)";
+  reset_output filename;
+  output_warning_msg pos o "(*\n" " *" " *" " *)";
   output_string o "\n\n";
   output_string o ("open "^(String.capitalize (prefix^"utils"))^";;\n");
-  (match !Flags.parser_code with Some(s(*TODO XXX*),c) -> output_string o (str_code_plain c) | _ -> ());
+  (*(match !Flags.parser_code with Some(s(*TODO XXX*),c) -> output_string o (str_code_plain c) | _ -> ());*)
   output_string o "\n(* AST Data Structure *)\n";
   let _ = List.fold_left (fun first d ->
     match d with
@@ -1647,12 +1684,13 @@ let output_ast_code o prefix g = match g with
       )
     | _ -> first
   ) true (d::dl) in
-  (match !Flags.ast_code with Some(s(*TODO XXX*),c) -> output_string o (str_code_plain c) | _ -> ());
+  (match !Flags.ast_code with Some(s(*TODO XXX*),c,px) -> output_string o (str_code_plain c) | _ -> ());
   ()
 
-let output_utils_code o prefix g = match g with
+let output_utils_code filename o prefix g = match g with
 | Grammar(pos,(d,dl)) ->
-  output_warning_msg o "(*\n" " *" " *" " *)";
+  reset_output filename;
+  output_warning_msg pos o "(*\n" " *" " *" " *)";
   output_string o "\n\nopen Lexing;;\n";
   output_string o "open Parsing;;\n";
   output_string o "(* open Flags;; *)\n";
@@ -1779,11 +1817,12 @@ let output_utils_code o prefix g = match g with
   output_string o "      (str^(if flag then \"\" else comma)^(f i), false)\n";
   output_string o "    ) (\"\",true) il))\n";
   output_string o ";;\n";
-  (match !Flags.utils_code with Some(s(*TODO XXX*),c) -> output_string o (str_code_plain c) | _ -> ())
+  (match !Flags.utils_code with Some(s(*TODO XXX*),c,px) -> output_string o (str_code_plain c) | _ -> ())
 
-let output_main_code o prefix g pname = match g with
+let output_main_code filename o prefix g pname = match g with
 | Grammar(pos,(d,dl)) ->
-  output_warning_msg o "(*\n" " *" " *" " *)";
+  reset_output filename;
+  output_warning_msg pos o "(*\n" " *" " *" " *)";
   output_string o "\n\n";
   output_string o ("open "^(String.capitalize (prefix^"parser"))^";;\n");
   output_string o ("open "^(String.capitalize (prefix^"lexer"))^";;\n");
@@ -1810,8 +1849,9 @@ let generate_makefile_vars o =
    output_string o ("CMO = cm"^xo^"\n");
    output_string o ("CMA = cm"^xa^"a\n")
 
-let output_makefile_code o prefix =
-  output_warning_msg o "#\n" "#" "#" "#";
+let output_makefile_code filename o prefix =
+  reset_output filename;
+  output_warning_msg NoPos o "#\n" "#" "#" "#";
   output_string o "\n\n";
   output_string o "ifndef OCAMLC\n";
   generate_makefile_vars o;
@@ -1956,23 +1996,29 @@ let generate_skeleton dir prefix bin_name grammar_filename =
 
 let output_code dir prefix g bin_name grammar_filename gr =
   let dir_prefix = (match dir with None -> "" | Some(d) -> d^Filename.dir_sep) in
-  let o = open_out (dir_prefix^prefix^"parser.mly") in
-  let (start_name,keywords) = output_parser_code o prefix g gr in
+  let fn = prefix^"parser.mly" in
+  let o = open_out (dir_prefix^fn) in
+  let (start_name,keywords) = output_parser_code fn o prefix g gr in
   close_out o;
-  let o = open_out (dir_prefix^prefix^"lexer.mll") in
-  output_lexer_code o prefix g keywords;
+  let fn = prefix^"lexer.mll" in
+  let o = open_out (dir_prefix^fn) in
+  output_lexer_code fn o prefix g keywords;
   close_out o;
-  let o = open_out (dir_prefix^prefix^"ast.ml") in
-  output_ast_code o prefix g;
+  let fn = prefix^"ast.ml" in
+  let o = open_out (dir_prefix^fn) in
+  output_ast_code fn o prefix g;
   close_out o;
-  let o = open_out (dir_prefix^prefix^"utils.ml") in
-  output_utils_code o prefix g;
+  let fn = prefix^"utils.ml" in
+  let o = open_out (dir_prefix^fn) in
+  output_utils_code fn o prefix g;
   close_out o;
-  let o = open_out (dir_prefix^prefix^"main.ml") in
-  output_main_code o prefix g start_name;
+  let fn = prefix^"main.ml" in
+  let o = open_out (dir_prefix^fn) in
+  output_main_code fn o prefix g start_name;
   close_out o;
-  let o = open_out (dir_prefix^prefix^"Makefile") in
-  output_makefile_code o prefix;
+  let fn = prefix^"Makefile" in
+  let o = open_out (dir_prefix^fn) in
+  output_makefile_code fn o prefix;
   close_out o;
   (* generate the skeleton files *)
   generate_skeleton dir_prefix prefix bin_name grammar_filename

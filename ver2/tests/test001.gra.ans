@@ -1,19 +1,23 @@
-parser Foo :(_ option) = 
-| ~ # {None} :(_ option)
-| Foo_0_0 # {Some($1)} :('t1 option)
+parser Foo = 
+| Foo_0_0 
 ;
 
-parser Foo_0_0 {List.rev x} :(_ list) = 
-| Foo_0_0_0 # {[$1]} :(_ list)
-| Foo_0_0 Foo_0_0_0 # {let x = $2 in (x)::$1} :('t2 list)
+parser Foo_0_0 :(_ option) = 
+| ~ # {None} :(_ option)
+| Foo_0_0_0 # {Some($1)} :('t1 option)
 ;
 
 parser Foo_0_0_0 {List.rev x} :(_ list) = 
-| ~ # {[]} :(_ list)
+| Foo_0_0_0_0 # {[$1]} :(_ list)
 | Foo_0_0_0 Foo_0_0_0_0 # {let x = $2 in (x)::$1} :('t2 list)
 ;
 
-lexer Foo_0_0_0_0 = 
+parser Foo_0_0_0_0 {List.rev x} :(_ list) = 
+| ~ # {[]} :(_ list)
+| Foo_0_0_0_0 Foo_0_0_0_0_0 # {let x = $2 in (x)::$1} :('t2 list)
+;
+
+lexer Foo_0_0_0_0_0 = 
 | "one" 
 ;
 

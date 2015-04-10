@@ -44,11 +44,11 @@
    let rec parse_char_list (cl : char list) : (bool * chars list) = (
   let (is_neg, csl, mode, range_start) = List.fold_left (fun (is_neg, csl, mode, range_start) c ->
     match (c,mode,range_start) with
-    | ('^',0,_) -> Printf.printf "x:1\n%!"; (true, csl, 1, None)
-    | (_,2,Some(rs)) -> Printf.printf "x:2\n%!"; (is_neg, (RangeChar(rs,c))::csl, 1, None)
-    | ('-',_,Some(_)) -> Printf.printf "x:3\n%!"; (is_neg, csl, 2, range_start)
-    | (_,_,Some(cx)) -> Printf.printf "x:4\n%!"; (is_neg, (SingletonChar(cx))::csl, 1, Some(c))
-    | (_,_,_) -> Printf.printf "x:5\n%!"; (is_neg, csl, 1, Some(c))
+    | ('^',0,_) -> (*Printf.printf "x:1\n%!";*) (true, csl, 1, None)
+    | (_,2,Some(rs)) -> (*Printf.printf "x:2\n%!";*) (is_neg, (RangeChar(rs,c))::csl, 1, None)
+    | ('-',_,Some(_)) -> (*Printf.printf "x:3\n%!";*) (is_neg, csl, 2, range_start)
+    | (_,_,Some(cx)) -> (*Printf.printf "x:4\n%!";*) (is_neg, (SingletonChar(cx))::csl, 1, Some(c))
+    | (_,_,_) -> (*Printf.printf "x:5\n%!";*) (is_neg, csl, 1, Some(c))
   ) (false,[],0,None) cl in
   let extra = (match (range_start,mode) with (Some(c),2) -> ['-';c] | (Some(c),_) -> [c] | _ -> []) in
   let csl = List.rev_append (List.rev_map (fun c -> SingletonChar(c)) extra) csl in

@@ -7,10 +7,6 @@ open Code
 type foo = Bar of int | Foo of int
 
 let () = (
-let x = Bar(123) in
-match x with
-| (_) -> ()
-;
 let fs = parse_command_line () in
 let ret = List.fold_left (fun acc (dir,f) ->
   try
@@ -39,16 +35,25 @@ let ret = List.fold_left (fun acc (dir,f) ->
     let result = combine_grammar result lexers in (* combine identical lexers *)
 
     let (comps,gr) = get_sorted_defs result count in
-    Printf.printf "\n\n***********************************\n\n%!";
+    (*Printf.printf "\n\n***********************************\n\n%!";
     Printf.printf "\n\ncomps = %s\n%!" (str_x_list (fun (x,_) -> get_symbol x) comps ", ");
     print_newline();
-    Printf.printf "\n\n***********************************\n\n%!";
+    Printf.printf "\n\n***********************************\n\n%!";*)
     let result = typecheck result comps count gr in
     let result = restore_lexer_grammar result lexer_prods in
     Printf.printf "###################################\n";
     Uruz2_ast.print_grammar_t result;
-    Printf.printf "SUCCESS (%s)!\n" f;
+    Printf.printf "###################################\n";
     output_code dir prefix result bin_name (get_abs_filename f) gr;
+    Printf.printf "SUCCESS (%s)!\n" f;
+    let o = open_out (f^".lines") in
+    Hashtbl.iter (fun (file,line) set ->
+      let str_pos ((i1,i2),ps) = (match ps with
+      | NoPos -> ""
+      | Pos(file,line,col) -> Printf.sprintf "(%d,%d)=%s,%d,%d" i1 i2 file line col) in
+      Printf.fprintf o "%s,%d\t%s\n" (get_symbol file) line (str_x_list str_pos (PosSet.elements set) "\t")
+    ) Flags.lines_table;
+    close_out o;
     acc
   with ex ->
     Printf.printf "%s\n" (Printexc.to_string ex);
