@@ -6,4 +6,5 @@ temp = 3;
 reset;
 temp = 4;
 temp = 5;
+output;
 print "done!";
