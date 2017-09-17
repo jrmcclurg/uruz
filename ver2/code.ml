@@ -1660,7 +1660,7 @@ and ast_str_constr_type (ct : constr_type_t) : string option = match ct with
   let op = (ast_str_constr_type ct) in (
     match op with
     | None -> Some("()") (* TODO XXX - is this right? *)
-    | Some(x) -> Some(Printf.sprintf "%s %s" x (str_x_list get_symbol sl " "))
+    | Some(x) -> Some(Printf.sprintf "%s %s" x (str_x_list get_symbol sl "."))
   )
 
 let ast_str_pattern (pa : pattern_t) : string option = match pa with
