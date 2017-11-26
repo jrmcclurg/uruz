@@ -120,6 +120,7 @@
   let int_kw = add_symbol "int"
   let int64_kw = add_symbol "int64"
   let int32_kw = add_symbol "int32"
+  let big_int_kw = add_symbol "big_int"
   let float_kw = add_symbol "float"
   let bool_kw = add_symbol "bool"
   let string_kw = add_symbol "string"

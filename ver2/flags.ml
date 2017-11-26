@@ -95,6 +95,8 @@ Hashtbl.replace typecast_table (string_kw,int64_kw) "Int64.of_string";
 Hashtbl.replace typecast_table (int64_kw,string_kw) "Int64.to_string";
 Hashtbl.replace typecast_table (string_kw,int32_kw) "Int32.of_string";
 Hashtbl.replace typecast_table (int32_kw,string_kw) "Int32.to_string";
+Hashtbl.replace typecast_table (string_kw,big_int_kw) "Big_int.big_int_of_string";
+Hashtbl.replace typecast_table (big_int_kw,string_kw) "Big_int.string_of_big_int";
 (* int -> x *)
 Hashtbl.replace typecast_table (int_kw,char_kw) "char_of_int";
 Hashtbl.replace typecast_table (char_kw,int_kw) "int_of_char";
@@ -106,6 +108,8 @@ Hashtbl.replace typecast_table (int_kw,int64_kw) "Int64.of_int";
 Hashtbl.replace typecast_table (int64_kw,int_kw) "Int64.to_int";
 Hashtbl.replace typecast_table (int_kw,int32_kw) "Int32.of_int";
 Hashtbl.replace typecast_table (int32_kw,int_kw) "Int32.to_int";
+Hashtbl.replace typecast_table (int_kw,big_int_kw) "Big_int.big_int_of_int";
+Hashtbl.replace typecast_table (big_int_kw,int_kw) "Big_int.int_of_big_int";
 (* bool -> x *)
 Hashtbl.replace typecast_table (bool_kw,char_kw) "(fun b -> if b then 't' else 'f')";
 Hashtbl.replace typecast_table (char_kw,bool_kw) "(fun x -> match Char.lowercase x with 'f' | '0' -> false | _ -> true)";
@@ -129,7 +133,9 @@ Hashtbl.replace typecast_table (char_kw,int32_kw) "(fun x -> Int32.of_int (int_o
 Hashtbl.replace typecast_table (int32_kw,char_kw) "(fun x -> char_of_int (Int32.to_int x))";
 (* int64 -> x *)
 Hashtbl.replace typecast_table (int64_kw,int32_kw) "Int64.to_int32";
-Hashtbl.replace typecast_table (int32_kw,int64_kw) "Int64.of_int32"
+Hashtbl.replace typecast_table (int32_kw,int64_kw) "Int64.of_int32";
+Hashtbl.replace typecast_table (int64_kw,big_int_kw) "Big_int.big_int_of_int64";
+Hashtbl.replace typecast_table (big_int_kw,int64_kw) "Big_int.int64_of_big_int"
 
 let get_def_prod_name (name : symb option) (nesting : int list) =
   add_symbol ((match name with None -> !def_prod_name | Some(s) -> get_symbol s)^(List.fold_left (fun str n -> "_"^(string_of_int n)^str) "" nesting))
