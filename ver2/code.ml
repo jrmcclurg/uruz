@@ -734,7 +734,7 @@ match (rt,cd,new_type) with
   left_params^") in ignore "^ !Flags.param_name^"; "))^"("^x^")") "")
 
 and typecast_constr (arg : string) (old_type : constr_type_t) (new_type : constr_type_t) : code option =
-let fail p = die_error p ("don't know how to cast type "^(str_constr_type_t old_type)^" to "^(str_constr_type_t new_type)) in
+let fail p = die_error p ("Don't know how to cast type "^(str_constr_type_t old_type)^" to "^(str_constr_type_t new_type)) in
   match (old_type,new_type) with
   | (SingletonConstrType(p,t1),SingletonConstrType(_,t2)) -> (typecast_typ arg t1 t2)
   | (SingletonConstrType(p,t1),ct2) -> (typecast_typ arg t1 (CompoundType(p,CommaType(p,[[ct2]]))))
@@ -798,6 +798,10 @@ match (old_type,new_type) with
   Some(Code(p,"(lookup_token "^arg^")")) (* TODO XXX - this is not correct *)
 | (SimpleType(p,IdentType(_,[kw])),SimpleType(_,IdentType(_,[kw2]))) when kw=string_kw && kw2=token_kw ->
   Some(Code(p,"(lookup_token "^arg^")")) (* TODO XXX - this is not correct *)
+| (SimpleType(p,IdentType(p1,[kw;kw2])),SimpleType(p2,IdentType(p3,[kw3]))) when kw=big_int_uc_kw ->
+  typecast_typ arg (SimpleType(p,IdentType(p1,[kw2]))) (SimpleType(p2,IdentType(p3,[kw3])))
+| (SimpleType(p,IdentType(p1,[kw])),SimpleType(p2,IdentType(p3,[kw2;kw3]))) when kw2=big_int_uc_kw ->
+  typecast_typ arg (SimpleType(p,IdentType(p1,[kw]))) (SimpleType(p2,IdentType(p3,[kw3])))
 | (SimpleType(p,TokenType(_)),SimpleType(_,TokenType(_))) ->
   Some(Code(p,arg))
 | (_,SimpleType(p,TokenType(_))) ->
