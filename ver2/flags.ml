@@ -17,6 +17,7 @@ let parser_ident_suffix = ref "Aux"
 let parser_empty_ident_name = ref "Empty"
 let auto_type_suffix = ref "_t"
 let pos_type_name = ref (add_symbol "pos_t")
+let pos_type_extra = ref (None: string option)
 let enable_pos = ref true
 let def_assoc = ref "left"
 let start_prod = ref (None : symb option)
@@ -33,6 +34,7 @@ let lexer_code = ref (None : (symb option * code * pos_t) option)
 let parser_code = ref (None : (symb option * code * pos_t) option)
 let ast_code = ref (None : (symb option * code * pos_t) option)
 let utils_code = ref (None : (symb option * code * pos_t) option)
+let utils_pre_code = ref (None : (symb option * code * pos_t) option)
 
 let typecast_table = Hashtbl.create 100
 let def_val_table = Hashtbl.create 10
@@ -152,6 +154,9 @@ let usage_msg = banner_text^"\n"^
 let args = Arg.align [
    ("-d",        Arg.String(fun x -> out_dir := Some(x)),
                     "<dir> Location for the result files");
+
+   ("-e",        Arg.String(fun x -> pos_type_extra := Some(x)),
+                    "<extra> Type of the (optional) extra pos component");
 
    ("-flatten",        Arg.Unit(fun () -> only_flatten := true),
                     " Only flatten the grammar and exit");

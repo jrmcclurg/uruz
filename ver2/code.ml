@@ -76,6 +76,7 @@ let rec handle_props_tokens (g : grammar_t) : (grammar_t*int) = match g with
       | ("parser_code",CodeVal(p,(s,c))) -> Flags.parser_code := Some(s,c,p)
       | ("ast_code",CodeVal(p,(s,c))) -> Flags.ast_code := Some(s,c,p)
       | ("utils_code",CodeVal(p,(s,c))) -> Flags.utils_code := Some(s,c,p)
+      | ("utils_pre_code",CodeVal(p,(s,c))) -> Flags.utils_pre_code := Some(s,c,p)
       | ("libs",StringVal(p,s)) -> Hashtbl.clear Flags.libs; List.iter (fun lib -> Hashtbl.replace Flags.libs lib ()) (Str.split (Str.regexp "[ \t\r\n]*,[ \t\r\n]*") s)
       | _ -> die_error p "invalid property name or type"
       );
@@ -1711,10 +1712,11 @@ let output_utils_code filename o prefix g = match g with
   output_string o "open Parsing;;\n";
   output_string o "(* open Flags;; *)\n";
   output_string o "\n";
+  (match !Flags.utils_pre_code with Some(s(*TODO XXX*),c,px) -> output_string o (str_code_plain c) | _ -> ());
   output_string o "(* data type for file positions *)\n";
   output_string o "let filename = ref \"\"\n";
   let p = (get_symbol !Flags.pos_type_name) in
-  output_string o ("type "^p^" = NoPos | Pos of string*int*int;; (* file,line,col *)\n");
+  output_string o ("type "^p^" = NoPos | Pos of string*int*int"^(match !Flags.pos_type_extra with Some(s) -> ("*("^s^") option") | _ -> "")^";; (* file,line,col *)\n");
   output_string o "\n";
   output_string o "exception Parse_error of string;;\n";
   output_string o "exception Lexing_error of string;;\n";
@@ -1733,7 +1735,7 @@ let output_utils_code filename o prefix g = match g with
   output_string o "   (\"Error\"^\n";
   output_string o "   (match p with\n";
   output_string o "   | NoPos -> \"\"\n";
-  output_string o "   | Pos(file_name,line_num,col_num) -> (\" in '\"^file_name^\n";
+  output_string o ("   | Pos(file_name,line_num,col_num"^(match !Flags.pos_type_extra with Some(_) -> ",_" | _ -> "")^") -> (\" in '\"^file_name^\n");
   output_string o "    \"' on line \"^(string_of_int line_num)^\" col \"^(string_of_int\n";
   output_string o "    col_num))\n";
   output_string o "   )^\n";
@@ -1750,7 +1752,7 @@ let output_utils_code filename o prefix g = match g with
   output_string o "   let file_name = !filename (*p.Lexing.pos_fname*)  in\n";
   output_string o "   let line_num  = p.Lexing.pos_lnum   in\n";
   output_string o "   let col_num   = (p.Lexing.pos_cnum-p.Lexing.pos_bol+1) in\n";
-  output_string o "   Pos(file_name,line_num,col_num)\n";
+  output_string o ("   Pos(file_name,line_num,col_num"^(match !Flags.pos_type_extra with Some(_) -> ",None" | _ -> "")^")\n");
   output_string o ";;\n";
   output_string o "\n";
   output_string o "(* gets a pos data structure from a lexing position *)\n";
@@ -1758,7 +1760,7 @@ let output_utils_code filename o prefix g = match g with
   output_string o "   let file_name = !filename (*p.Lexing.pos_fname*) in\n";
   output_string o "   let line_num  = p.Lexing.pos_lnum  in\n";
   output_string o "   let col_num   = (p.Lexing.pos_cnum-p.Lexing.pos_bol+1) in\n";
-  output_string o "   Pos(file_name,line_num,col_num)\n";
+  output_string o ("   Pos(file_name,line_num,col_num"^(match !Flags.pos_type_extra with Some(_) -> ",None" | _ -> "")^")\n");
   output_string o ";;\n";
   output_string o "\n";
   output_string o "(* dies with a general position-based error *)\n";
