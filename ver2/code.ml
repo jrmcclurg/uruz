@@ -1716,7 +1716,7 @@ let output_utils_code filename o prefix g = match g with
   output_string o "(* data type for file positions *)\n";
   output_string o "let filename = ref \"\"\n";
   let p = (get_symbol !Flags.pos_type_name) in
-  output_string o ("type "^p^" = NoPos | Pos of string*int*int"^(match !Flags.pos_type_extra with Some(s) -> ("*("^s^") option") | _ -> "")^";; (* file,line,col *)\n");
+  output_string o ("type "^p^" = NoPos | Pos of string*int*int"^(List.fold_left (fun acc s -> Printf.sprintf "%s*(%s) option" acc s) "" !Flags.pos_type_extra)^";; (* file,line,col *)\n");
   output_string o "\n";
   output_string o "exception Parse_error of string;;\n";
   output_string o "exception Lexing_error of string;;\n";
@@ -1735,7 +1735,7 @@ let output_utils_code filename o prefix g = match g with
   output_string o "   (\"Error\"^\n";
   output_string o "   (match p with\n";
   output_string o "   | NoPos -> \"\"\n";
-  output_string o ("   | Pos(file_name,line_num,col_num"^(match !Flags.pos_type_extra with Some(_) -> ",_" | _ -> "")^") -> (\" in '\"^file_name^\n");
+  output_string o ("   | Pos(file_name,line_num,col_num"^(List.fold_left (fun acc s -> Printf.sprintf "%s,_" acc) "" !Flags.pos_type_extra)^") -> (\" in '\"^file_name^\n");
   output_string o "    \"' on line \"^(string_of_int line_num)^\" col \"^(string_of_int\n";
   output_string o "    col_num))\n";
   output_string o "   )^\n";
@@ -1752,7 +1752,7 @@ let output_utils_code filename o prefix g = match g with
   output_string o "   let file_name = !filename (*p.Lexing.pos_fname*)  in\n";
   output_string o "   let line_num  = p.Lexing.pos_lnum   in\n";
   output_string o "   let col_num   = (p.Lexing.pos_cnum-p.Lexing.pos_bol+1) in\n";
-  output_string o ("   Pos(file_name,line_num,col_num"^(match !Flags.pos_type_extra with Some(_) -> ",None" | _ -> "")^")\n");
+  output_string o ("   Pos(file_name,line_num,col_num"^(List.fold_left (fun acc s -> Printf.sprintf "%s,None" acc) "" !Flags.pos_type_extra)^")\n");
   output_string o ";;\n";
   output_string o "\n";
   output_string o "(* gets a pos data structure from a lexing position *)\n";
@@ -1760,7 +1760,7 @@ let output_utils_code filename o prefix g = match g with
   output_string o "   let file_name = !filename (*p.Lexing.pos_fname*) in\n";
   output_string o "   let line_num  = p.Lexing.pos_lnum  in\n";
   output_string o "   let col_num   = (p.Lexing.pos_cnum-p.Lexing.pos_bol+1) in\n";
-  output_string o ("   Pos(file_name,line_num,col_num"^(match !Flags.pos_type_extra with Some(_) -> ",None" | _ -> "")^")\n");
+  output_string o ("   Pos(file_name,line_num,col_num"^(List.fold_left (fun acc s -> Printf.sprintf "%s,None" acc) "" !Flags.pos_type_extra)^")\n");
   output_string o ";;\n";
   output_string o "\n";
   output_string o "(* dies with a general position-based error *)\n";

@@ -17,7 +17,7 @@ let parser_ident_suffix = ref "Aux"
 let parser_empty_ident_name = ref "Empty"
 let auto_type_suffix = ref "_t"
 let pos_type_name = ref (add_symbol "pos_t")
-let pos_type_extra = ref (None: string option)
+let pos_type_extra = ref ([]: string list)
 let enable_pos = ref true
 let def_assoc = ref "left"
 let start_prod = ref (None : symb option)
@@ -155,8 +155,8 @@ let args = Arg.align [
    ("-d",        Arg.String(fun x -> out_dir := Some(x)),
                     "<dir> Location for the result files");
 
-   ("-e",        Arg.String(fun x -> pos_type_extra := Some(x)),
-                    "<extra> Type of the (optional) extra pos component");
+   ("-e",        Arg.String(fun x -> pos_type_extra := !pos_type_extra @ [x]),
+                    "<extra> Add type of an (optional) extra pos component");
 
    ("-flatten",        Arg.Unit(fun () -> only_flatten := true),
                     " Only flatten the grammar and exit");
@@ -177,6 +177,8 @@ let die_system_error (s : string) =
 let parse_command_line () : (string option*string) list =
    let fs = ref ([] : (string option*string) list) in
    Arg.parse args (fun x -> fs := (!out_dir,x)::(!fs)) banner_text;
+   (*List.iter (fun s ->
+       Printf.printf "foo: %s\n" s) !pos_type_extra;*)
    (* use the command-line filename if one exists, otherwise use stdin *)
    match (List.rev !fs) with
    | [] -> error_usage_msg ()
