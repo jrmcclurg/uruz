@@ -16,6 +16,10 @@ open Uruz2_ast
 open Uruz2_utils
 open Flags
 
+let get_ast_module_names prefix =
+ let name = (String.capitalize (prefix^"ast")) in
+ (match !Flags.ast_module_code with None -> [name] | _ -> [(name^".Ast"); name])
+
 let rec is_finalized_typ (t : typ_t) : bool =
 match t with
 | SimpleType(_,AnyType(_)) -> false
@@ -77,6 +81,7 @@ let rec handle_props_tokens (g : grammar_t) : (grammar_t*int) = match g with
       | ("ast_code",CodeVal(p,(s,c))) -> Flags.ast_code := Some(s,c,p)
       | ("utils_code",CodeVal(p,(s,c))) -> Flags.utils_code := Some(s,c,p)
       | ("utils_pre_code",CodeVal(p,(s,c))) -> Flags.utils_pre_code := Some(s,c,p)
+      | ("ast_module_code",CodeVal(p,(s,c))) -> Flags.ast_module_code := Some(s,c,p)
       | ("libs",StringVal(p,s)) -> Hashtbl.clear Flags.libs; List.iter (fun lib -> Hashtbl.replace Flags.libs lib ()) (Str.split (Str.regexp "[ \t\r\n]*,[ \t\r\n]*") s)
       | _ -> die_error p "invalid property name or type"
       );
@@ -1403,7 +1408,9 @@ let output_lexer_code filename o prefix g (keywords : (symb*string*pos_t) list) 
   output_lines pos o "\n\n";
   output_lines pos o "{\n";
   output_lines pos o ("   open "^(String.capitalize (prefix^"parser"))^";;\n");
-  output_lines pos o ("   open "^(String.capitalize (prefix^"ast"))^";;\n");
+  List.iter (fun name ->
+    output_lines pos o ("   open "^name^";;\n");
+  ) (get_ast_module_names prefix);
   output_lines pos o ("   open "^(String.capitalize (prefix^"utils"))^";;\n\n");
   let (rules,keys) = List.fold_left (fun (acc,acc2) d ->
     match d with
@@ -1531,7 +1538,9 @@ let output_parser_code filename o prefix g (gr : simple_graph) : (string*(symb*s
   output_warning_msg pos o "/*\n(" "*" " *" " *) */";
   output_lines pos o "\n\n";
   output_lines pos o "%{\n";
-  output_lines pos o ("   open "^(String.capitalize (prefix^"ast"))^";;\n");
+  List.iter (fun name ->
+    output_lines pos o ("   open "^name^";;\n");
+  ) (get_ast_module_names prefix);
   output_lines pos o ("   open "^(String.capitalize (prefix^"utils"))^";;\n\n");
   (match !Flags.parser_code with Some(s(*TODO XXX*),c,px) -> output_lines px o (str_code_plain c) | _ -> ());
   output_lines pos o "\n%}\n\n";
@@ -1614,7 +1623,7 @@ let output_parser_code filename o prefix g (gr : simple_graph) : (string*(symb*s
     let pref = chop_end_str s (String.length !Flags.auto_type_suffix) in
     (*Printf.printf ">> looking: %s, %s\n" s pref;*)
     if (pref^ !Flags.auto_type_suffix)=s && (Hashtbl.fold (fun k v acc -> acc || ((String.lowercase (get_symbol k))=pref)) gr false) then
-    ((String.capitalize (prefix^"ast."))^s) else s
+    ((List.hd (get_ast_module_names prefix))^"."^s) else s
   | t -> str_typ_t t) in
   output_string o (Printf.sprintf "%%type <%s> %s\n" ty_str pname);
   output_string o (Printf.sprintf "%%%%\n");
@@ -1677,9 +1686,51 @@ let output_ast_code filename o prefix g = match g with
 | Grammar(pos,(d,dl)) ->
   reset_output filename;
   output_warning_msg pos o "(*\n" " *" " *" " *)";
-  output_string o "\n\n";
-  output_string o ("open "^(String.capitalize (prefix^"utils"))^";;\n");
+  (*output_string o "\n\n";
+  output_string o ("open "^(String.capitalize (prefix^"utils"))^";;\n");*)
+  output_string o "\n\nopen Lexing;;\n";
+  output_string o "open Parsing;;\n";
+  output_string o "(* open Flags;; *)\n";
+  output_string o "let eq_base (a : 'a) (b : 'a) : bool = (a = b) ;;\n";
+  output_string o "let rec eq_option (f : 'a -> 'a -> bool) (a : 'a option) (b : 'a option) : bool =\n";
+  output_string o "   match (a,b) with\n";
+  output_string o "   | (None,None) -> true\n";
+  output_string o "   | (Some(a),Some(b)) -> (f a b)\n";
+  output_string o "   | _ -> false\n";
+  output_string o ";;\n";
+  output_string o "let eq_pair (f1 : 'a -> 'a -> bool) (f2 : 'b -> 'b -> bool) ((p1a,p1b) : 'a * 'b) ((p2a,p2b) : 'a * 'b) : bool = ((f1 p1a p2a) && (f2 p1b p2b)) ;;\n";
+  output_string o "let eq_list (f : 'a -> 'a -> bool) (l1 : 'a list) (l2 : 'a list) : bool = try List.fold_left2 (fun res l1i l2i -> res && (f l1i l2i)) true l1 l2 with _ -> false;;\n";
+  output_string o "\n";
+  output_string o "let rec str_option (f : 'a -> string) (o : 'a option) : string =\n";
+  output_string o "   match o with\n";
+  output_string o "   | None -> \"\"\n";
+  output_string o "   | Some(a) -> (f a)\n";
+  output_string o ";;\n";
+  output_string o "\n";
+  output_string o "let rec str_pair (f : 'a -> string) (g : 'b -> string) ((a,b) : ('a * 'b)) : string =\n";
+  output_string o "   (f a)^\"\"^\n";
+  output_string o "   (g b)\n";
+  output_string o ";;\n";
+  output_string o "\n";
+  output_string o "let rec str_list (f : 'a -> string) (l : 'a list) : string =\n";
+  output_string o "   str_list_helper f l true\n";
+  output_string o "\n";
+  output_string o "and str_list_helper (f : 'a -> string) (l : 'a list) (first : bool) : string =\n";
+  output_string o "   match l with\n";
+  output_string o "   | [] -> \"\"\n";
+  output_string o "   | a::more -> ((if (not first) then \"\" else \"\")^(f a)^(str_list_helper f more false))\n";
+  output_string o "let rec str_x_list (f : 'a -> string) (il : 'a list) (comma : string) : string = \n";
+  output_string o "    (fst (List.fold_left\n";
+  output_string o "    (fun (str,flag) i ->\n";
+  output_string o "      (str^(if flag then \"\" else comma)^(f i), false)\n";
+  output_string o "    ) (\"\",true) il))\n";
+  output_string o ";;\n";
   (*(match !Flags.parser_code with Some(s(*TODO XXX*),c) -> output_string o (str_code_plain c) | _ -> ());*)
+  (match !Flags.utils_pre_code with Some(s(*TODO XXX*),c,px) -> output_string o (str_code_plain c) | _ -> ());
+  (match !Flags.ast_module_code with Some(s(*TODO XXX*),c,px) -> (
+    output_string o (str_code_plain c);
+    output_string o "and Ast : sig"
+  ) | _ -> ());
   output_string o "\n(* AST Data Structure *)\n";
   let _ = List.fold_left (fun first d ->
     match d with
@@ -1701,22 +1752,16 @@ let output_ast_code filename o prefix g = match g with
       )
     | _ -> first
   ) true (d::dl) in
-  (match !Flags.ast_code with Some(s(*TODO XXX*),c,px) -> output_string o (str_code_plain c) | _ -> ());
-  ()
-
-let output_utils_code filename o prefix g = match g with
-| Grammar(pos,(d,dl)) ->
-  reset_output filename;
-  output_warning_msg pos o "(*\n" " *" " *" " *)";
-  output_string o "\n\nopen Lexing;;\n";
-  output_string o "open Parsing;;\n";
-  output_string o "(* open Flags;; *)\n";
-  output_string o "\n";
-  (match !Flags.utils_pre_code with Some(s(*TODO XXX*),c,px) -> output_string o (str_code_plain c) | _ -> ());
-  output_string o "(* data type for file positions *)\n";
-  output_string o "let filename = ref \"\"\n";
+  output_string o "\n\n";
   let p = (get_symbol !Flags.pos_type_name) in
-  output_string o ("type "^p^" = NoPos | Pos of string*int*int"^(List.fold_left (fun acc s -> Printf.sprintf "%s*(%s) option" acc s) "" !Flags.pos_type_extra)^";; (* file,line,col *)\n");
+  output_string o "(* data type for file positions *)\n";
+  output_string o ("and "^p^" = NoPos | Pos of string*int*int"^(List.fold_left (fun acc s -> Printf.sprintf "%s*(%s) option" acc s) "" !Flags.pos_type_extra)^" (* file,line,col *)\n");
+  (match !Flags.ast_module_code with Some(s(*TODO XXX*),c,px) -> (
+    output_string o "end = Ast\n";
+    output_string o "open Ast"
+  ) | _ -> ());
+  output_string o "\n";
+  output_string o "let filename = ref \"\"\n";
   output_string o "\n";
   output_string o "exception Parse_error of string;;\n";
   output_string o "exception Lexing_error of string;;\n";
@@ -1801,41 +1846,15 @@ let output_utils_code filename o prefix g = match g with
   output_string o "                      else (count_newlines cs lb)\n";
   output_string o ";;\n";
   output_string o "\n";
-  output_string o "let eq_base (a : 'a) (b : 'a) : bool = (a = b) ;;\n";
-  output_string o "let rec eq_option (f : 'a -> 'a -> bool) (a : 'a option) (b : 'a option) : bool =\n";
-  output_string o "   match (a,b) with\n";
-  output_string o "   | (None,None) -> true\n";
-  output_string o "   | (Some(a),Some(b)) -> (f a b)\n";
-  output_string o "   | _ -> false\n";
-  output_string o ";;\n";
-  output_string o "let eq_pair (f1 : 'a -> 'a -> bool) (f2 : 'b -> 'b -> bool) ((p1a,p1b) : 'a * 'b) ((p2a,p2b) : 'a * 'b) : bool = ((f1 p1a p2a) && (f2 p1b p2b)) ;;\n";
-  output_string o "let eq_list (f : 'a -> 'a -> bool) (l1 : 'a list) (l2 : 'a list) : bool = try List.fold_left2 (fun res l1i l2i -> res && (f l1i l2i)) true l1 l2 with _ -> false;;\n";
-  output_string o "\n";
-  output_string o "let rec str_option (f : 'a -> string) (o : 'a option) : string =\n";
-  output_string o "   match o with\n";
-  output_string o "   | None -> \"\"\n";
-  output_string o "   | Some(a) -> (f a)\n";
-  output_string o ";;\n";
-  output_string o "\n";
-  output_string o "let rec str_pair (f : 'a -> string) (g : 'b -> string) ((a,b) : ('a * 'b)) : string =\n";
-  output_string o "   (f a)^\"\"^\n";
-  output_string o "   (g b)\n";
-  output_string o ";;\n";
-  output_string o "\n";
-  output_string o "let rec str_list (f : 'a -> string) (l : 'a list) : string =\n";
-  output_string o "   str_list_helper f l true\n";
-  output_string o "\n";
-  output_string o "and str_list_helper (f : 'a -> string) (l : 'a list) (first : bool) : string =\n";
-  output_string o "   match l with\n";
-  output_string o "   | [] -> \"\"\n";
-  output_string o "   | a::more -> ((if (not first) then \"\" else \"\")^(f a)^(str_list_helper f more false))\n";
-  output_string o "let rec str_x_list (f : 'a -> string) (il : 'a list) (comma : string) : string = \n";
-  output_string o "    (fst (List.fold_left\n";
-  output_string o "    (fun (str,flag) i ->\n";
-  output_string o "      (str^(if flag then \"\" else comma)^(f i), false)\n";
-  output_string o "    ) (\"\",true) il))\n";
-  output_string o ";;\n";
-  (match !Flags.utils_code with Some(s(*TODO XXX*),c,px) -> output_string o (str_code_plain c) | _ -> ())
+  (match !Flags.utils_code with Some(s(*TODO XXX*),c,px) -> output_string o (str_code_plain c) | _ -> ());
+  (match !Flags.ast_code with Some(s(*TODO XXX*),c,px) -> output_string o (str_code_plain c) | _ -> ());
+  ()
+
+let output_utils_code filename o prefix g = match g with
+| Grammar(pos,(d,dl)) ->
+  reset_output filename;
+  output_warning_msg pos o "(*\n" " *" " *" " *)";
+  output_string o "\n"
 
 let output_main_code filename o prefix g pname = match g with
 | Grammar(pos,(d,dl)) ->
