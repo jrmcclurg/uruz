@@ -79,6 +79,7 @@ let rec handle_props_tokens (g : grammar_t) : (grammar_t*int) = match g with
       | ("lexer_code",CodeVal(p,(s,c))) -> Flags.lexer_code := Some(s,c,p)
       | ("parser_code",CodeVal(p,(s,c))) -> Flags.parser_code := Some(s,c,p)
       | ("ast_code",CodeVal(p,(s,c))) -> Flags.ast_code := Some(s,c,p)
+      | ("main_code",CodeVal(p,(s,c))) -> Flags.main_code := Some(s,c,p)
       | ("utils_code",CodeVal(p,(s,c))) -> Flags.utils_code := Some(s,c,p)
       | ("utils_pre_code",CodeVal(p,(s,c))) -> Flags.utils_pre_code := Some(s,c,p)
       | ("ast_module_code",CodeVal(p,(s,c))) -> Flags.ast_module_code := Some(s,c,p)
@@ -1866,6 +1867,7 @@ let output_main_code filename o prefix g pname = match g with
   output_string o "\n";
   output_string o "let get_ast (i : in_channel) = \n";
   output_string o ("   "^(String.capitalize (prefix^"parser."^pname^""))^" "^(String.capitalize (prefix^"lexer.token"))^" (Lexing.from_channel i)\n");
+  (match !Flags.main_code with Some(s(*TODO XXX*),c,px) -> output_string o (str_code_plain c) | _ -> ());
   output_string o ";;\n"
 
 let generate_makefile_vars o =

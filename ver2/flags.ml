@@ -34,6 +34,7 @@ let lexer_code = ref (None : (symb option * code * pos_t) option)
 let parser_code = ref (None : (symb option * code * pos_t) option)
 let ast_code = ref (None : (symb option * code * pos_t) option)
 let utils_code = ref (None : (symb option * code * pos_t) option)
+let main_code = ref (None : (symb option * code * pos_t) option)
 let utils_pre_code = ref (None : (symb option * code * pos_t) option)
 let ast_module_code = ref (None : (symb option * code * pos_t) option)
 
