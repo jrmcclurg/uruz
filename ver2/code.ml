@@ -16,6 +16,8 @@ open Uruz2_ast
 open Uruz2_utils
 open Flags
 
+let placeholder_prec_name = "TEMP_PREC"
+
 let get_ast_module_names prefix =
  let name = (String.capitalize (prefix^"ast")) in
  (match !Flags.ast_module_code with None -> [name] | _ -> [(name^".Ast"); name])
@@ -1512,7 +1514,9 @@ let rec parser_str_production (g : IntSet.t) (pr : production_t) : string = matc
 | _ -> "" (* TODO XXX what do we do here? *)
 
 and parser_str_pattern (pname : string) (g : IntSet.t) (pa : pattern_t) : string = match pa with
-| Pattern(p,(al,Some(name,(ol,(cd,ty))))) -> (str_x_list (parser_str_annot_atom pname g) al " ")^(match cd with None -> "" | Some(c) -> " "^(str_code c))
+| Pattern(p,(al,Some(name,(ol,(cd,ty))))) -> 
+  let (vl,_) = opt_list_lookup ol prec_kw in
+  (str_x_list (parser_str_annot_atom pname g) al " ")^(match vl with Some(IntVal(_,i)) -> Printf.sprintf " %%prec %s_%d" placeholder_prec_name i | _ -> "")^(match cd with None -> "" | Some(c) -> " "^(str_code c))
 | Pattern(p,(al,None)) -> (str_x_list (parser_str_annot_atom pname g) al " ")
 
 and parser_str_annot_atom (pname : string) (g : IntSet.t) (an : annot_atom_t) : string = match an with
@@ -1612,8 +1616,8 @@ let output_parser_code filename o prefix g (gr : simple_graph) : (string*(symb*s
   List.iter (fun prec ->
     let (set,assoc) = (try Hashtbl.find prec_table prec with Not_found -> (IntSet.empty,None)) in
     let assoc = (match assoc with None -> !Flags.def_assoc | Some(a) -> a) in
-    if not (IntSet.is_empty set) then output_string o (Printf.sprintf "%%%s %s /*(* %d *)*/\n" assoc
-    (str_x_list get_token_name (List.rev_map get_symbol (IntSet.elements set)) " ") prec)
+    if not (IntSet.is_empty set) then output_string o (Printf.sprintf "%%%s %s %s_%d /*(* %d *)*/\n" assoc
+    (str_x_list get_token_name (List.rev_map get_symbol (IntSet.elements set)) " ") placeholder_prec_name prec prec)
   ) tok_precs;
   output_string o "/*(* ^^ highest precedence *)*/\n";
   let pname = get_parser_name (get_symbol start_prod_name) in
@@ -1867,8 +1871,8 @@ let output_main_code filename o prefix g pname = match g with
   output_string o "\n";
   output_string o "let get_ast (i : in_channel) = \n";
   output_string o ("   "^(String.capitalize (prefix^"parser."^pname^""))^" "^(String.capitalize (prefix^"lexer.token"))^" (Lexing.from_channel i)\n");
-  (match !Flags.main_code with Some(s(*TODO XXX*),c,px) -> output_string o (str_code_plain c) | _ -> ());
-  output_string o ";;\n"
+  output_string o ";;\n";
+  (match !Flags.main_code with Some(s(*TODO XXX*),c,px) -> output_string o (str_code_plain c) | _ -> ())
 
 let generate_makefile_vars o =
    let olevel = (match !Flags.opt_level with
