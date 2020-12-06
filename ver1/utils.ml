@@ -95,7 +95,7 @@ let rec count_newlines s lb = match s with
 ;;
 
 let is_capitalized (s : string) : bool =
-  ((String.capitalize s) = s)
+  ((String.capitalize_ascii s) = s)
 ;;
 
 let rec to_type_case (s : string) : string =
@@ -110,10 +110,10 @@ and to_case_helper (s : string) (prev_lower : bool) (upper : bool) : string =
    else (
       let c = String.sub s 0 1 in
       let rest = String.sub s 1 (len-1) in
-      let c2 = String.lowercase c in
+      let c2 = String.lowercase_ascii c in
       let this_lower = (c2 = c) in
       ((if (prev_lower && (not this_lower)) then "_" else "")^
-      (if upper then (String.uppercase c) else c2)^
+      (if upper then (String.uppercase_ascii c) else c2)^
       (to_case_helper rest this_lower upper))
    )
 ;;

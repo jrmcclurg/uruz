@@ -243,7 +243,7 @@
   | SimpleType(ps,IdentType(ps2,[name])) ->
     let str = get_symbol name in
     let c = String.get str 0 in
-    if (Char.uppercase c)<>c then t else CompoundType(ps,AbstrType(ps,IdentName(ps,[name]),[]))
+    if (Char.uppercase_ascii c)<>c then t else CompoundType(ps,AbstrType(ps,IdentName(ps,[name]),[]))
   | SimpleType(ps,st) -> t
   | CompoundType(ps,CommaType(ps2,[])) -> SimpleType(ps,NoType(ps2))
   | CompoundType(ps,CommaType(ps2,[[SingletonConstrType(ps3,t2)]])) -> t2
@@ -453,11 +453,11 @@ XIdentUpper -> XIdent : {
   (*let bad = (try let _ = Str.search_forward (Str.regexp "__") str 0 in true with Not_found -> false) in
   if bad || (String.uncapitalize str)=str then parse_error ("identifier '"^str^"' should be capitalized, and have no double-underscores");
   $1*)
-  let str = Str.global_replace (Str.regexp "\\([^_]\\)\\([A-Z][a-z]+\\)") "\\1_\\2" (String.capitalize str) in
+  let str = Str.global_replace (Str.regexp "\\([^_]\\)\\([A-Z][a-z]+\\)") "\\1_\\2" (String.capitalize_ascii str) in
   let str = Str.global_replace (Str.regexp "\\([a-z0-9]\\)\\([A-Z]\\)") "\\1_\\2" str in
-  (*let str = Str.global_substitute (Str.regexp "[^_]+") (fun s -> String.capitalize (String.lowercase s)) str in*)
+  (*let str = Str.global_substitute (Str.regexp "[^_]+") (fun s -> String.capitalize_ascii (String.lowercase_ascii s)) str in*)
   let parts = Str.split (Str.regexp "_+") str in
-  let parts = List.rev_map (fun s -> String.capitalize (String.lowercase s)) parts in
+  let parts = List.rev_map (fun s -> String.capitalize_ascii (String.lowercase_ascii s)) parts in
   let str = List.fold_left (fun acc s -> s^acc) "" parts in
   add_symbol str
 } ;

@@ -44,7 +44,7 @@ let def_val_table = Hashtbl.create 10
 module PosSet = Set.Make(
 struct
   type t = ((int*int) * pos_t)
-  let compare = Pervasives.compare
+  let compare = compare
 end)
 
 (* (file,line) -> positions_set *)

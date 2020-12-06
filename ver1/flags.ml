@@ -26,7 +26,7 @@ let debug_symbols = ref false;;
 let libs = (Hashtbl.create 5 : (string,unit) Hashtbl.t);;
 let page_width = ref 70;;
 let default_assoc = ref "left";;
-let default_prec = ref Pervasives.max_int;;
+let default_prec = ref max_int;;
 let footer_is_parser = ref false;;
 
 let error_and_exit s =

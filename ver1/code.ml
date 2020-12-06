@@ -828,7 +828,7 @@ let x = List.filter (fun (c,so) -> match so with Some(s) -> s="LEXER" | _ -> fal
             | Some(Code(_,_)) -> this_var
             | None -> this_var
          ) in
-         let rule_name = ("entry_"^(String.lowercase name)) in
+         let rule_name = ("entry_"^(String.lowercase_ascii name)) in
          (cd,Some("let "^this_var^" = "^rule_name^" 0 \"\" lexbuf in"),this_var,
             ("\nand "^rule_name^" n s = parse\n"^
             "| \""^a^"\" { "^rule_name^" (n+1) (s^\""^a^"\") lexbuf }\n"^
@@ -1124,7 +1124,7 @@ let generate_skeleton_makefile file prefix =
 ;;
 
 let generate_skeleton_main file prefix =
-   let import = String.capitalize prefix in
+   let import = String.capitalize_ascii prefix in
    output_string file ("open "^import^"main;;\n");
    output_string file ("open Flags;;\n");
    output_string file "\n";
@@ -1211,7 +1211,7 @@ let generate_skeleton () =
 let generate_code (*filename*) g2 =
   (*let name   = get_filename !filename in*)
   let prefix = get_prefix () in
-  let prefix_up = String.capitalize prefix in
+  let prefix_up = String.capitalize_ascii prefix in
   let dir    = (!out_dir)^(Filename.dir_sep) in
   let (g,_) = flatten_grammar g2 in
   (try Unix.mkdir dir 0o755 with _ -> ());

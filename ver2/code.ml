@@ -19,7 +19,7 @@ open Flags
 let placeholder_prec_name = "TEMP_PREC"
 
 let get_ast_module_names prefix =
- let name = (String.capitalize (prefix^"ast")) in
+ let name = (String.capitalize_ascii (prefix^"ast")) in
  (match !Flags.ast_module_code with None -> [name] | _ -> [(name^".Ast"); name])
 
 let rec is_finalized_typ (t : typ_t) : bool =
@@ -372,7 +372,7 @@ and elim_pattern (pa : pattern_t) (prod_name : symb) (is_auto : bool) : (pattern
 module IntSet = Set.Make(
 struct
   type t = int
-  let compare = (Pervasives.compare : (int -> int -> int))
+  let compare = (compare : (int -> int -> int))
 end)
 
 (* (index,lowlink,in_S) *)
@@ -1065,8 +1065,8 @@ match ct with
 
 let get_underscore_name (prod_name : string) : string =
   let str = prod_name in
-  let str = Str.global_replace (Str.regexp "\\([A-Z]\\)") "_\\1" (String.uncapitalize str) in
-  let str = (String.lowercase str) in
+  let str = Str.global_replace (Str.regexp "\\([A-Z]\\)") "_\\1" (String.uncapitalize_ascii str) in
+  let str = (String.lowercase_ascii str) in
   str
 
 let get_auto_type_name (prod_name : symb) : symb =
@@ -1078,11 +1078,11 @@ let get_auto_type_name (prod_name : symb) : symb =
 
 let get_token_name (prod_name : string) : string =
   let s2 = get_underscore_name prod_name in
-  (String.uppercase (s2))
+  (String.uppercase_ascii (s2))
 
 let get_parser_name (prod_name : string) : string =
   let s2 = get_underscore_name prod_name in
-  (String.lowercase (s2))
+  (String.lowercase_ascii (s2))
 
 let rec is_no_type (t : typ_t) : bool =
 match t with
@@ -1410,11 +1410,11 @@ let output_lexer_code filename o prefix g (keywords : (symb*string*pos_t) list) 
   output_warning_msg pos o "(*\n" " *" " *" " *)";
   output_lines pos o "\n\n";
   output_lines pos o "{\n";
-  output_lines pos o ("   open "^(String.capitalize (prefix^"parser"))^";;\n");
+  output_lines pos o ("   open "^(String.capitalize_ascii (prefix^"parser"))^";;\n");
   List.iter (fun name ->
     output_lines pos o ("   open "^name^";;\n");
   ) (get_ast_module_names prefix);
-  output_lines pos o ("   open "^(String.capitalize (prefix^"utils"))^";;\n\n");
+  (*output_lines pos o ("   open "^(String.capitalize_ascii (prefix^"utils"))^";;\n\n");*)
   let (rules,keys) = List.fold_left (fun (acc,acc2) d ->
     match d with
     (* NOTE - name and type should be Some(_) at this point *)
@@ -1451,7 +1451,7 @@ if not (IntSet.is_empty keys) then (
 
   (match !Flags.lexer_code with Some(s(*TODO XXX*),c,px) -> output_lines px o (str_code_plain c) | _ -> ());
   output_lines pos o "\n}\n\n";
-  output_lines pos o ("(* The type \"token\" is defined in "^(String.capitalize (prefix^"parser.mli"))^" *)\n");
+  output_lines pos o ("(* The type \"token\" is defined in "^(String.capitalize_ascii (prefix^"parser.mli"))^" *)\n");
   output_lines pos o "rule token = parse\n";
 
   (* sort by order annotations *)
@@ -1467,11 +1467,11 @@ if not (IntSet.is_empty keys) then (
   List.iter (fun (_,name,ty,len,is_key,is_newline,(Production(ps,(r,(nameo,(ol,(cd,tyo)))),patl))) ->
     match patl with
     | [Pattern(_,([SingletonAnnotAtom(_,RecurAtom(px,s1,s2))],_))] ->
-      output_lines px o (Printf.sprintf "| \"%s\" { %s%s 0 \"\" lexbuf }\n" s1 recur_prefix (String.lowercase name))
+      output_lines px o (Printf.sprintf "| \"%s\" { %s%s 0 \"\" lexbuf }\n" s1 recur_prefix (String.lowercase_ascii name))
     | _ ->
       let the_code = get_the_code cd name ty len is_key in
       output_lines ps o (Printf.sprintf "| (%s) as %s {ignore %s; %s} (* %s : %s (len = %d) (kw = %b) *)\n"
-        (str_x_list lex_str_pattern patl " ")
+        (str_x_list lex_str_pattern patl " | ")
         !Flags.param_name
         !Flags.param_name
         (if is_key then ("(try lookup_keyword "^ !Flags.param_name^" with _ -> "^the_code^")")
@@ -1489,7 +1489,7 @@ if not (IntSet.is_empty keys) then (
     match patl with
     | [Pattern(_,([SingletonAnnotAtom(_,RecurAtom(px,s1,s2))],_))] ->
       let the_code = get_the_code cd name ty len is_key in
-      let rule_name = recur_prefix^(String.lowercase name) in
+      let rule_name = recur_prefix^(String.lowercase_ascii name) in
       output_lines px o (Printf.sprintf "\nand %s n %s = parse\n" rule_name !Flags.param_name);
       output_lines px o (Printf.sprintf "| \"%s\" { %s (n+1) (%s^\"%s\") lexbuf }\n" s1 rule_name !Flags.param_name s1);
       output_lines px o (Printf.sprintf "| \"%s\" { if (n=0) then (%s) else %s (n-1) (%s^\"%s\") lexbuf }\n" s2 the_code rule_name !Flags.param_name s2);
@@ -1546,7 +1546,7 @@ let output_parser_code filename o prefix g (gr : simple_graph) : (string*(symb*s
   List.iter (fun name ->
     output_lines pos o ("   open "^name^";;\n");
   ) (get_ast_module_names prefix);
-  output_lines pos o ("   open "^(String.capitalize (prefix^"utils"))^";;\n\n");
+  (*output_lines pos o ("   open "^(String.capitalize_ascii (prefix^"utils"))^";;\n\n");*)
   (match !Flags.parser_code with Some(s(*TODO XXX*),c,px) -> output_lines px o (str_code_plain c) | _ -> ());
   output_lines pos o "\n%}\n\n";
   output_lines pos o (Printf.sprintf "%%token %s\n" !Flags.lexer_eof_token_name);
@@ -1627,7 +1627,7 @@ let output_parser_code filename o prefix g (gr : simple_graph) : (string*(symb*s
     let s = get_symbol i in
     let pref = chop_end_str s (String.length !Flags.auto_type_suffix) in
     (*Printf.printf ">> looking: %s, %s\n" s pref;*)
-    if (pref^ !Flags.auto_type_suffix)=s && (Hashtbl.fold (fun k v acc -> acc || ((String.lowercase (get_symbol k))=pref)) gr false) then
+    if (pref^ !Flags.auto_type_suffix)=s && (Hashtbl.fold (fun k v acc -> acc || ((String.lowercase_ascii (get_symbol k))=pref)) gr false) then
     ((List.hd (get_ast_module_names prefix))^"."^s) else s
   | t -> str_typ_t t) in
   output_string o (Printf.sprintf "%%type <%s> %s\n" ty_str pname);
@@ -1692,7 +1692,7 @@ let output_ast_code filename o prefix g = match g with
   reset_output filename;
   output_warning_msg pos o "(*\n" " *" " *" " *)";
   (*output_string o "\n\n";
-  output_string o ("open "^(String.capitalize (prefix^"utils"))^";;\n");*)
+  output_string o ("open "^(String.capitalize_ascii (prefix^"utils"))^";;\n");*)
   output_string o "\n\nopen Lexing;;\n";
   output_string o "open Parsing;;\n";
   output_string o "(* open Flags;; *)\n";
@@ -1855,22 +1855,23 @@ let output_ast_code filename o prefix g = match g with
   (match !Flags.ast_code with Some(s(*TODO XXX*),c,px) -> output_string o (str_code_plain c) | _ -> ());
   ()
 
-let output_utils_code filename o prefix g = match g with
+(*let output_utils_code filename o prefix g = match g with
 | Grammar(pos,(d,dl)) ->
   reset_output filename;
   output_warning_msg pos o "(*\n" " *" " *" " *)";
   output_string o "\n"
+*)
 
 let output_main_code filename o prefix g pname = match g with
 | Grammar(pos,(d,dl)) ->
   reset_output filename;
   output_warning_msg pos o "(*\n" " *" " *" " *)";
   output_string o "\n\n";
-  output_string o ("open "^(String.capitalize (prefix^"parser"))^";;\n");
-  output_string o ("open "^(String.capitalize (prefix^"lexer"))^";;\n");
+  output_string o ("open "^(String.capitalize_ascii (prefix^"parser"))^";;\n");
+  output_string o ("open "^(String.capitalize_ascii (prefix^"lexer"))^";;\n");
   output_string o "\n";
   output_string o "let get_ast (i : in_channel) = \n";
-  output_string o ("   "^(String.capitalize (prefix^"parser."^pname^""))^" "^(String.capitalize (prefix^"lexer.token"))^" (Lexing.from_channel i)\n");
+  output_string o ("   "^(String.capitalize_ascii (prefix^"parser."^pname^""))^" "^(String.capitalize_ascii (prefix^"lexer.token"))^" (Lexing.from_channel i)\n");
   output_string o ";;\n";
   (match !Flags.main_code with Some(s(*TODO XXX*),c,px) -> output_string o (str_code_plain c) | _ -> ())
 
@@ -1900,22 +1901,20 @@ let output_makefile_code filename o prefix =
   generate_makefile_vars o;
   output_string o "endif\n";
   output_string o (prefix^"main.$(CMO):\t"^prefix^"main.ml "^prefix^"parser.$(CMO) "^prefix^"lexer.$(CMO) "^
-                      prefix^"ast.$(CMO) "^prefix^"utils.$(CMO)\n");
+                      prefix^"ast.$(CMO)\n");
   output_string o ("\t\t$(OCAMLC) -c "^prefix^"main.ml\n");
   output_string o ("\n");
-  output_string o (""^prefix^"parser.$(CMO):\t"^prefix^"parser.ml "^prefix^"parser.cmi "^
-                      prefix^"utils.$(CMO)\n");
+  output_string o (""^prefix^"parser.$(CMO):\t"^prefix^"parser.ml "^prefix^"parser.cmi\n");
   output_string o ("\t\t$(OCAMLC) -c "^prefix^"parser.ml\n");
   output_string o ("\n");
   output_string o (""^prefix^"lexer.$(CMO):\t"^prefix^"lexer.ml "^prefix^"parser.cmi "^
-                      prefix^"ast.$(CMO) "^prefix^"utils.$(CMO)\n");
+                      prefix^"ast.$(CMO)\n");
   output_string o ("\t\t$(OCAMLC) -c "^prefix^"lexer.ml\n");
   output_string o ("\n");
-  output_string o (""^prefix^"parser.cmi:\t"^prefix^"parser.mli "^prefix^"ast.$(CMO) "^
-                      prefix^"utils.$(CMO)\n");
+  output_string o (""^prefix^"parser.cmi:\t"^prefix^"parser.mli "^prefix^"ast.$(CMO)\n");
   output_string o ("\t\t$(OCAMLC) -c "^prefix^"parser.mli\n");
   output_string o ("\n");
-  output_string o (""^prefix^"ast.$(CMO):\t"^prefix^"ast.ml "^prefix^"utils.$(CMO)\n");
+  output_string o (""^prefix^"ast.$(CMO):\t"^prefix^"ast.ml\n");
   output_string o ("\t\t$(OCAMLC) -c "^prefix^"ast.ml\n");
   output_string o ("\n");
   output_string o (""^prefix^"parser.ml:\t"^prefix^"parser.mly\n");
@@ -1926,9 +1925,6 @@ let output_makefile_code filename o prefix =
   output_string o ("\n");
   output_string o (""^prefix^"lexer.ml:\t"^prefix^"lexer.mll\n");
   output_string o ("\t\tocamllex "^prefix^"lexer.mll\n");
-  output_string o ("\n");
-  output_string o (""^prefix^"utils.$(CMO):\t"^prefix^"utils.ml\n");
-  output_string o ("\t\t$(OCAMLC) -c "^prefix^"utils.ml\n");
   output_string o ("\n");
   output_string o (prefix^"clean:\t\t\t\n");
   output_string o ("\t\t\trm -rf *.cm* *.mli "^prefix^"parser.ml "^prefix^"lexer.ml\n")
@@ -1941,15 +1937,15 @@ let generate_skeleton_makefile o prefix bin_name grammar_filename =
       output_string o (" "^k^".$(CMA)")
    ) Flags.libs;
    output_string o "\n\n";
-   output_string o (bin_name^":\tflags.$(CMO) "^prefix^"utils.$(CMO) "^prefix^"ast.$(CMO) "^
+   output_string o (bin_name^":\tflags.$(CMO) "^prefix^"ast.$(CMO) "^
                       prefix^"parser.$(CMO) "^prefix^"lexer.$(CMO) "^prefix^"main.$(CMO) main.$(CMO)\n");
-   output_string o ("\t$(OCAMLC) -o "^bin_name^" $(LIBS) flags.$(CMO) "^prefix^"utils.$(CMO) "^
+   output_string o ("\t$(OCAMLC) -o "^bin_name^" $(LIBS) flags.$(CMO) "^
                       prefix^"ast.$(CMO) "^prefix^"parser.$(CMO) "^prefix^"lexer.$(CMO) "^
                       prefix^"main.$(CMO) main.$(CMO)\n");
    output_string o "\n";
    output_string o ("main.$(CMO):\tmain.ml "^prefix^"main.$(CMO) "^prefix^"parser.$(CMO) "^
                       prefix^"lexer.$(CMO) "^
-                      prefix^"ast.$(CMO) "^prefix^"utils.$(CMO) flags.$(CMO)\n");
+                      prefix^"ast.$(CMO) flags.$(CMO)\n");
    output_string o "\t$(OCAMLC) -c main.ml\n";
    output_string o "\n";
    output_string o "flags.$(CMO):\tflags.ml\n";
@@ -1968,7 +1964,7 @@ let generate_skeleton_makefile o prefix bin_name grammar_filename =
    output_string o ("include "^prefix^"Makefile\n")
 
 let generate_skeleton_main o prefix =
-   output_string o ("open "^(String.capitalize (prefix^"main"))^";;\n");
+   output_string o ("open "^(String.capitalize_ascii (prefix^"main"))^";;\n");
    output_string o ("open Flags;;\n");
    output_string o "\n";
    output_string o "let i = parse_command_line () in\n";
@@ -2051,10 +2047,10 @@ let output_code dir prefix g bin_name grammar_filename gr =
   let o = open_out (dir_prefix^fn) in
   output_ast_code fn o prefix g;
   close_out o;
-  let fn = prefix^"utils.ml" in
+  (*let fn = prefix^"utils.ml" in
   let o = open_out (dir_prefix^fn) in
   output_utils_code fn o prefix g;
-  close_out o;
+  close_out o;*)
   let fn = prefix^"main.ml" in
   let o = open_out (dir_prefix^fn) in
   output_main_code fn o prefix g start_name;

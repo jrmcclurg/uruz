@@ -1,6 +1,10 @@
-OCAMLC = ocamlc # ocamlopt
-CMO = cmo # cmx
-CMA = cma # cmxa
+OCAMLC = ocamlopt -ccopt -O3
+CMO = cmx
+CMA = cmxa
+
+#OCAMLC = ocamlc # ocamlopt
+#CMO = cmo # cmx
+#CMA = cma # cmxa
 
 LIBS = str.$(CMA) unix.$(CMA)
 

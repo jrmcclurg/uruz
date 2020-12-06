@@ -3,13 +3,13 @@
 #OCAMLC = ocamlcp -p a
 #OCAMLC = ocamlopt -p -g
 
-#OCAMLC = ocamlopt -ccopt -O2
-#CMO = cmx
-#CMA = cmxa
+OCAMLC = ocamlopt -ccopt -O3
+CMO = cmx
+CMA = cmxa
 
-OCAMLC = ocamlc
-CMO = cmo
-CMA = cma
+#OCAMLC = ocamlc
+#CMO = cmo
+#CMA = cma
 
 LIBS = str.$(CMA) unix.$(CMA)
 #unix.$(CMA)
